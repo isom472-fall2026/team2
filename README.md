@@ -37,7 +37,7 @@ it. Do not delete it.
 | Role | Name | What they hand in |
 |---|---|---|
 | Client Lead | TODO | the backlog of user stories |
-| Design Lead | TODO | the prototype and the screen list |
+| Design Lead | Aysha Jan | the prototype and the screen list |
 | Data Lead | TODO | the schema and seed data in Supabase |
 | Build Lead | Hadi Haidar | the running system and release notes |
 | FinOps Lead | TODO | the ledger |

@@ -36,7 +36,7 @@ it. Do not delete it.
 
 | Role | Name | What they hand in |
 |---|---|---|
-| Client Lead | Almaha Khaled Alajmi ([@almahakh1](https://github.com/almahakh1)) | the backlog of user stories |
+| Client Lead | almaha alajmi | the backlog of user stories |
 | Design Lead | TODO | the prototype and the screen list |
 | Data Lead | TODO | the schema and seed data in Supabase |
 | Build Lead | TODO | the running system and release notes |

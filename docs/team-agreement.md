@@ -18,7 +18,7 @@ than in week 10.
 | Name | Standing role | Hours per week I can give | How to reach me fastest | Signed — by hand | Signed again — through Antigravity |
 |---|---|---|---|---|---|
 |  |  |  |  |  |  |
-| Aysha Jan | Design Lead   | 14                        | WhatsApp                | AJ               |                       |
+| Aysha Jan | Design Lead   | 14                        | WhatsApp                | AJ               | @Aysha-jan 2026-09-23 |
 |  |  |  |  |  |  |
 |  |  |  |  |  |  |
 |  |  |  |  |  |  |

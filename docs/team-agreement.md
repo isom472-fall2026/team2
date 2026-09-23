@@ -17,10 +17,10 @@ than in week 10.
 
 | Name | Standing role | Hours per week I can give | How to reach me fastest | Signed — by hand | Signed again — through Antigravity |
 |---|---|---|---|---|---|
-| Hadi Haidar | Build Lead | 10 | WhatsApp | Hadi Haidar | |
+| Hadi Haidar | Build Lead | 10 | WhatsApp | Hadi Haidar | @hadihaith 2026-09-23 |
 | Aysha Jan | Design Lead   | 14                        | WhatsApp                | AJ               | @Aysha-jan 2026-09-23 |
-| Fatma Alshimmari | Quality Lead | 10 | WhatsApp | Fatma Alshimmari | |
-| Almaha Alajmi | Client Lead | 12 | WhatsApp | Almaha Alajmi | |
+| Fatma Alshimmari | Quality Lead | 10 | WhatsApp | Fatma Alshimmari | @fatma22211 2026-09-23 |
+| Almaha Alajmi | Client Lead | 12 | WhatsApp | Almaha Alajmi | @almahakh1 2026-09-23 |
 |  |  |  |  |  |  |
 |  |  |  |  |  |  |
 

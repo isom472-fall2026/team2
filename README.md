@@ -36,7 +36,7 @@ it. Do not delete it.
 
 | Role | Name | What they hand in |
 |---|---|---|
-| Client Lead | TODO | the backlog of user stories |
+| Client Lead | Almaha alajmi | the backlog of user stories |
 | Design Lead | Aysha Jan | the prototype and the screen list |
 | Data Lead | Rawan Abdrabou | the schema and seed data in Supabase |
 | Build Lead | Hadi Haidar | the running system and release notes |

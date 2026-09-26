@@ -17,6 +17,7 @@ than in week 10.
 
 | Name | Standing role | Hours per week I can give | How to reach me fastest | Signed — by hand | Signed again — through Antigravity |
 |---|---|---|---|---|---|
+| yousef almohammed | FinOps Lead | 10 | s2221191376@ku.edu.kw | yousef almohammed | @yousefalmohamed, 23 Sep 2026 |
 | Rawan Abdrabou | Data Lead | 12 | WhatsApp | Rawan Abdrabou | RawanAbd24 — 23/09/2026 |
 |  |  |  |  |  |  |
 |  |  |  |  |  |  |

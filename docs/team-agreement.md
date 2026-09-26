@@ -20,7 +20,7 @@ than in week 10.
 | Hadi Haidar | Build Lead | 10 | WhatsApp | Hadi Haidar | @hadihaith 2026-09-23 |
 | Aysha Jan | Design Lead   | 14                        | WhatsApp                | AJ               | @Aysha-jan 2026-09-23 |
 | Fatma Alshimmari | Quality Lead | 10 | WhatsApp | Fatma Alshimmari | @fatma22211 2026-09-23 |
-| Almaha Alajmi | Client Lead | 12 | WhatsApp | Almaha Alajmi | @almahakh1 2026-09-23 |
+| Almaha Alajmi | Client Lead | 10 | WhatsApp | Almaha Alajmi | @almahakh1 2026-09- 23 |
 |  |  |  |  |  |  |
 |  |  |  |  |  |  |
 

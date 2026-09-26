@@ -21,6 +21,8 @@ than in week 10.
 | Aysha Jan | Design Lead   | 14                        | WhatsApp                | AJ               | @Aysha-jan 2026-09-23 |
 | Fatma Alshimmari | Quality Lead | 10 | WhatsApp | Fatma Alshimmari | @fatma22211 2026-09-23 |
 | Almaha Alajmi | Client Lead | 10 | WhatsApp | Almaha Alajmi | @almahakh1 2026-09- 23 |
+| yousef almohammed | FinOps Lead | 10 | s2221191376@ku.edu.kw | yousef almohammed | @yousefalmohamed, 23 Sep 2026 |
+| Rawan Abdrabou | Data Lead | 12 | WhatsApp | Rawan Abdrabou | RawanAbd24 — 23/09/2026 |
 |  |  |  |  |  |  |
 |  |  |  |  |  |  |
 

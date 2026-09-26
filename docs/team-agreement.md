@@ -19,12 +19,11 @@ than in week 10.
 |---|---|---|---|---|---|
 | Hadi Haidar | Build Lead | 10 | WhatsApp | Hadi Haidar | @hadihaith 2026-09-23 |
 | Aysha Jan | Design Lead   | 14                        | WhatsApp                | AJ               | @Aysha-jan 2026-09-23 |
-| Fatma Alshimmari | Quality Lead | 10 | WhatsApp | Fatma Alshimmari | @fatma22211 2026-09-23 |
-| Almaha Alajmi | Client Lead | 10 | WhatsApp | Almaha Alajmi | @almahakh1 2026-09- 23 |
+| | Quality Lead |  | | |  |
+| | Client Lead | | | | |
 | yousef almohammed | FinOps Lead | 10 | s2221191376@ku.edu.kw | yousef almohammed | @yousefalmohamed, 23 Sep 2026 |
 | Rawan Abdrabou | Data Lead | 12 | WhatsApp | Rawan Abdrabou | RawanAbd24 — 23/09/2026 |
-|  |  |  |  |  |  |
-|  |  |  |  |  |  |
+
 
 Type your own name in the fifth column, in your own commit. Have Antigravity write your
 GitHub handle and today's date in the sixth, in a second commit. Nobody signs for anybody

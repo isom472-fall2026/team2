@@ -22,7 +22,7 @@ than in week 10.
 | | Quality Lead |  | | |  |
 | | Client Lead | | | | |
 | yousef almohammed | FinOps Lead | 10 | s2221191376@ku.edu.kw | yousef almohammed | @yousefalmohamed, 23 Sep 2026 |
-| Rawan Abdrabou | Data Lead | 12 | WhatsApp | Rawan Abdrabou | |
+| Rawan Abdrabou | Data Lead | 12 | WhatsApp | Rawan Abdrabou | @RawanAbd24 2026-09-27 |
 
 
 Type your own name in the fifth column, in your own commit. Have Antigravity write your

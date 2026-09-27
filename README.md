@@ -1,17 +1,15 @@
-# TODO: the system's name
+# Student Exchange Portal
+### Team 2 — Orange Juice
 
-**Client:** TODO: who the client is — the organisation and the person you deal with.
+Client: Student Exchange Office under the Vice President for Academic Affairs (VPAA) and CBA (Dr. Kamel Rouibah and Ms. Areej Alkanderi).
 
-TODO: what the system does, in two lines. Plain language, no jargon. Someone who has
-never met your client should understand what it is for after reading these two lines.
+A web-based portal that automates student exchange application intake, evaluates academic eligibility criteria, and streamlines coordinator review.
 
-> **Next due: Wednesday 23 September — your proposal.**
-> Write it in `docs/proposal.md`, then publish it. Steps: [docs/how-we-work.md](docs/how-we-work.md#phase-1--the-proposal)
-> Update this line at the start of every phase. It is the first thing your team sees.
+Next due: Wednesday 23 September — your proposal. Write it in `docs/proposal.md`, then publish it. Steps: `docs/how-we-work.md` Update this line at the start of every phase. It is the first thing your team sees.
 
-- **Proposal page:** TODO: link to the published page (`https://<owner>.github.io/<repo>/docs/`)
-- **Running system:** TODO: link to the deployed system once it exists
-- **Board:** TODO: link to your Project board
+- Proposal page: https://isom472-fall2026.github.io/team2/docs/
+- Running system: TODO: link to the deployed system once it exists
+- Board: https://github.com/orgs/isom472-fall2026/projects/
 
 ## Where do I go?
 
@@ -51,8 +49,8 @@ The **Phase Lead** rotates — one per phase. That phase's Lead writes the deliv
 cuts the tag.
 
 | Phase | Phase Lead | Due |
-|---|---|---|
-| 1 — team, environment, proposal | TODO | Wed 23 Sep |
+|:---|:---|:---|
+| 1 — team, environment, proposal | Rawan Abdrabou | Wed 23 Sep |
 | 2 — design sprint | TODO | Wed 7 Oct |
 | 3 — sprint 1 | TODO | Wed 21 Oct |
 | 4 — sprint 2 | TODO | Wed 4 Nov |

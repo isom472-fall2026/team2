@@ -16,13 +16,22 @@ and a review. Preserve that trace in everything you do.
 
 ## The stack — do not change it
 
-- Plain HTML, CSS and JavaScript. **No framework, no npm, no build step, no bundler.**
-- Supabase for data and logins, loaded from a CDN `<script>` tag.
-- The running system lives at the repository root: `/index.html`, `/js/`, `/css/`.
-- `docs/` is the proposal site, served by GitHub Pages. **Never edit `docs/index.html`
-  while building the system** — it is a different thing that happens to be nearby.
+- React with Vite. The application uses npm for dependency management and Vite for
+  development and production builds.
 
-If a task seems to need a framework or a build step, say so and stop. Do not scaffold one.
+- The application source code lives in the repository's React/Vite structure.
+  The production build is generated in `dist/` by running `npm run build`.
+
+- GitHub Actions builds the application and deploys the contents of `dist/` to GitHub Pages.
+
+- Supabase is used for data and logins. The Supabase project URL and public `anon` key
+  may be used by the frontend.
+
+- `docs/` is the proposal site. It must also be included in the GitHub Pages deployment
+  by copying it into `dist/docs/` after the Vite build.
+
+If a task changes the React/Vite architecture or introduces a new framework or bundler,
+say so before making the change.
 
 ## Keys and data
 
@@ -126,7 +135,7 @@ checked. "It should work" is not a check.
 - Never edit `docs/team-agreement.md`.
 - Never push to `main`.
 - Never commit `.env`, a `service_role` key, a password, or client personal data.
-- Never add a framework, bundler or package the team did not ask for.
+- Never add another framework, bundler or package the team did not ask for.
 
 ## If the client's users read Arabic
 

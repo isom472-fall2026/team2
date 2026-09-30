@@ -29,7 +29,8 @@ jobs:
 
       - name: Build
         run: npm run build
-
+      - name: Copy docs
+        run: cp -r docs dist/docs
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

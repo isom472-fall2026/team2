@@ -1,13 +1,25 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>team2</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>team2</title>
+</head>
+
+<body>
+  <div style="position: fixed; top: 16px; right: 16px; z-index: 9999;">
+    <a href="docs/index.html" style="text-decoration: none;">
+      <button type="button" onclick="window.location.href='docs/index.html'"
+        style="padding: 10px 18px; font-family: system-ui, -apple-system, sans-serif; font-size: 14px; font-weight: 600; color: #ffffff; background: #646cff; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.15); transition: background 0.2s;"
+        onmouseover="this.style.background='#535bf2'" onmouseout="this.style.background='#646cff'">
+        View Proposal
+      </button>
+    </a>
+  </div>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>

@@ -304,6 +304,21 @@ function ApplicationCTA() {
 function Footer() {
   return (
     <footer className="footer">
+      <div className="footer__content">
+        <div className="footer__section">
+          <h4 className="footer__heading">Main Links</h4>
+          <ul className="footer__links">
+            <li><a href="#" className="footer__link">Contact Us</a></li>
+          </ul>
+        </div>
+        <div className="footer__section">
+          <h4 className="footer__heading">Legacy Documents</h4>
+          <ul className="footer__links">
+            <li><a href={`${import.meta.env.BASE_URL}docs/proposal.html`} className="footer__link">Proposal</a></li>
+            <li><a href="#" className="footer__link">Schema and ERD</a></li>
+          </ul>
+        </div>
+      </div>
       <p className="footer__text">
         © {new Date().getFullYear()} Kuwait University · College of Business Administration ·
         International Relations Office

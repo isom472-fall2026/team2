@@ -110,18 +110,12 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
         return
       }
 
-      const selectedUniversity = universities.find(({ university_id }) => String(university_id) === form.university)
-      if (type === 'coordinator' && selectedUniversity?.university_id === 'ku') {
-        setError('Kuwait University must be present in PartnerUniversity before coordinator signup.')
-        setIsSubmitting(false)
-        return
-      }
       const profile = type === 'coordinator'
         ? {
             coordinator_id: profileId,
             name: form.name.trim(),
             email: form.email.trim(),
-            university: Number(form.university),
+            university: form.university === 'ku' ? null : Number(form.university),
             user_id: result.data.user.id,
           }
         : {

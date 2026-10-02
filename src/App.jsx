@@ -74,6 +74,7 @@ function AuthPage({ type, mode, onModeChange, onAuthenticated }) {
         student_id: Number(form.studentId),
         student_email: form.email.trim(),
         name: form.name.trim(),
+        user_id: result.data.user.id,
       })
 
       if (profileError) {

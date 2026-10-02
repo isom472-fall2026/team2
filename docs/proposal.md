@@ -9,7 +9,7 @@ The Student Exchange Office under the Vice President for Academic Affairs (VPAA)
  
 Students interested in outbound exchange submit their initial documents (unofficial transcript, English proficiency score, and program preference) via email or on a paper form brought directly to the office.
  
-The office staff manually copy these details into a local Excel spreadsheet and word documents. During busy registration weeks, emails get buried, and applications are occasionally mistaken. More critically, eligibility checks (such as verifying the student has passed at least 60 credits, completed four semesters, and maintains a minimum GPA of 3.0) are calculated manually. an employee said before that sometimes unqualified applications make it to the interview stage before staff notice they are ineligible, wasting precious interview slots and delaying approvals for qualified students.
+The office staff manually copy these details into a local Excel spreadsheet and word documents. During busy registration weeks, emails get buried, and applications are often mistaken due to wrong manual data entry errors by coordinators. An estimate of 2 to 4 applications get delayed or misplaced. More critically, eligibility checks (such as verifying the student has passed at least 60 credits, completed four semesters, and maintains a minimum GPA of 3.0) are calculated manually. an employee said before that sometimes unqualified applications make it to the interview stage before staff notice they are ineligible, wasting precious interview slots and delaying approvals for qualified students.
  
 ---
  
@@ -53,16 +53,16 @@ One student can submit only one active application per cycle. Every change of st
  
 **Working by the final week:** The digital application form, the coordinator's dashboard with GPA sorting, automatic eligibility flags (credits, semesters, and GPA thresholds), and status updates. Staff sign in using a mock KU single-sign-on (SSO) email and password.
  
-**Deliberately not:** Integrating directly with the official banner registration system (Portal), validating actual transcripts via PDF OCR, processing airline ticket vouchers (Kuwait Airways) or living expense stipends, and handling incoming/inbound international student applications. Everything will be mock-validated within our local sandbox application. and adding it to the KU domain.
+**Deliberately not:** Integrating directly with the official banner registration system (Portal), validating actual transcripts via PDF OCR, processing airline ticket vouchers (Kuwait Airways) or living expense stipends. Everything will be mock-validated within our local sandbox application. and adding it to the KU domain.
  
 ---
  
 ## 7. After the semester
  
-The Student Exchange Office can run this portal on an iPad or PC at their desk in Shaddadiyah; it is lightweight and costs nothing to host on a free cloud tier at this volume. The source code will remain public on GitHub, allowing the next student IT cohort, or any developer hired by the University, to scale it. If they outgrow it, Dr. Anwar has a living, functional prototype of exactly what his office needs, making it much easier to hand off to the university's central IT department (Center for Information Technology).
+The Student Exchange Office can run this portal on an iPad or PC at their desk in Shaddadiyah; it is lightweight and costs nothing to host on a free cloud tier at this volume. The source code will remain public on GitHub, allowing the next student IT cohort, or any developer hired by the University, to scale it. If they outgrow it, Dr. Kamel has a living, functional prototype of exactly what his office needs, making it much easier to hand off to the university's central IT department (Center for Information Technology).
  
 ---
  
 ## 8. What you told the client this is
  
-We clearly communicated that this is a student project for ISOM 472, built by 6 students over one semester. We clarified that the codebase is completely public, and we will absolutely not use real student civil IDs or personal phone numbers during our development and testing phases and that the database will be 100% secure upon deployment. We also emphasized that after the final week of December, we are not contracted or paid to maintain or fix the application. it has been fully understood these boundaries and requested that the interface remain "simple and clean," so even the student workers at the front desk can navigate it effortlessly.
+We clearly communicated that this is a student project for ISOM 472, built by 6 students over one semester. We clarified that the codebase is completely public, and we will absolutely not use real student civil IDs or personal phone numbers during our development and testing phases and that the system is publicly visible. We also emphasized that after the final week of December, we are not contracted or paid to maintain or fix the application. it has been fully understood these boundaries and requested that the interface remain "simple and clean," so even the student workers at the front desk can navigate it effortlessly.

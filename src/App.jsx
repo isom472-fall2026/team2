@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import ErdPage from './ErdPage'
 import './App.css'
 
 function Navbar() {
@@ -315,7 +316,7 @@ function Footer() {
           <h4 className="footer__heading">Legacy Documents</h4>
           <ul className="footer__links">
             <li><a href={`${import.meta.env.BASE_URL}docs/proposal.html`} className="footer__link">Proposal</a></li>
-            <li><a href="#" className="footer__link">Schema and ERD</a></li>
+            <li><a href="#erd" className="footer__link">Schema and ERD</a></li>
           </ul>
         </div>
       </div>
@@ -328,15 +329,29 @@ function Footer() {
 }
 
 function App() {
+  const [currentHash, setCurrentHash] = useState(window.location.hash)
+
+  useEffect(() => {
+    const onHashChange = () => setCurrentHash(window.location.hash)
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
   return (
     <>
       <Navbar />
       <main>
-        <HeroSection />
-        <StatsBar />
-        <InfoCards />
-        <PartnerUniversities />
-        <ApplicationCTA />
+        {currentHash === '#erd' ? (
+          <ErdPage />
+        ) : (
+          <>
+            <HeroSection />
+            <StatsBar />
+            <InfoCards />
+            <PartnerUniversities />
+            <ApplicationCTA />
+          </>
+        )}
       </main>
       <Footer />
     </>

@@ -19,6 +19,12 @@ const authOptions = {
   },
 }
 
+function generateIncomingStudentId() {
+  const randomValues = new Uint32Array(1)
+  crypto.getRandomValues(randomValues)
+  return 100000000 + (randomValues[0] % 900000000)
+}
+
 function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   const options = authOptions[type]
   const isSignUp = mode === 'signup'
@@ -38,18 +44,19 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
     setError('')
     setMessage('')
 
-    if (isSignUp && (!form.name.trim() || !/^\d+$/.test(form.studentId))) {
-      setError('Enter your name and a numeric student ID.')
+    if (isSignUp && (!form.name.trim() || (type === 'ku' && !/^\d+$/.test(form.studentId)))) {
+      setError(type === 'ku' ? 'Enter your name and a numeric student ID.' : 'Enter your name.')
       return
     }
 
     setIsSubmitting(true)
+    const studentId = type === 'incoming' ? generateIncomingStudentId() : Number(form.studentId)
     const result = isSignUp
       ? await supabase.auth.signUp({
           email: form.email.trim(),
           password: form.password,
           options: {
-            data: { name: form.name.trim(), student_id: Number(form.studentId), student_type: type },
+            data: { name: form.name.trim(), student_id: studentId, student_type: type },
           },
         })
       : await supabase.auth.signInWithPassword({
@@ -71,7 +78,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
       }
 
       const { error: profileError } = await supabase.from(options.table).insert({
-        student_id: Number(form.studentId),
+        student_id: studentId,
         student_email: form.email.trim(),
         name: form.name.trim(),
         user_id: result.data.user.id,
@@ -122,8 +129,12 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
             <>
               <label htmlFor="name">Full name</label>
               <input id="name" name="name" value={form.name} onChange={updateField} required autoComplete="name" />
-              <label htmlFor="studentId">Student ID</label>
-              <input id="studentId" name="studentId" value={form.studentId} onChange={updateField} required inputMode="numeric" />
+              {type === 'ku' && (
+                <>
+                  <label htmlFor="studentId">Student ID</label>
+                  <input id="studentId" name="studentId" value={form.studentId} onChange={updateField} required inputMode="numeric" />
+                </>
+              )}
             </>
           )}
           <label htmlFor="email">Email</label>

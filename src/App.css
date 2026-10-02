@@ -218,6 +218,15 @@ svg { display: block; flex-shrink: 0; }
   border: 1px solid var(--border);
 }
 
+.auth-warning {
+  margin-top: 20px;
+  color: #ff334f;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
 /* ─── Authentication and protected portal ─────────────────────────────────── */
 .auth-page,
 .portal-page {
@@ -338,6 +347,56 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .portal-card p { margin-bottom: 24px; }
+
+.portal-dashboard {
+  min-height: calc(100svh - 64px);
+  padding: 56px 1rem;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(0, 212, 255, 0.1), transparent 60%),
+    var(--bg);
+}
+
+.portal-card--wide { width: min(100%, 820px); margin: 0 auto; }
+.portal-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.portal-section-heading { margin: 36px 0 12px; font-size: 1.25rem; }
+
+.auth-form select,
+.nomination-form input,
+.nomination-form select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: rgba(3, 8, 15, 0.7);
+  font: inherit;
+}
+
+.nomination-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.nomination-form label {
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.nomination-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.nomination-list li {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
 
 /* ─── Hero background animation ────────────────────────────────────────────── */
 @keyframes orb-drift-1 {

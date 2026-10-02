@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, Route, Routes, useNavigate } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
 import { supabase } from './supabase'
 import './App.css'
@@ -17,6 +17,12 @@ const authOptions = {
     heading: 'Incoming Student Portal',
     description: 'Sign in or create an account to manage your exchange application.',
   },
+  coordinator: {
+    label: 'Coordinator',
+    table: 'coordinator',
+    heading: 'Coordinator Portal',
+    description: 'Sign in or create an account for a partner university coordinator.',
+  },
 }
 
 function generateIncomingStudentId() {
@@ -25,13 +31,36 @@ function generateIncomingStudentId() {
   return 100000000 + (randomValues[0] % 900000000)
 }
 
+function generateCoordinatorId() {
+  return generateIncomingStudentId()
+}
+
 function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   const options = authOptions[type]
   const isSignUp = mode === 'signup'
-  const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '' })
+  const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '', university: '' })
+  const [universities, setUniversities] = useState([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (type !== 'coordinator') return
+
+    supabase
+      .from('partneruniversity')
+      .select('university_id, name')
+      .eq('available', true)
+      .order('name')
+      .then(({ data, error: universityError }) => {
+        if (universityError) setError(universityError.message)
+        else {
+          const rows = data || []
+          const hasKuwaitUniversity = rows.some(({ name }) => name.toLowerCase() === 'kuwait university')
+          setUniversities(hasKuwaitUniversity ? rows : [{ university_id: 'ku', name: 'Kuwait University' }, ...rows])
+        }
+      })
+  }, [type])
 
   const updateField = (event) => {
     setForm({ ...form, [event.target.name]: event.target.value })
@@ -44,19 +73,23 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
     setError('')
     setMessage('')
 
-    if (isSignUp && (!form.name.trim() || (type === 'ku' && !/^\d+$/.test(form.studentId)))) {
-      setError(type === 'ku' ? 'Enter your name and a numeric student ID.' : 'Enter your name.')
+    if (isSignUp && (!form.name.trim() || (type === 'ku' && !/^\d+$/.test(form.studentId)) || (type === 'coordinator' && !form.university))) {
+      setError(type === 'ku' ? 'Enter your name and a numeric student ID.' : type === 'coordinator' ? 'Enter your name and choose a university.' : 'Enter your name.')
       return
     }
 
     setIsSubmitting(true)
-    const studentId = type === 'incoming' ? generateIncomingStudentId() : Number(form.studentId)
+    const profileId = type === 'incoming'
+      ? generateIncomingStudentId()
+      : type === 'coordinator'
+        ? generateCoordinatorId()
+        : Number(form.studentId)
     const result = isSignUp
       ? await supabase.auth.signUp({
           email: form.email.trim(),
           password: form.password,
           options: {
-            data: { name: form.name.trim(), student_id: studentId, student_type: type },
+            data: { name: form.name.trim(), student_id: profileId, user_type: type },
           },
         })
       : await supabase.auth.signInWithPassword({
@@ -77,16 +110,31 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
         return
       }
 
-      const { error: profileError } = await supabase.from(options.table).insert({
-        student_id: studentId,
-        student_email: form.email.trim(),
-        name: form.name.trim(),
-        user_id: result.data.user.id,
-      })
+      const selectedUniversity = universities.find(({ university_id }) => String(university_id) === form.university)
+      if (type === 'coordinator' && selectedUniversity?.university_id === 'ku') {
+        setError('Kuwait University must be present in PartnerUniversity before coordinator signup.')
+        setIsSubmitting(false)
+        return
+      }
+      const profile = type === 'coordinator'
+        ? {
+            coordinator_id: profileId,
+            name: form.name.trim(),
+            email: form.email.trim(),
+            university: Number(form.university),
+            user_id: result.data.user.id,
+          }
+        : {
+            student_id: profileId,
+            student_email: form.email.trim(),
+            name: form.name.trim(),
+            user_id: result.data.user.id,
+          }
+      const { error: profileError } = await supabase.from(options.table).insert(profile)
 
       if (profileError) {
         setError(profileError.code === '23505'
-          ? 'An account with this student ID or email already exists.'
+          ? 'An account with this ID or email already exists.'
           : profileError.message)
         setIsSubmitting(false)
         return
@@ -110,20 +158,25 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
         <h1 id="auth-heading">{isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`}</h1>
         <p className="auth-card__description">{options.description}</p>
         <fieldset className="auth-type-choice">
-          <legend>Student type</legend>
-          {Object.entries(authOptions).map(([studentType, studentOptions]) => (
-            <label key={studentType} className="auth-type-choice__option">
+          <legend>User type</legend>
+          {Object.entries(authOptions).map(([userType, userOptions]) => (
+            <label key={userType} className="auth-type-choice__option">
               <input
                 type="radio"
-                name="studentType"
-                value={studentType}
-                checked={type === studentType}
-                onChange={() => onTypeChange(studentType)}
+                name="userType"
+                value={userType}
+                checked={type === userType}
+                onChange={() => onTypeChange(userType)}
               />
-              {studentOptions.label}
+              {userOptions.label}
             </label>
           ))}
         </fieldset>
+        {type === 'coordinator' && (
+          <p className="auth-warning" role="alert">
+            only for partner university coordinators, attempts at misuse by students will be caught and legally prosecuted
+          </p>
+        )}
         <form className="auth-form" onSubmit={handleSubmit}>
           {isSignUp && (
             <>
@@ -133,6 +186,17 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
                 <>
                   <label htmlFor="studentId">Student ID</label>
                   <input id="studentId" name="studentId" value={form.studentId} onChange={updateField} required inputMode="numeric" />
+                </>
+              )}
+              {type === 'coordinator' && (
+                <>
+                  <label htmlFor="university">University</label>
+                  <select id="university" name="university" value={form.university} onChange={updateField} required>
+                    <option value="">Choose your university</option>
+                    {universities.map((university) => (
+                      <option key={university.university_id} value={university.university_id}>{university.name}</option>
+                    ))}
+                  </select>
                 </>
               )}
             </>
@@ -155,13 +219,106 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   )
 }
 
-function ProtectedPortal({ user, onSignOut }) {
+function CoordinatorPortal({ profile }) {
+  const [nominations, setNominations] = useState([])
+  const [semesters, setSemesters] = useState([])
+  const [form, setForm] = useState({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
+  const [status, setStatus] = useState({ error: '', message: '' })
+
+  useEffect(() => {
+    supabase
+      .from('studentnominations')
+      .select('id, student_name, student_email, student_nationality, created_at, semester')
+      .eq('coordinator_id', profile.coordinator_id)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) setStatus({ error: error.message, message: '' })
+        else setNominations(data || [])
+      })
+    supabase.from('exchange_cycle').select('id').order('id').then(({ data, error }) => {
+      if (error) setStatus({ error: error.message, message: '' })
+      else setSemesters(data || [])
+    })
+  }, [profile.coordinator_id])
+
+  const submitNomination = async (event) => {
+    event.preventDefault()
+    setStatus({ error: '', message: '' })
+    const { error } = await supabase.from('studentnominations').insert({
+      coordinator_id: profile.coordinator_id,
+      student_name: form.studentName.trim(),
+      student_email: form.studentEmail.trim(),
+      student_nationality: form.studentNationality.trim(),
+      semester: Number(form.semester),
+    })
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return
+    }
+    setForm({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
+    setStatus({ error: '', message: 'Student nomination submitted.' })
+    const { data: updatedNominations, error: refreshError } = await supabase
+      .from('studentnominations')
+      .select('id, student_name, student_email, student_nationality, created_at, semester')
+      .eq('coordinator_id', profile.coordinator_id)
+      .order('created_at', { ascending: false })
+    if (refreshError) {
+      setStatus({ error: refreshError.message, message: '' })
+      return
+    }
+    setNominations(updatedNominations || [])
+  }
+
+  return (
+    <div className="portal-dashboard">
+      <section className="portal-card portal-card--wide">
+        <span className="auth-card__eyebrow">Coordinator portal</span>
+        <h1 id="portal-heading">Welcome, {profile.name}</h1>
+        <p>Submit and review student nominations for your university.</p>
+        <form className="nomination-form" onSubmit={submitNomination}>
+          <label htmlFor="studentName">Student name</label>
+          <input id="studentName" value={form.studentName} onChange={(event) => setForm({ ...form, studentName: event.target.value })} required />
+          <label htmlFor="studentEmail">Student email</label>
+          <input id="studentEmail" type="email" value={form.studentEmail} onChange={(event) => setForm({ ...form, studentEmail: event.target.value })} required />
+          <label htmlFor="studentNationality">Student nationality</label>
+          <input id="studentNationality" value={form.studentNationality} onChange={(event) => setForm({ ...form, studentNationality: event.target.value })} required />
+          <label htmlFor="semester">Exchange semester</label>
+          <select id="semester" value={form.semester} onChange={(event) => setForm({ ...form, semester: event.target.value })} required>
+            <option value="">Choose a semester</option>
+            {semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.id}</option>)}
+          </select>
+          {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+          {status.message && <p className="auth-form__message" role="status">{status.message}</p>}
+          <button className="btn btn--primary" type="submit">Submit nomination</button>
+        </form>
+        <h2 className="portal-section-heading">Submitted nominations</h2>
+        {nominations.length === 0 ? <p>No nominations submitted yet.</p> : (
+          <ul className="nomination-list">
+            {nominations.map((nomination) => (
+              <li key={nomination.id}>
+                <strong>{nomination.student_name}</strong> · {nomination.student_email} · {nomination.student_nationality}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function ProtectedPortal({ user, profile, onSignOut }) {
+  if (profile?.role === 'coordinator') return <CoordinatorPortal profile={profile} />
+
   return (
     <section className="portal-page" aria-labelledby="portal-heading">
       <div className="portal-card">
         <span className="auth-card__eyebrow">Secure portal</span>
-        <h1 id="portal-heading">Welcome to your exchange portal</h1>
-        <p>You are signed in as <strong>{user.email}</strong>. Your application tools will be available here.</p>
+        <h1 id="portal-heading">Welcome, {profile?.name || user.user_metadata?.name || user.email}</h1>
+        <p>You are signed in as <strong>{user.email}</strong>.</p>
+        <div className="portal-actions">
+          {profile?.role === 'incoming' && <Link className="btn btn--primary" to="/portal/inbound-application">Inbound application</Link>}
+          {profile?.role === 'ku' && <Link className="btn btn--secondary" to="/portal/outbound-application">Outbound application</Link>}
+        </div>
         <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
       </div>
     </section>
@@ -232,30 +389,7 @@ function Navbar({ session, onSignOut }) {
           </a>
         </li>
         <li>
-          <a
-            href="#incoming-application"
-            className="navbar__link navbar__link--cta"
-          >
-            {/* Incoming arrow icon */}
-            <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 20h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            Incoming Student
-          </a>
-        </li>
-        <li>
-          <a
-            href="#outgoing-application"
-            className="navbar__link navbar__link--cta navbar__link--cta-alt"
-          >
-            {/* Outgoing arrow icon */}
-            <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 21V9m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 4h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            Outgoing Student
-          </a>
+          <Link to={session ? '/portal' : '/auth/signin'} className="navbar__link navbar__link--cta">Portal</Link>
         </li>
       </ul>
     </nav>
@@ -507,11 +641,37 @@ function Footer() {
 
 function App() {
   const [session, setSession] = useState(null)
+  const [profile, setProfile] = useState(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const loadProfile = async (nextSession) => {
       setSession(nextSession)
+      if (!nextSession) {
+        setProfile(null)
+        return
+      }
+      const userType = nextSession.user.user_metadata?.user_type || nextSession.user.user_metadata?.student_type
+      const profileTables = userType === 'coordinator'
+        ? [['coordinator', 'coordinator_id']]
+        : userType === 'incoming'
+          ? [['incomingstudentauth', 'student_id']]
+          : userType === 'ku'
+            ? [['kustudentauth', 'student_id']]
+            : [['kustudentauth', 'student_id'], ['incomingstudentauth', 'student_id'], ['coordinator', 'coordinator_id']]
+      for (const [table] of profileTables) {
+        const { data } = await supabase.from(table).select('*').eq('user_id', nextSession.user.id).maybeSingle()
+        if (data) {
+          const role = table === 'coordinator' ? 'coordinator' : table === 'incomingstudentauth' ? 'incoming' : 'ku'
+          setProfile({ ...data, role })
+          return
+        }
+      }
+      setProfile({ name: nextSession.user.user_metadata?.name, role: userType })
+    }
+
+    supabase.auth.getSession().then(({ data }) => loadProfile(data.session))
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      loadProfile(nextSession)
     })
     return () => {
       authListener.subscription.unsubscribe()
@@ -540,10 +700,10 @@ function App() {
           <Route path="/auth/signup" element={<AuthRoute mode="signup" />} />
           <Route path="/auth/signin" element={<AuthRoute mode="signin" />} />
           <Route path="/portal" element={
-            session ? <ProtectedPortal user={session.user} onSignOut={handleSignOut} /> : (
-              <section className="auth-page"><div className="auth-card"><h1>Sign in required</h1><p>Please sign in from the navbar to access the portal.</p></div></section>
-            )
+            session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} /> : <Navigate to="/auth/signin" replace />
           } />
+          <Route path="/portal/inbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal/outbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/erd" element={<ErdPage />} />
         </Routes>
       </main>

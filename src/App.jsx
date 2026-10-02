@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Link, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
 import { supabase } from './supabase'
 import './App.css'
@@ -12,14 +12,14 @@ const authOptions = {
     description: 'Sign in or create an account with your Kuwait University details.',
   },
   incoming: {
-    label: 'Inbound Student',
+    label: 'Incoming Student',
     table: 'incomingstudentauth',
-    heading: 'Inbound Student Portal',
+    heading: 'Incoming Student Portal',
     description: 'Sign in or create an account to manage your exchange application.',
   },
 }
 
-function AuthPage({ type, mode, onModeChange, onAuthenticated }) {
+function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   const options = authOptions[type]
   const isSignUp = mode === 'signup'
   const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '' })
@@ -102,6 +102,21 @@ function AuthPage({ type, mode, onModeChange, onAuthenticated }) {
         <span className="auth-card__eyebrow">{options.label}</span>
         <h1 id="auth-heading">{isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`}</h1>
         <p className="auth-card__description">{options.description}</p>
+        <fieldset className="auth-type-choice">
+          <legend>Student type</legend>
+          {Object.entries(authOptions).map(([studentType, studentOptions]) => (
+            <label key={studentType} className="auth-type-choice__option">
+              <input
+                type="radio"
+                name="studentType"
+                value={studentType}
+                checked={type === studentType}
+                onChange={() => onTypeChange(studentType)}
+              />
+              {studentOptions.label}
+            </label>
+          ))}
+        </fieldset>
         <form className="auth-form" onSubmit={handleSubmit}>
           {isSignUp && (
             <>
@@ -168,10 +183,10 @@ function Navbar({ session, onSignOut }) {
 
       <ul className={`navbar__links ${isOpen ? 'navbar__links--open' : ''}`} role="list">
         <li>
-          <Link to="/auth/ku/signup" className="navbar__link navbar__link--auth">KU Student</Link>
+          <Link to="/auth/signup" className="navbar__link navbar__link--auth">Sign Up</Link>
         </li>
         <li>
-          <Link to="/auth/incoming/signup" className="navbar__link navbar__link--auth navbar__link--auth-alt">Inbound Student</Link>
+          <Link to="/auth/signin" className="navbar__link navbar__link--auth navbar__link--auth-alt">Log In</Link>
         </li>
         {session && (
           <li>
@@ -511,7 +526,8 @@ function App() {
               <ApplicationCTA />
             </>
           } />
-          <Route path="/auth/:type/:mode" element={<AuthRoute />} />
+          <Route path="/auth/signup" element={<AuthRoute mode="signup" />} />
+          <Route path="/auth/signin" element={<AuthRoute mode="signin" />} />
           <Route path="/portal" element={
             session ? <ProtectedPortal user={session.user} onSignOut={handleSignOut} /> : (
               <section className="auth-page"><div className="auth-card"><h1>Sign in required</h1><p>Please sign in from the navbar to access the portal.</p></div></section>
@@ -525,20 +541,16 @@ function App() {
   )
 }
 
-function AuthRoute() {
+function AuthRoute({ mode }) {
   const navigate = useNavigate()
-  const { type, mode } = useParams()
-
-  if (!authOptions[type] || !['signup', 'signin'].includes(mode)) {
-    navigate('/')
-    return null
-  }
+  const [type, setType] = useState('ku')
 
   return (
     <AuthPage
       type={type}
       mode={mode}
-      onModeChange={(nextMode) => navigate(`/auth/${type}/${nextMode}`)}
+      onTypeChange={setType}
+      onModeChange={(nextMode) => navigate(`/auth/${nextMode}`)}
       onAuthenticated={() => navigate('/portal')}
     />
   )

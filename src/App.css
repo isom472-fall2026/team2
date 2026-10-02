@@ -266,6 +266,35 @@ svg { display: block; flex-shrink: 0; }
   margin-top: 24px;
 }
 
+.auth-type-choice {
+  display: flex;
+  gap: 16px;
+  margin: 24px 0 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.auth-type-choice legend {
+  padding: 0 6px;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.auth-type-choice__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.auth-type-choice__option input {
+  accent-color: var(--neon);
+}
+
 .auth-form label {
   color: var(--text-strong);
   font-size: 0.86rem;

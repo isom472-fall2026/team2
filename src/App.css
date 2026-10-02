@@ -201,6 +201,115 @@ svg { display: block; flex-shrink: 0; }
   color: var(--neon-2);
 }
 
+.navbar__link--auth {
+  color: var(--neon);
+  border: 1px solid rgba(0, 212, 255, 0.35);
+}
+
+.navbar__link--auth-alt {
+  color: var(--neon-2);
+  border-color: rgba(123, 95, 255, 0.45);
+}
+
+.navbar__link--logout {
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+/* ─── Authentication and protected portal ─────────────────────────────────── */
+.auth-page,
+.portal-page {
+  min-height: calc(100svh - 64px);
+  display: grid;
+  place-items: center;
+  padding: 64px 1rem;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(0, 212, 255, 0.1), transparent 60%),
+    var(--bg);
+}
+
+.auth-card,
+.portal-card {
+  width: min(100%, 480px);
+  padding: 36px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--glow-card);
+}
+
+.auth-card h1,
+.portal-card h1 {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  margin: 8px 0 12px;
+}
+
+.auth-card__eyebrow {
+  color: var(--neon);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-card__description,
+.portal-card p {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.auth-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.auth-form label {
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.auth-form input {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: rgba(3, 8, 15, 0.7);
+  font: inherit;
+}
+
+.auth-form input:focus {
+  outline: 2px solid var(--neon);
+  outline-offset: 1px;
+}
+
+.auth-form button:disabled { cursor: wait; opacity: 0.65; }
+.auth-form__error { color: #ff8f9d; font-size: 0.85rem; }
+.auth-form__message { color: #7ff0c2; font-size: 0.85rem; }
+
+.auth-card__switch {
+  width: 100%;
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  color: var(--neon);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.portal-card {
+  width: min(100%, 680px);
+}
+
+.portal-card p { margin-bottom: 24px; }
+
 /* ─── Hero background animation ────────────────────────────────────────────── */
 @keyframes orb-drift-1 {
   0%   { transform: translate(0, 0) scale(1); }
@@ -756,6 +865,9 @@ svg { display: block; flex-shrink: 0; }
     padding: 10px 14px;
     width: 100%;
   }
+
+  .auth-card,
+  .portal-card { padding: 28px 20px; }
 
   .hero-section { padding: 48px 1rem 48px; }
   .hero-section__inner { margin: 0 auto; align-items: flex-start; }

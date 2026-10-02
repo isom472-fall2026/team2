@@ -1,8 +1,147 @@
 import { useState, useEffect } from 'react'
+import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import ErdPage from './ErdPage'
+import { supabase } from './supabase'
 import './App.css'
 
-function Navbar() {
+const authOptions = {
+  ku: {
+    label: 'KU Student',
+    table: 'kustudentauth',
+    heading: 'KU Student Portal',
+    description: 'Sign in or create an account with your Kuwait University details.',
+  },
+  incoming: {
+    label: 'Inbound Student',
+    table: 'incomingstudentauth',
+    heading: 'Inbound Student Portal',
+    description: 'Sign in or create an account to manage your exchange application.',
+  },
+}
+
+function AuthPage({ type, mode, onModeChange, onAuthenticated }) {
+  const options = authOptions[type]
+  const isSignUp = mode === 'signup'
+  const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '' })
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const updateField = (event) => {
+    setForm({ ...form, [event.target.name]: event.target.value })
+    setError('')
+    setMessage('')
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+
+    if (isSignUp && (!form.name.trim() || !/^\d+$/.test(form.studentId))) {
+      setError('Enter your name and a numeric student ID.')
+      return
+    }
+
+    setIsSubmitting(true)
+    const result = isSignUp
+      ? await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: {
+            data: { name: form.name.trim(), student_id: Number(form.studentId), student_type: type },
+          },
+        })
+      : await supabase.auth.signInWithPassword({
+          email: form.email.trim(),
+          password: form.password,
+        })
+
+    if (result.error) {
+      setError(result.error.message)
+      setIsSubmitting(false)
+      return
+    }
+
+    if (isSignUp) {
+      if (!result.data.user) {
+        setError('Supabase did not create the account. Please try again.')
+        setIsSubmitting(false)
+        return
+      }
+
+      const { error: profileError } = await supabase.from(options.table).insert({
+        student_id: Number(form.studentId),
+        student_email: form.email.trim(),
+        name: form.name.trim(),
+      })
+
+      if (profileError) {
+        setError(profileError.code === '23505'
+          ? 'An account with this student ID or email already exists.'
+          : profileError.message)
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!result.data.session) {
+        setMessage('Account created. Check your email to confirm your account, then sign in.')
+        setIsSubmitting(false)
+        return
+      }
+    }
+
+    onAuthenticated(result.data.session)
+    setIsSubmitting(false)
+  }
+
+  return (
+    <section className="auth-page" aria-labelledby="auth-heading">
+      <div className="auth-card">
+        <span className="auth-card__eyebrow">{options.label}</span>
+        <h1 id="auth-heading">{isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`}</h1>
+        <p className="auth-card__description">{options.description}</p>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          {isSignUp && (
+            <>
+              <label htmlFor="name">Full name</label>
+              <input id="name" name="name" value={form.name} onChange={updateField} required autoComplete="name" />
+              <label htmlFor="studentId">Student ID</label>
+              <input id="studentId" name="studentId" value={form.studentId} onChange={updateField} required inputMode="numeric" />
+            </>
+          )}
+          <label htmlFor="email">Email</label>
+          <input id="email" name="email" type="email" value={form.email} onChange={updateField} required autoComplete="email" />
+          <label htmlFor="password">Password</label>
+          <input id="password" name="password" type="password" value={form.password} onChange={updateField} required minLength="6" autoComplete={isSignUp ? 'new-password' : 'current-password'} />
+          {error && <p className="auth-form__error" role="alert">{error}</p>}
+          {message && <p className="auth-form__message" role="status">{message}</p>}
+          <button className="btn btn--primary btn--full" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Working...' : isSignUp ? 'Create account' : 'Sign in'}
+          </button>
+        </form>
+        <button className="auth-card__switch" type="button" onClick={() => onModeChange(isSignUp ? 'signin' : 'signup')}>
+          {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function ProtectedPortal({ user, onSignOut }) {
+  return (
+    <section className="portal-page" aria-labelledby="portal-heading">
+      <div className="portal-card">
+        <span className="auth-card__eyebrow">Secure portal</span>
+        <h1 id="portal-heading">Welcome to your exchange portal</h1>
+        <p>You are signed in as <strong>{user.email}</strong>. Your application tools will be available here.</p>
+        <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+      </div>
+    </section>
+  )
+}
+
+function Navbar({ session, onSignOut }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -27,6 +166,17 @@ function Navbar() {
       </button>
 
       <ul className={`navbar__links ${isOpen ? 'navbar__links--open' : ''}`} role="list">
+        <li>
+          <Link to="/auth/ku/signup" className="navbar__link navbar__link--auth">KU Student</Link>
+        </li>
+        <li>
+          <Link to="/auth/incoming/signup" className="navbar__link navbar__link--auth navbar__link--auth-alt">Inbound Student</Link>
+        </li>
+        {session && (
+          <li>
+            <button className="navbar__link navbar__link--logout" type="button" onClick={onSignOut}>Log out</button>
+          </li>
+        )}
         <li>
           <a
             href="https://www.ku.edu.kw"
@@ -316,7 +466,7 @@ function Footer() {
           <h4 className="footer__heading">Legacy Documents</h4>
           <ul className="footer__links">
             <li><a href={`${import.meta.env.BASE_URL}docs/proposal.html`} className="footer__link">Proposal</a></li>
-            <li><a href="#erd" className="footer__link">Schema and ERD</a></li>
+            <li>            <Link to="/erd" className="footer__link">Schema and ERD</Link></li>
           </ul>
         </div>
       </div>
@@ -329,32 +479,67 @@ function Footer() {
 }
 
 function App() {
-  const [currentHash, setCurrentHash] = useState(window.location.hash)
+  const [session, setSession] = useState(null)
 
   useEffect(() => {
-    const onHashChange = () => setCurrentHash(window.location.hash)
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+    })
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
   }, [])
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) window.alert(error.message)
+  }
 
   return (
     <>
-      <Navbar />
+      <Navbar session={session} onSignOut={handleSignOut} />
       <main>
-        {currentHash === '#erd' ? (
-          <ErdPage />
-        ) : (
-          <>
-            <HeroSection />
-            <StatsBar />
-            <InfoCards />
-            <PartnerUniversities />
-            <ApplicationCTA />
-          </>
-        )}
+        <Routes>
+          <Route path="/" element={
+            <>
+              <HeroSection />
+              <StatsBar />
+              <InfoCards />
+              <PartnerUniversities />
+              <ApplicationCTA />
+            </>
+          } />
+          <Route path="/auth/:type/:mode" element={<AuthRoute />} />
+          <Route path="/portal" element={
+            session ? <ProtectedPortal user={session.user} onSignOut={handleSignOut} /> : (
+              <section className="auth-page"><div className="auth-card"><h1>Sign in required</h1><p>Please sign in from the navbar to access the portal.</p></div></section>
+            )
+          } />
+          <Route path="/erd" element={<ErdPage />} />
+        </Routes>
       </main>
       <Footer />
     </>
+  )
+}
+
+function AuthRoute() {
+  const navigate = useNavigate()
+  const { type, mode } = useParams()
+
+  if (!authOptions[type] || !['signup', 'signin'].includes(mode)) {
+    navigate('/')
+    return null
+  }
+
+  return (
+    <AuthPage
+      type={type}
+      mode={mode}
+      onModeChange={(nextMode) => navigate(`/auth/${type}/${nextMode}`)}
+      onAuthenticated={() => navigate('/portal')}
+    />
   )
 }
 

@@ -360,6 +360,89 @@ svg { display: block; flex-shrink: 0; }
 .portal-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 .portal-section-heading { margin: 36px 0 12px; font-size: 1.25rem; }
 
+.status-page {
+  min-height: calc(100svh - 64px);
+  padding: 56px 1rem;
+  background: #030303;
+}
+
+.status-card {
+  width: min(100%, 820px);
+  margin: 0 auto;
+  padding: 36px;
+  border: 1px solid #1f8f45;
+  border-radius: var(--radius-lg);
+  background: #070b08;
+  color: #d7ffe2;
+  box-shadow: 0 0 28px rgba(24, 190, 78, 0.14);
+}
+
+.status-card h1 { color: #d7ffe2; }
+
+.database-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  color: #8dffa9;
+}
+
+.database-status__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #8dffa9;
+  box-shadow: 0 0 14px #30ed69;
+}
+
+.database-status__dot--checking {
+  background: #f4d35e;
+  box-shadow: 0 0 14px #f4d35e;
+}
+
+.database-status__dot--failure {
+  background: #ff334f;
+  box-shadow: 0 0 14px #ff334f;
+}
+
+.status-graph {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  height: 180px;
+  margin-top: 28px;
+  padding: 18px;
+  border: 1px solid #12351e;
+  background: #000;
+}
+
+.status-graph span {
+  flex: 1;
+  min-height: 8px;
+  background: #30ed69;
+  box-shadow: 0 0 10px rgba(48, 237, 105, 0.65);
+  transform-origin: bottom;
+  animation: status-bar-pulse 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes status-bar-pulse {
+  from { transform: scaleY(0.45); opacity: 0.5; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+.country-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.country-list li {
+  padding: 10px 12px;
+  border: 1px solid #12351e;
+  color: #b8eac4;
+}
+
 .auth-form select,
 .nomination-form input,
 .nomination-form select {

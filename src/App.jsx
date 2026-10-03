@@ -54,11 +54,9 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
       .order('name')
       .then(({ data, error: universityError }) => {
         if (universityError) setError(universityError.message)
-        else {
-          const rows = data || []
-          const hasKuwaitUniversity = rows.some(({ name }) => name.toLowerCase() === 'kuwait university')
-          setUniversities(hasKuwaitUniversity ? rows : [{ university_id: 'ku', name: 'Kuwait University' }, ...rows])
-        }
+        const rows = data || []
+        const hasKuwaitUniversity = rows.some(({ name }) => name.toLowerCase() === 'kuwait university')
+        setUniversities(hasKuwaitUniversity ? rows : [{ university_id: 'ku', name: 'Kuwait University' }, ...rows])
       })
   }, [type])
 
@@ -78,6 +76,13 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
       return
     }
 
+    const email = form.email.trim().toLowerCase()
+    const requiresKuEmail = type === 'ku' || (type === 'coordinator' && form.university === 'ku')
+    if (isSignUp && requiresKuEmail && !email.endsWith('@ku.edu.kw')) {
+      setError('KU students and Kuwait University coordinators must use an email ending with @ku.edu.kw.')
+      return
+    }
+
     setIsSubmitting(true)
     const profileId = type === 'incoming'
       ? generateIncomingStudentId()
@@ -86,14 +91,14 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
         : Number(form.studentId)
     const result = isSignUp
       ? await supabase.auth.signUp({
-          email: form.email.trim(),
+          email,
           password: form.password,
           options: {
             data: { name: form.name.trim(), student_id: profileId, user_type: type },
           },
         })
       : await supabase.auth.signInWithPassword({
-          email: form.email.trim(),
+          email,
           password: form.password,
         })
 
@@ -114,13 +119,13 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
         ? {
             coordinator_id: profileId,
             name: form.name.trim(),
-            email: form.email.trim(),
+            email,
             university: form.university === 'ku' ? null : Number(form.university),
             user_id: result.data.user.id,
           }
         : {
             student_id: profileId,
-            student_email: form.email.trim(),
+            student_email: email,
             name: form.name.trim(),
             user_id: result.data.user.id,
           }
@@ -622,6 +627,7 @@ function Footer() {
           <ul className="footer__links">
             <li><a href={`${import.meta.env.BASE_URL}docs/proposal.html`} className="footer__link">Proposal</a></li>
             <li>            <Link to="/erd" className="footer__link">Schema and ERD</Link></li>
+            <li><Link to="/test-status" className="footer__link">Test and Status</Link></li>
           </ul>
         </div>
       </div>
@@ -630,6 +636,59 @@ function Footer() {
         International Relations Office
       </p>
     </footer>
+  )
+}
+
+function TestStatusPage() {
+  const [status, setStatus] = useState('checking')
+  const [countries, setCountries] = useState([])
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const loadStatus = async () => {
+      const { data, error: countryError } = await supabase
+        .from('country')
+        .select('id, name, city')
+        .order('name')
+
+      if (countryError) {
+        setStatus('failure')
+        setError(countryError.message)
+        return
+      }
+
+      setCountries(data || [])
+      setStatus('success')
+    }
+
+    loadStatus()
+  }, [])
+
+  return (
+    <section className="status-page" aria-labelledby="status-heading">
+      <div className="status-card">
+        <span className="auth-card__eyebrow">System diagnostics</span>
+        <h1 id="status-heading">Test and Status</h1>
+        <div className="database-status">
+          <span className={`database-status__dot database-status__dot--${status}`} aria-hidden="true" />
+          <strong>Database connection: {status === 'checking' ? 'Checking...' : status === 'success' ? 'Connected' : 'Failed'}</strong>
+        </div>
+        {error && <p className="auth-form__error" role="alert">{error}</p>}
+        <div className="status-graph" aria-label="Animated database activity graph">
+          {[35, 58, 42, 76, 50, 82, 61, 90, 48, 70, 55, 85].map((height, index) => (
+            <span key={index} style={{ height: `${height}%`, animationDelay: `${index * 0.12}s` }} />
+          ))}
+        </div>
+        <h2 className="portal-section-heading">Countries loaded from database</h2>
+        {countries.length === 0 ? <p>No countries returned.</p> : (
+          <ul className="country-list">
+            {countries.map((country) => (
+              <li key={country.id}><strong>{country.name}</strong>{country.city ? ` · ${country.city}` : ''}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -699,6 +758,7 @@ function App() {
           <Route path="/portal/inbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/portal/outbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/erd" element={<ErdPage />} />
+          <Route path="/test-status" element={<TestStatusPage />} />
         </Routes>
       </main>
       <Footer />

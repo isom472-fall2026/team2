@@ -9,16 +9,8 @@ You write these in Phase 2, from what your client told you — not from imaginat
 
 ---
 
-## <!-- EXAMPLE — delete this persona --> Mariam, shop supervisor
 
-Mariam runs the counter on the morning shift. She takes orders on paper because the till
-is slow, then types them in when it is quiet. By the afternoon she cannot remember whether
-an order was already entered, so she checks the last ten by eye and sometimes ships the
-same box twice. She is fast, she is not interested in computers, and she will stop using
-anything that takes more than a few seconds.
+## Ahmad, Outgoing KU Business Student
 
----
+Ahmad is a junior majoring in Finance at CBA who wants to spend a semester abroad at a partner university. He submits his unofficial transcript, English test scores, and university preferences on paper at the office because emails often get buried during busy periods. Once submitted, he has no way of knowing whether his documents were reviewed, how his GPA ranks against other applicants, or when interviews will be scheduled. He frequently visits the office in person between classes to ask about his status, worried his paperwork was misplaced or overlooked among the stacks on the desk.
 
-## <name>, <role>
-
-<one paragraph>

@@ -367,7 +367,7 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .status-card {
-  width: min(100%, 820px);
+  width: min(100%, 1180px);
   margin: 0 auto;
   padding: 36px;
   border: 1px solid #1f8f45;
@@ -432,6 +432,7 @@ svg { display: block; flex-shrink: 0; }
 
 .country-list {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 0;
   list-style: none;
@@ -441,6 +442,14 @@ svg { display: block; flex-shrink: 0; }
   padding: 10px 12px;
   border: 1px solid #12351e;
   color: #b8eac4;
+}
+
+@media (max-width: 760px) {
+  .country-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .country-list { grid-template-columns: 1fr; }
 }
 
 .auth-form select,

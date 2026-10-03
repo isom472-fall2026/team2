@@ -1,8 +1,376 @@
 import { useState, useEffect } from 'react'
+import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
+import { supabase } from './supabase'
 import './App.css'
 
-function Navbar() {
+const authOptions = {
+  ku: {
+    label: 'KU Student',
+    table: 'kustudentauth',
+    heading: 'KU Student Portal',
+    description: 'Sign in or create an account with your Kuwait University details.',
+  },
+  incoming: {
+    label: 'Incoming Student',
+    table: 'incomingstudentauth',
+    heading: 'Incoming Student Portal',
+    description: 'Sign in or create an account to manage your exchange application.',
+  },
+  coordinator: {
+    label: 'Coordinator',
+    table: 'coordinator',
+    heading: 'Coordinator Portal',
+    description: 'Sign in or create an account for a partner university coordinator.',
+  },
+}
+
+function generateIncomingStudentId() {
+  const randomValues = new Uint32Array(1)
+  crypto.getRandomValues(randomValues)
+  return 100000000 + (randomValues[0] % 900000000)
+}
+
+function generateCoordinatorId() {
+  return generateIncomingStudentId()
+}
+
+function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
+  const options = authOptions[type]
+  const isSignUp = mode === 'signup'
+  const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '', university: '' })
+  const [universities, setUniversities] = useState([])
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (type !== 'coordinator') return
+
+    supabase
+      .from('partneruniversity')
+      .select('university_id, name')
+      .eq('available', true)
+      .order('name')
+      .then(({ data, error: universityError }) => {
+        if (universityError) setError(universityError.message)
+        const rows = data || []
+        const hasKuwaitUniversity = rows.some(({ name }) => name.toLowerCase() === 'kuwait university')
+        setUniversities(hasKuwaitUniversity ? rows : [{ university_id: 'ku', name: 'Kuwait University' }, ...rows])
+      })
+  }, [type])
+
+  const updateField = (event) => {
+    setForm({ ...form, [event.target.name]: event.target.value })
+    setError('')
+    setMessage('')
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+
+    if (isSignUp && (!form.name.trim() || (type === 'ku' && !/^\d+$/.test(form.studentId)) || (type === 'coordinator' && !form.university))) {
+      setError(type === 'ku' ? 'Enter your name and a numeric student ID.' : type === 'coordinator' ? 'Enter your name and choose a university.' : 'Enter your name.')
+      return
+    }
+
+    const email = form.email.trim().toLowerCase()
+    const requiresKuEmail = type === 'ku' || (type === 'coordinator' && form.university === 'ku')
+    if (isSignUp && requiresKuEmail && !email.endsWith('@ku.edu.kw')) {
+      setError('KU students and Kuwait University coordinators must use an email ending with @ku.edu.kw.')
+      return
+    }
+
+    setIsSubmitting(true)
+    const profileId = type === 'incoming'
+      ? generateIncomingStudentId()
+      : type === 'coordinator'
+        ? generateCoordinatorId()
+        : Number(form.studentId)
+    const result = isSignUp
+      ? await supabase.auth.signUp({
+          email,
+          password: form.password,
+          options: {
+            data: { name: form.name.trim(), student_id: profileId, user_type: type },
+          },
+        })
+      : await supabase.auth.signInWithPassword({
+          email,
+          password: form.password,
+        })
+
+    if (result.error) {
+      setError(result.error.message)
+      setIsSubmitting(false)
+      return
+    }
+
+    if (isSignUp) {
+      if (!result.data.user) {
+        setError('Supabase did not create the account. Please try again.')
+        setIsSubmitting(false)
+        return
+      }
+
+      const profile = type === 'coordinator'
+        ? {
+            coordinator_id: profileId,
+            name: form.name.trim(),
+            email,
+            university: form.university === 'ku' ? null : Number(form.university),
+            user_id: result.data.user.id,
+          }
+        : {
+            student_id: profileId,
+            student_email: email,
+            name: form.name.trim(),
+            user_id: result.data.user.id,
+          }
+      const { error: profileError } = await supabase.from(options.table).insert(profile)
+
+      if (profileError) {
+        setError(profileError.code === '23505'
+          ? 'An account with this ID or email already exists.'
+          : profileError.message)
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!result.data.session) {
+        setMessage('Account created. Check your email to confirm your account, then sign in.')
+        setIsSubmitting(false)
+        return
+      }
+    }
+
+    onAuthenticated(result.data.session)
+    setIsSubmitting(false)
+  }
+
+  return (
+    <section className="auth-page" aria-labelledby="auth-heading">
+      <div className="auth-card">
+        <span className="auth-card__eyebrow">{options.label}</span>
+        <h1 id="auth-heading">{isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`}</h1>
+        <p className="auth-card__description">{options.description}</p>
+        <fieldset className="auth-type-choice">
+          <legend>User type</legend>
+          {Object.entries(authOptions).map(([userType, userOptions]) => (
+            <label key={userType} className="auth-type-choice__option">
+              <input
+                type="radio"
+                name="userType"
+                value={userType}
+                checked={type === userType}
+                onChange={() => onTypeChange(userType)}
+              />
+              {userOptions.label}
+            </label>
+          ))}
+        </fieldset>
+        {type === 'coordinator' && (
+          <p className="auth-warning" role="alert">
+            only for partner university coordinators, attempts at misuse by students will be caught and legally prosecuted
+          </p>
+        )}
+        <form className="auth-form" onSubmit={handleSubmit}>
+          {isSignUp && (
+            <>
+              <label htmlFor="name">Full name</label>
+              <input id="name" name="name" value={form.name} onChange={updateField} required autoComplete="name" />
+              {type === 'ku' && (
+                <>
+                  <label htmlFor="studentId">Student ID</label>
+                  <input id="studentId" name="studentId" value={form.studentId} onChange={updateField} required inputMode="numeric" />
+                </>
+              )}
+              {type === 'coordinator' && (
+                <>
+                  <label htmlFor="university">University</label>
+                  <select id="university" name="university" value={form.university} onChange={updateField} required>
+                    <option value="">Choose your university</option>
+                    {universities.map((university) => (
+                      <option key={university.university_id} value={university.university_id}>{university.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </>
+          )}
+          <label htmlFor="email">Email</label>
+          <input id="email" name="email" type="email" value={form.email} onChange={updateField} required autoComplete="email" />
+          <label htmlFor="password">Password</label>
+          <input id="password" name="password" type="password" value={form.password} onChange={updateField} required minLength="6" autoComplete={isSignUp ? 'new-password' : 'current-password'} />
+          {error && <p className="auth-form__error" role="alert">{error}</p>}
+          {message && <p className="auth-form__message" role="status">{message}</p>}
+          <button className="btn btn--primary btn--full" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Working...' : isSignUp ? 'Create account' : 'Sign in'}
+          </button>
+        </form>
+        <button className="auth-card__switch" type="button" onClick={() => onModeChange(isSignUp ? 'signin' : 'signup')}>
+          {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function AccountDeleteButton({ onDeleted }) {
+  const [error, setError] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isConfirming, setIsConfirming] = useState(false)
+
+  const deleteAccount = async () => {
+    setError('')
+    setIsDeleting(true)
+    const { error: deleteError } = await supabase.rpc('delete_my_account')
+    if (deleteError) {
+      setError(deleteError.message)
+      setIsDeleting(false)
+      return
+    }
+
+    await supabase.auth.signOut()
+    onDeleted()
+  }
+
+  return (
+    <div className="account-delete">
+      {!isConfirming ? (
+        <button className="btn btn--danger" type="button" onClick={() => setIsConfirming(true)} disabled={isDeleting}>
+          Delete account
+        </button>
+      ) : (
+        <div className="account-delete__confirmation" role="alertdialog" aria-labelledby="delete-account-heading">
+          <strong id="delete-account-heading">Delete your account permanently?</strong>
+          <p>This cannot be undone. Your profile and authentication account will be removed.</p>
+          <div className="account-delete__actions">
+            <button className="btn btn--secondary" type="button" onClick={() => setIsConfirming(false)} disabled={isDeleting}>
+              Cancel
+            </button>
+            <button className="btn btn--danger" type="button" onClick={deleteAccount} disabled={isDeleting}>
+              {isDeleting ? 'Deleting account...' : 'Permanently delete'}
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <p className="auth-form__error" role="alert">{error}</p>}
+    </div>
+  )
+}
+
+function CoordinatorPortal({ profile, onDeleted }) {
+  const [nominations, setNominations] = useState([])
+  const [semesters, setSemesters] = useState([])
+  const [form, setForm] = useState({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
+  const [status, setStatus] = useState({ error: '', message: '' })
+
+  useEffect(() => {
+    supabase
+      .from('studentnominations')
+      .select('id, student_name, student_email, student_nationality, created_at, semester')
+      .eq('coordinator_id', profile.coordinator_id)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) setStatus({ error: error.message, message: '' })
+        else setNominations(data || [])
+      })
+    supabase.from('exchange_cycle').select('id').order('id').then(({ data, error }) => {
+      if (error) setStatus({ error: error.message, message: '' })
+      else setSemesters(data || [])
+    })
+  }, [profile.coordinator_id])
+
+  const submitNomination = async (event) => {
+    event.preventDefault()
+    setStatus({ error: '', message: '' })
+    const { error } = await supabase.from('studentnominations').insert({
+      coordinator_id: profile.coordinator_id,
+      student_name: form.studentName.trim(),
+      student_email: form.studentEmail.trim(),
+      student_nationality: form.studentNationality.trim(),
+      semester: Number(form.semester),
+    })
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return
+    }
+    setForm({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
+    setStatus({ error: '', message: 'Student nomination submitted.' })
+    const { data: updatedNominations, error: refreshError } = await supabase
+      .from('studentnominations')
+      .select('id, student_name, student_email, student_nationality, created_at, semester')
+      .eq('coordinator_id', profile.coordinator_id)
+      .order('created_at', { ascending: false })
+    if (refreshError) {
+      setStatus({ error: refreshError.message, message: '' })
+      return
+    }
+    setNominations(updatedNominations || [])
+  }
+
+  return (
+    <div className="portal-dashboard">
+      <section className="portal-card portal-card--wide">
+        <span className="auth-card__eyebrow">Coordinator portal</span>
+        <h1 id="portal-heading">Welcome, {profile.name}</h1>
+        <p>Submit and review student nominations for your university.</p>
+        <form className="nomination-form" onSubmit={submitNomination}>
+          <label htmlFor="studentName">Student name</label>
+          <input id="studentName" value={form.studentName} onChange={(event) => setForm({ ...form, studentName: event.target.value })} required />
+          <label htmlFor="studentEmail">Student email</label>
+          <input id="studentEmail" type="email" value={form.studentEmail} onChange={(event) => setForm({ ...form, studentEmail: event.target.value })} required />
+          <label htmlFor="studentNationality">Student nationality</label>
+          <input id="studentNationality" value={form.studentNationality} onChange={(event) => setForm({ ...form, studentNationality: event.target.value })} required />
+          <label htmlFor="semester">Exchange semester</label>
+          <select id="semester" value={form.semester} onChange={(event) => setForm({ ...form, semester: event.target.value })} required>
+            <option value="">Choose a semester</option>
+            {semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.id}</option>)}
+          </select>
+          {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+          {status.message && <p className="auth-form__message" role="status">{status.message}</p>}
+          <button className="btn btn--primary" type="submit">Submit nomination</button>
+        </form>
+        <h2 className="portal-section-heading">Submitted nominations</h2>
+        {nominations.length === 0 ? <p>No nominations submitted yet.</p> : (
+          <ul className="nomination-list">
+            {nominations.map((nomination) => (
+              <li key={nomination.id}>
+                <strong>{nomination.student_name}</strong> · {nomination.student_email} · {nomination.student_nationality}
+              </li>
+            ))}
+          </ul>
+        )}
+        <AccountDeleteButton onDeleted={onDeleted} />
+      </section>
+    </div>
+  )
+}
+
+function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
+  if (profile?.role === 'coordinator') return <CoordinatorPortal profile={profile} onDeleted={onDeleted} />
+
+  return (
+    <section className="portal-page" aria-labelledby="portal-heading">
+      <div className="portal-card">
+        <span className="auth-card__eyebrow">Secure portal</span>
+        <h1 id="portal-heading">Welcome, {profile?.name || user.user_metadata?.name || user.email}</h1>
+        <p>You are signed in as <strong>{user.email}</strong>.</p>
+        <div className="portal-actions">
+          {profile?.role === 'incoming' && <Link className="btn btn--primary" to="/portal/inbound-application">Inbound application</Link>}
+          {profile?.role === 'ku' && <Link className="btn btn--secondary" to="/portal/outbound-application">Outbound application</Link>}
+        </div>
+        <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+        <AccountDeleteButton onDeleted={onDeleted} />
+      </div>
+    </section>
+  )
+}
+
+function Navbar({ session, onSignOut }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -27,6 +395,17 @@ function Navbar() {
       </button>
 
       <ul className={`navbar__links ${isOpen ? 'navbar__links--open' : ''}`} role="list">
+        <li>
+          <Link to="/auth/signup" className="navbar__link navbar__link--auth">Sign Up</Link>
+        </li>
+        <li>
+          <Link to="/auth/signin" className="navbar__link navbar__link--auth navbar__link--auth-alt">Log In</Link>
+        </li>
+        {session && (
+          <li>
+            <button className="navbar__link navbar__link--logout" type="button" onClick={onSignOut}>Log out</button>
+          </li>
+        )}
         <li>
           <a
             href="https://www.ku.edu.kw"
@@ -55,30 +434,7 @@ function Navbar() {
           </a>
         </li>
         <li>
-          <a
-            href="#incoming-application"
-            className="navbar__link navbar__link--cta"
-          >
-            {/* Incoming arrow icon */}
-            <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 20h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            Incoming Student
-          </a>
-        </li>
-        <li>
-          <a
-            href="#outgoing-application"
-            className="navbar__link navbar__link--cta navbar__link--cta-alt"
-          >
-            {/* Outgoing arrow icon */}
-            <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 21V9m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 4h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            Outgoing Student
-          </a>
+          <Link to={session ? '/portal' : '/auth/signin'} className="navbar__link navbar__link--cta">Portal</Link>
         </li>
       </ul>
     </nav>
@@ -316,7 +672,8 @@ function Footer() {
           <h4 className="footer__heading">Legacy Documents</h4>
           <ul className="footer__links">
             <li><a href={`${import.meta.env.BASE_URL}docs/proposal.html`} className="footer__link">Proposal</a></li>
-            <li><a href="#erd" className="footer__link">Schema and ERD</a></li>
+            <li>            <Link to="/erd" className="footer__link">Schema and ERD</Link></li>
+            <li><Link to="/test-status" className="footer__link">Test and Status</Link></li>
           </ul>
         </div>
       </div>
@@ -328,33 +685,149 @@ function Footer() {
   )
 }
 
-function App() {
-  const [currentHash, setCurrentHash] = useState(window.location.hash)
+function TestStatusPage() {
+  const [status, setStatus] = useState('checking')
+  const [countries, setCountries] = useState([])
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    const onHashChange = () => setCurrentHash(window.location.hash)
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+    const loadStatus = async () => {
+      const { data, error: countryError } = await supabase
+        .from('country')
+        .select('id, name, city')
+        .order('name')
+
+      if (countryError) {
+        setStatus('failure')
+        setError(countryError.message)
+        return
+      }
+
+      setCountries(data || [])
+      setStatus('success')
+    }
+
+    loadStatus()
   }, [])
 
   return (
-    <>
-      <Navbar />
-      <main>
-        {currentHash === '#erd' ? (
-          <ErdPage />
-        ) : (
-          <>
-            <HeroSection />
-            <StatsBar />
-            <InfoCards />
-            <PartnerUniversities />
-            <ApplicationCTA />
-          </>
+    <section className="status-page" aria-labelledby="status-heading">
+      <div className="status-card">
+        <span className="auth-card__eyebrow">System diagnostics</span>
+        <h1 id="status-heading">Test and Status</h1>
+        <div className="database-status">
+          <span className={`database-status__dot database-status__dot--${status}`} aria-hidden="true" />
+          <strong>Database connection: {status === 'checking' ? 'Checking...' : status === 'success' ? 'Connected' : 'Failed'}</strong>
+        </div>
+        {error && <p className="auth-form__error" role="alert">{error}</p>}
+        <div className="status-graph" aria-label="Animated database activity graph">
+          {[35, 58, 42, 76, 50, 82, 61, 90, 48, 70, 55, 85].map((height, index) => (
+            <span key={index} style={{ height: `${height}%`, animationDelay: `${index * 0.12}s` }} />
+          ))}
+        </div>
+        <h2 className="portal-section-heading">Countries loaded from database</h2>
+        {countries.length === 0 ? <p>No countries returned.</p> : (
+          <ul className="country-list">
+            {countries.map((country) => (
+              <li key={country.id}><strong>{country.name}</strong>{country.city ? ` · ${country.city}` : ''}</li>
+            ))}
+          </ul>
         )}
+      </div>
+    </section>
+  )
+}
+
+function App() {
+  const [session, setSession] = useState(null)
+  const [profile, setProfile] = useState(null)
+
+  useEffect(() => {
+    const loadProfile = async (nextSession) => {
+      setSession(nextSession)
+      if (!nextSession) {
+        setProfile(null)
+        return
+      }
+      const userType = nextSession.user.user_metadata?.user_type || nextSession.user.user_metadata?.student_type
+      const profileTables = userType === 'coordinator'
+        ? [['coordinator', 'coordinator_id']]
+        : userType === 'incoming'
+          ? [['incomingstudentauth', 'student_id']]
+          : userType === 'ku'
+            ? [['kustudentauth', 'student_id']]
+            : [['kustudentauth', 'student_id'], ['incomingstudentauth', 'student_id'], ['coordinator', 'coordinator_id']]
+      for (const [table] of profileTables) {
+        const { data } = await supabase.from(table).select('*').eq('user_id', nextSession.user.id).maybeSingle()
+        if (data) {
+          const role = table === 'coordinator' ? 'coordinator' : table === 'incomingstudentauth' ? 'incoming' : 'ku'
+          setProfile({ ...data, role })
+          return
+        }
+      }
+      setProfile({ name: nextSession.user.user_metadata?.name, role: userType })
+    }
+
+    supabase.auth.getSession().then(({ data }) => loadProfile(data.session))
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      loadProfile(nextSession)
+    })
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
+  }, [])
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) window.alert(error.message)
+  }
+
+  const handleDeleted = () => {
+    window.location.hash = '/auth/signin'
+  }
+
+  return (
+    <>
+      <Navbar session={session} onSignOut={handleSignOut} />
+      <main>
+        <Routes>
+          <Route path="/" element={
+            <>
+              <HeroSection />
+              <StatsBar />
+              <InfoCards />
+              <PartnerUniversities />
+              <ApplicationCTA />
+            </>
+          } />
+          <Route path="/auth/signup" element={<AuthRoute mode="signup" />} />
+          <Route path="/auth/signin" element={<AuthRoute mode="signin" />} />
+          <Route path="/portal" element={
+            session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} onDeleted={handleDeleted} /> : <Navigate to="/auth/signin" replace />
+          } />
+          <Route path="/portal/inbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal/outbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/erd" element={<ErdPage />} />
+          <Route path="/test-status" element={<TestStatusPage />} />
+        </Routes>
       </main>
       <Footer />
     </>
+  )
+}
+
+function AuthRoute({ mode }) {
+  const navigate = useNavigate()
+  const [type, setType] = useState('ku')
+
+  return (
+    <AuthPage
+      type={type}
+      mode={mode}
+      onTypeChange={setType}
+      onModeChange={(nextMode) => navigate(`/auth/${nextMode}`)}
+      onAuthenticated={() => navigate('/portal')}
+    />
   )
 }
 

@@ -94,6 +94,18 @@ svg { display: block; flex-shrink: 0; }
   transform: translateY(-2px);
 }
 
+.btn--danger {
+  background: #8f1024;
+  color: #fff;
+  border: 1px solid #ff334f;
+}
+
+.btn--danger:hover {
+  background: #b71932;
+  box-shadow: 0 0 18px rgba(255, 51, 79, 0.45);
+  transform: translateY(-2px);
+}
+
 .btn--full { width: 100%; justify-content: center; }
 
 /* ─── Navbar ───────────────────────────────────────────────────────────────── */
@@ -347,6 +359,14 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .portal-card p { margin-bottom: 24px; }
+
+.account-delete {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 51, 79, 0.3);
+}
+
+.account-delete .auth-form__error { margin-top: 8px; }
 
 .portal-dashboard {
   min-height: calc(100svh - 64px);

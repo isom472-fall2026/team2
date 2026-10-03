@@ -218,7 +218,37 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   )
 }
 
-function CoordinatorPortal({ profile }) {
+function AccountDeleteButton({ onDeleted }) {
+  const [error, setError] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const deleteAccount = async () => {
+    if (!window.confirm('Delete your account permanently? This cannot be undone.')) return
+
+    setError('')
+    setIsDeleting(true)
+    const { error: deleteError } = await supabase.rpc('delete_my_account')
+    if (deleteError) {
+      setError(deleteError.message)
+      setIsDeleting(false)
+      return
+    }
+
+    await supabase.auth.signOut()
+    onDeleted()
+  }
+
+  return (
+    <div className="account-delete">
+      <button className="btn btn--danger" type="button" onClick={deleteAccount} disabled={isDeleting}>
+        {isDeleting ? 'Deleting account...' : 'Delete account'}
+      </button>
+      {error && <p className="auth-form__error" role="alert">{error}</p>}
+    </div>
+  )
+}
+
+function CoordinatorPortal({ profile, onDeleted }) {
   const [nominations, setNominations] = useState([])
   const [semesters, setSemesters] = useState([])
   const [form, setForm] = useState({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
@@ -300,13 +330,14 @@ function CoordinatorPortal({ profile }) {
             ))}
           </ul>
         )}
+        <AccountDeleteButton onDeleted={onDeleted} />
       </section>
     </div>
   )
 }
 
-function ProtectedPortal({ user, profile, onSignOut }) {
-  if (profile?.role === 'coordinator') return <CoordinatorPortal profile={profile} />
+function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
+  if (profile?.role === 'coordinator') return <CoordinatorPortal profile={profile} onDeleted={onDeleted} />
 
   return (
     <section className="portal-page" aria-labelledby="portal-heading">
@@ -319,6 +350,7 @@ function ProtectedPortal({ user, profile, onSignOut }) {
           {profile?.role === 'ku' && <Link className="btn btn--secondary" to="/portal/outbound-application">Outbound application</Link>}
         </div>
         <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+        <AccountDeleteButton onDeleted={onDeleted} />
       </div>
     </section>
   )
@@ -736,6 +768,10 @@ function App() {
     if (error) window.alert(error.message)
   }
 
+  const handleDeleted = () => {
+    window.location.hash = '/auth/signin'
+  }
+
   return (
     <>
       <Navbar session={session} onSignOut={handleSignOut} />
@@ -753,7 +789,7 @@ function App() {
           <Route path="/auth/signup" element={<AuthRoute mode="signup" />} />
           <Route path="/auth/signin" element={<AuthRoute mode="signin" />} />
           <Route path="/portal" element={
-            session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} /> : <Navigate to="/auth/signin" replace />
+            session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} onDeleted={handleDeleted} /> : <Navigate to="/auth/signin" replace />
           } />
           <Route path="/portal/inbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/portal/outbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />

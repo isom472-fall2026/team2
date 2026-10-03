@@ -221,10 +221,9 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
 function AccountDeleteButton({ onDeleted }) {
   const [error, setError] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isConfirming, setIsConfirming] = useState(false)
 
   const deleteAccount = async () => {
-    if (!window.confirm('Delete your account permanently? This cannot be undone.')) return
-
     setError('')
     setIsDeleting(true)
     const { error: deleteError } = await supabase.rpc('delete_my_account')
@@ -240,9 +239,24 @@ function AccountDeleteButton({ onDeleted }) {
 
   return (
     <div className="account-delete">
-      <button className="btn btn--danger" type="button" onClick={deleteAccount} disabled={isDeleting}>
-        {isDeleting ? 'Deleting account...' : 'Delete account'}
-      </button>
+      {!isConfirming ? (
+        <button className="btn btn--danger" type="button" onClick={() => setIsConfirming(true)} disabled={isDeleting}>
+          Delete account
+        </button>
+      ) : (
+        <div className="account-delete__confirmation" role="alertdialog" aria-labelledby="delete-account-heading">
+          <strong id="delete-account-heading">Delete your account permanently?</strong>
+          <p>This cannot be undone. Your profile and authentication account will be removed.</p>
+          <div className="account-delete__actions">
+            <button className="btn btn--secondary" type="button" onClick={() => setIsConfirming(false)} disabled={isDeleting}>
+              Cancel
+            </button>
+            <button className="btn btn--danger" type="button" onClick={deleteAccount} disabled={isDeleting}>
+              {isDeleting ? 'Deleting account...' : 'Permanently delete'}
+            </button>
+          </div>
+        </div>
+      )}
       {error && <p className="auth-form__error" role="alert">{error}</p>}
     </div>
   )

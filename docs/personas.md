@@ -9,16 +9,16 @@ You write these in Phase 2, from what your client told you — not from imaginat
 
 ---
 
-## <!-- EXAMPLE — delete this persona --> Mariam, shop supervisor
+## **Areej, Exchange Program Coordinator**
 
-Mariam runs the counter on the morning shift. She takes orders on paper because the till
-is slow, then types them in when it is quiet. By the afternoon she cannot remember whether
-an order was already entered, so she checks the last ten by eye and sometimes ships the
-same box twice. She is fast, she is not interested in computers, and she will stop using
-anything that takes more than a few seconds.
+Areej manages all outbound and inbound student exchange applications for the College of Business Administration. She spends her days buried in emails and paper forms, manually copying student grades, credit hours, and university preferences into a messy Excel sheet. 
+
+During peak application season, she constantly worries about making a data entry error or losing an application in her overflowing inbox, which has happened before. She manually checks if each student meets the GPA and credit requirements, knowing that every unqualified applicant who slips through to the interview stage is a waste of time for both the faculty and a deserving, qualified student.
 
 ---
 
-## <name>, <role>
+## **Sarah, Prospective Inbound Exchange Student**
 
-<one paragraph>
+Sarah is a student at one of KU's partner universities who wants to spend a semester at KU's College of Business Administration. The problem is there's no clear info anywhere about how to apply, not even what documents or requirements KU expects. She can't apply directly herself, she has to go through her own university's coordinator, who has to be verified first before they can even log in to KU's system.
+
+After the coordinator sends in her nomination, Sarah has no way to know if it was received or what's happening with it. She's just stuck waiting on someone else to find out anything.

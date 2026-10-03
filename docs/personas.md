@@ -19,6 +19,6 @@ During peak application season, she constantly worries about making a data entry
 
 ## **Sarah, Prospective Inbound Exchange Student**
 
-Sarah is a student at one of KU's partner universities who wants to spend a semester at KU's College of Business Administration. When she looks for how to apply, she finds no clear info or structured application process — nothing tells her what documents KU needs or what the requirements are. She cannot apply directly herself; she has to go through her own university's coordinator, who must be verified before they can even log in to KU's system.
+Sarah is a student at one of KU's partner universities who wants to spend a semester at KU's College of Business Administration. The problem is there's no clear info anywhere about how to apply, not even what documents or requirements KU expects. She can't apply directly herself, she has to go through her own university's coordinator, who has to be verified first before they can even log in to KU's system.
 
-Once her coordinator submits her nomination into KU's queue, Sarah has no way to check whether it was received or is moving forward. She is left waiting entirely on her coordinator for updates, with zero visibility into her own application — a frustration shared by other prospective students who complain about the same lack of clarity in how to come to KU.
+After the coordinator sends in her nomination, Sarah has no way to know if it was received or what's happening with it. She's just stuck waiting on someone else to find out anything.

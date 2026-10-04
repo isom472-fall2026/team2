@@ -9,6 +9,11 @@ You write these in Phase 2, from what your client told you — not from imaginat
 
 ---
 
+
+## Ahmad, Outgoing KU Business Student
+
+Ahmad is a junior majoring in Finance at CBA who wants to spend a semester abroad at a partner university. He submits his unofficial transcript, English test scores, and university preferences on paper at the office because emails often get buried during busy periods. Once submitted, he has no way of knowing whether his documents were reviewed, how his GPA ranks against other applicants, or when interviews will be scheduled. He frequently visits the office in person between classes to ask about his status, worried his paperwork was misplaced or overlooked among the stacks on the desk.
+
 ## **Areej, Exchange Program Coordinator**
 
 Areej manages all outbound and inbound student exchange applications for the College of Business Administration. She spends her days buried in emails and paper forms, manually copying student grades, credit hours, and university preferences into a messy Excel sheet. 

@@ -7,7 +7,7 @@ A web-based portal that automates student exchange application intake, evaluates
 
 Next due: Wednesday 23 September — your proposal. Write it in `docs/proposal.md`, then publish it. Steps: `docs/how-we-work.md` Update this line at the start of every phase. It is the first thing your team sees.
 
-- Proposal page: https://isom472-fall2026.github.io/team2/docs/
+- Proposal page: https://isom472-fall2026.github.io/team2/docs/proposal.html
 - Running system: TODO: link to the deployed system once it exists
 - Board: https://github.com/orgs/isom472-fall2026/projects/
 

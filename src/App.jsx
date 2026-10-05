@@ -262,11 +262,83 @@ function AccountDeleteButton({ onDeleted }) {
   )
 }
 
+const emptyCycleForm = {
+  semester: 'Fall',
+  academicYear: '',
+  nominationsOpen: '',
+  nominationsClose: '',
+  applicationOpen: '',
+  applicationClose: '',
+  cycleStart: '',
+  cycleEnd: '',
+}
+
+function formatCycleDate(value) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleString()
+}
+
+function CycleForm({ form, setForm, onSubmit, isSubmitting, status }) {
+  const updateField = (event) => setForm({ ...form, [event.target.name]: event.target.value })
+
+  return (
+    <form className="cycle-form" onSubmit={onSubmit}>
+      <div className="cycle-form__grid">
+        <label htmlFor="cycle-semester">Semester
+          <select id="cycle-semester" name="semester" value={form.semester} onChange={updateField} required>
+            <option value="Fall">Fall</option>
+            <option value="Spring">Spring</option>
+          </select>
+        </label>
+        <label htmlFor="cycle-academic-year">Academic year
+          <input id="cycle-academic-year" name="academicYear" value={form.academicYear} onChange={updateField} placeholder="2026/2027" pattern="\d{4}/\d{4}" required />
+        </label>
+        <label htmlFor="cycle-nominations-open">Inbound nominations open
+          <input id="cycle-nominations-open" name="nominationsOpen" type="datetime-local" value={form.nominationsOpen} onChange={updateField} required />
+        </label>
+        <label htmlFor="cycle-nominations-close">Inbound nominations close
+          <input id="cycle-nominations-close" name="nominationsClose" type="datetime-local" value={form.nominationsClose} onChange={updateField} required />
+        </label>
+        <label htmlFor="cycle-application-open">Applications open
+          <input id="cycle-application-open" name="applicationOpen" type="datetime-local" value={form.applicationOpen} onChange={updateField} required />
+        </label>
+        <label htmlFor="cycle-application-close">Applications close
+          <input id="cycle-application-close" name="applicationClose" type="datetime-local" value={form.applicationClose} onChange={updateField} required />
+        </label>
+        <label htmlFor="cycle-start">Exchange cycle starts
+          <input id="cycle-start" name="cycleStart" type="datetime-local" value={form.cycleStart} onChange={updateField} required />
+        </label>
+        <label htmlFor="cycle-end">Exchange cycle ends
+          <input id="cycle-end" name="cycleEnd" type="datetime-local" value={form.cycleEnd} onChange={updateField} required />
+        </label>
+      </div>
+      {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+      <button className="btn btn--primary" type="submit" disabled={isSubmitting}>
+        {isSubmitting ? 'Starting cycle...' : 'Start exchange cycle'}
+      </button>
+    </form>
+  )
+}
+
 function CoordinatorPortal({ profile, onDeleted }) {
   const [nominations, setNominations] = useState([])
   const [semesters, setSemesters] = useState([])
   const [form, setForm] = useState({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
+  const [cycleForm, setCycleForm] = useState(emptyCycleForm)
+  const [cycles, setCycles] = useState([])
+  const [activeView, setActiveView] = useState('manage')
+  const [isStartingCycle, setIsStartingCycle] = useState(false)
   const [status, setStatus] = useState({ error: '', message: '' })
+
+  const loadCycles = async () => {
+    const { data, error } = await supabase
+      .from('exchange_cycle')
+      .select('id, semester, academic_year, nominations_o, nominations_c, application_o, application_c, cycle_start, cycle_end')
+      .order('id', { ascending: false })
+    if (error) setStatus({ error: error.message, message: '' })
+    else setCycles(data || [])
+  }
 
   useEffect(() => {
     supabase
@@ -278,11 +350,53 @@ function CoordinatorPortal({ profile, onDeleted }) {
         if (error) setStatus({ error: error.message, message: '' })
         else setNominations(data || [])
       })
+    supabase
+      .from('exchange_cycle')
+      .select('id, semester, academic_year, nominations_o, nominations_c, application_o, application_c, cycle_start, cycle_end')
+      .order('id', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) setStatus({ error: error.message, message: '' })
+        else setCycles(data || [])
+      })
     supabase.from('exchange_cycle').select('id').order('id').then(({ data, error }) => {
       if (error) setStatus({ error: error.message, message: '' })
       else setSemesters(data || [])
     })
   }, [profile.coordinator_id])
+
+  const startExchangeCycle = async (event) => {
+    event.preventDefault()
+    setStatus({ error: '', message: '' })
+    const dates = [
+      ['nominations', cycleForm.nominationsOpen, cycleForm.nominationsClose],
+      ['applications', cycleForm.applicationOpen, cycleForm.applicationClose],
+      ['exchange cycle', cycleForm.cycleStart, cycleForm.cycleEnd],
+    ]
+    if (dates.some(([, open, close]) => new Date(open) >= new Date(close))) {
+      setStatus({ error: 'Each opening or start date must be before its closing or end date.', message: '' })
+      return
+    }
+    setIsStartingCycle(true)
+    const { error } = await supabase.from('exchange_cycle').insert({
+      semester: cycleForm.semester,
+      academic_year: cycleForm.academicYear,
+      nominations_o: new Date(cycleForm.nominationsOpen).toISOString(),
+      nominations_c: new Date(cycleForm.nominationsClose).toISOString(),
+      application_o: new Date(cycleForm.applicationOpen).toISOString(),
+      application_c: new Date(cycleForm.applicationClose).toISOString(),
+      cycle_start: new Date(cycleForm.cycleStart).toISOString(),
+      cycle_end: new Date(cycleForm.cycleEnd).toISOString(),
+    })
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+    } else {
+      setCycleForm(emptyCycleForm)
+      await loadCycles()
+      setStatus({ error: '', message: 'Exchange cycle started.' })
+      setActiveView('manage')
+    }
+    setIsStartingCycle(false)
+  }
 
   const submitNomination = async (event) => {
     event.preventDefault()
@@ -313,11 +427,63 @@ function CoordinatorPortal({ profile, onDeleted }) {
   }
 
   return (
-    <div className="portal-dashboard">
-      <section className="portal-card portal-card--wide">
-        <span className="auth-card__eyebrow">Coordinator portal</span>
-        <h1 id="portal-heading">Welcome, {profile.name}</h1>
-        <p>Submit and review student nominations for your university.</p>
+    <div className="portal-dashboard portal-dashboard--coordinator">
+      <aside className="portal-sidebar" aria-label="Coordinator portal navigation">
+        <span className="portal-sidebar__eyebrow">Coordinator portal</span>
+        <h1 className="portal-sidebar__title">KU Exchange</h1>
+        <p className="portal-sidebar__welcome">Welcome, {profile.name}</p>
+        <nav className="portal-sidebar__nav">
+          <button className={activeView === 'start' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('start')}>
+            <span aria-hidden="true">＋</span> Start exchange cycle
+          </button>
+          <button className={activeView === 'manage' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('manage')}>
+            <span aria-hidden="true">▦</span> Manage exchange cycle
+          </button>
+          <button className={activeView === 'nominations' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('nominations')}>
+            <span aria-hidden="true">◌</span> Student nominations
+          </button>
+        </nav>
+        <div className="portal-sidebar__footer">
+          <span className="portal-sidebar__secure">Signed in securely</span>
+        </div>
+      </aside>
+      <section className="portal-card portal-card--wide portal-card--workspace">
+        {activeView === 'start' && (
+          <>
+            <span className="auth-card__eyebrow">New cycle</span>
+            <h2 id="portal-heading">Start an exchange cycle</h2>
+            <p>Set the timetable for inbound nominations and exchange applications.</p>
+            <CycleForm form={cycleForm} setForm={setCycleForm} onSubmit={startExchangeCycle} isSubmitting={isStartingCycle} status={status} />
+          </>
+        )}
+        {activeView === 'manage' && (
+          <>
+            <span className="auth-card__eyebrow">Cycle dashboard</span>
+            <h2 id="portal-heading">Manage exchange cycles</h2>
+            <p>Review the schedules currently available to students and coordinators.</p>
+            {status.message && <p className="auth-form__message" role="status">{status.message}</p>}
+            {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+            {cycles.length === 0 ? <div className="portal-empty-state">No exchange cycles have been started yet.</div> : (
+              <ul className="cycle-list">
+                {cycles.map((cycle) => (
+                  <li key={cycle.id} className="cycle-list__item">
+                    <div><strong>{cycle.semester} {cycle.academic_year}</strong><span>Cycle #{cycle.id}</span></div>
+                    <dl>
+                      <div><dt>Nominations</dt><dd>{formatCycleDate(cycle.nominations_o)} – {formatCycleDate(cycle.nominations_c)}</dd></div>
+                      <div><dt>Applications</dt><dd>{formatCycleDate(cycle.application_o)} – {formatCycleDate(cycle.application_c)}</dd></div>
+                      <div><dt>Exchange cycle</dt><dd>{formatCycleDate(cycle.cycle_start)} – {formatCycleDate(cycle.cycle_end)}</dd></div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+        {activeView === 'nominations' && (
+          <>
+            <span className="auth-card__eyebrow">Student nominations</span>
+            <h2 id="portal-heading">Submit a student nomination</h2>
+            <p>Submit and review student nominations for your university.</p>
         <form className="nomination-form" onSubmit={submitNomination}>
           <label htmlFor="studentName">Student name</label>
           <input id="studentName" value={form.studentName} onChange={(event) => setForm({ ...form, studentName: event.target.value })} required />
@@ -343,6 +509,8 @@ function CoordinatorPortal({ profile, onDeleted }) {
               </li>
             ))}
           </ul>
+        )}
+          </>
         )}
         <AccountDeleteButton onDeleted={onDeleted} />
       </section>
@@ -370,18 +538,18 @@ function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
   )
 }
 
-function Navbar({ session, onSignOut }) {
+function Navbar({ session, onSignOut, theme, onThemeChange }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
     <nav className="navbar" aria-label="Main navigation">
-      <div className="navbar__brand">
-        <svg className="navbar__logo-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" strokeWidth="1.5" />
-        </svg>
+      <a href="https://www.ku.edu.kw" target="_blank" rel="noopener noreferrer" className="navbar__brand" aria-label="KU Exchange at Kuwait University">
         <span className="navbar__brand-text">KU Exchange</span>
-      </div>
+        <span className="navbar__university-logo" aria-hidden="true">
+          <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="" className="navbar__university-logo--light" />
+          <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" className="navbar__university-logo--dark" />
+        </span>
+      </a>
 
       <button
         className="navbar__toggle"
@@ -396,6 +564,12 @@ function Navbar({ session, onSignOut }) {
 
       <ul className={`navbar__links ${isOpen ? 'navbar__links--open' : ''}`} role="list">
         <li>
+          <button className="navbar__link navbar__theme-toggle" type="button" onClick={onThemeChange} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
+            <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
+            {theme === 'light' ? 'Dark mode' : 'Light mode'}
+          </button>
+        </li>
+        <li>
           <Link to="/auth/signup" className="navbar__link navbar__link--auth">Sign Up</Link>
         </li>
         <li>
@@ -406,20 +580,6 @@ function Navbar({ session, onSignOut }) {
             <button className="navbar__link navbar__link--logout" type="button" onClick={onSignOut}>Log out</button>
           </li>
         )}
-        <li>
-          <a
-            href="https://www.ku.edu.kw"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="navbar__link"
-          >
-            {/* University building icon */}
-            <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M3 21h18M9 21V7l3-4 3 4v14M9 11h6M5 21V11l-2 2M19 21V11l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Kuwait University
-          </a>
-        </li>
         <li>
           <a
             href="#partner-universities"
@@ -741,6 +901,12 @@ function TestStatusPage() {
 function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [theme, setTheme] = useState(() => localStorage.getItem('team2-theme') || 'light')
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('team2-theme', theme)
+  }, [theme])
 
   useEffect(() => {
     const loadProfile = async (nextSession) => {
@@ -788,7 +954,12 @@ function App() {
 
   return (
     <>
-      <Navbar session={session} onSignOut={handleSignOut} />
+      <Navbar
+        session={session}
+        onSignOut={handleSignOut}
+        theme={theme}
+        onThemeChange={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}
+      />
       <main>
         <Routes>
           <Route path="/" element={

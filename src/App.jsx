@@ -543,13 +543,13 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
 
   return (
     <nav className="navbar" aria-label="Main navigation">
-      <Link to="/" className="navbar__brand" aria-label="KU Exchange home">
-        <svg className="navbar__logo-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" strokeWidth="1.5" />
-        </svg>
+      <a href="https://www.ku.edu.kw" target="_blank" rel="noopener noreferrer" className="navbar__brand" aria-label="KU Exchange at Kuwait University">
         <span className="navbar__brand-text">KU Exchange</span>
-      </Link>
+        <span className="navbar__university-logo" aria-hidden="true">
+          <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="" className="navbar__university-logo--light" />
+          <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" className="navbar__university-logo--dark" />
+        </span>
+      </a>
 
       <button
         className="navbar__toggle"
@@ -568,20 +568,6 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
             <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
             {theme === 'light' ? 'Dark mode' : 'Light mode'}
           </button>
-        </li>
-        <li>
-          <a
-            href="https://www.ku.edu.kw"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="navbar__link navbar__university"
-          >
-            <span className="navbar__university-logo" aria-hidden="true">
-              <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="" className="navbar__university-logo--light" />
-              <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" className="navbar__university-logo--dark" />
-            </span>
-            Kuwait University
-          </a>
         </li>
         <li>
           <Link to="/auth/signup" className="navbar__link navbar__link--auth">Sign Up</Link>

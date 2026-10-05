@@ -261,10 +261,6 @@ svg { display: block; flex-shrink: 0; }
   font-size: 1.1rem;
 }
 
-.navbar__university {
-  gap: 8px;
-}
-
 .navbar__university-logo {
   position: relative;
   width: 30px;
@@ -301,8 +297,8 @@ svg { display: block; flex-shrink: 0; }
   transform: scale(1) rotate(0);
 }
 
-:root[data-theme='light'] .navbar__university:hover .navbar__university-logo--light,
-:root[data-theme='dark'] .navbar__university:hover .navbar__university-logo--dark {
+:root[data-theme='light'] .navbar__brand:hover .navbar__university-logo--light,
+:root[data-theme='dark'] .navbar__brand:hover .navbar__university-logo--dark {
   transform: scale(1.08) rotate(0);
 }
 

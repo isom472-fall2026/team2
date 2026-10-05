@@ -31,7 +31,7 @@
   --radius-lg: 22px;
 
   --transition: 0.22s ease;
-  --navbar-height: 82px;
+  --navbar-height: 92px;
 }
 
 :root[data-theme='light'] {
@@ -149,10 +149,10 @@ svg { display: block; flex-shrink: 0; }
 .navbar__brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
   color: var(--neon);
   font-weight: 700;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   flex-shrink: 0;
 }
 
@@ -264,9 +264,15 @@ svg { display: block; flex-shrink: 0; }
 
 .navbar__university-logo {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 68px;
+  height: 68px;
   flex-shrink: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(14, 172, 227, 0.14);
+  overflow: hidden;
 }
 
 .navbar__university-logo img {
@@ -280,6 +286,11 @@ svg { display: block; flex-shrink: 0; }
 
 .navbar__brand:hover .navbar__brand-text {
   color: var(--neon-2);
+}
+
+.navbar__brand:hover .navbar__university-logo {
+  border-color: var(--border-bright);
+  box-shadow: var(--glow-cyan);
 }
 
 .navbar__university-logo--light {
@@ -1474,7 +1485,7 @@ svg { display: block; flex-shrink: 0; }
   }
 
   .navbar__brand { padding: 10px 0; }
-  .navbar__university-logo { width: 48px; height: 48px; }
+  .navbar__university-logo { width: 56px; height: 56px; }
   .navbar__toggle { display: block; margin: 12px 0; }
 
   .navbar__links {

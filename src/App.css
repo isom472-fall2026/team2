@@ -165,7 +165,7 @@ svg { display: block; flex-shrink: 0; }
 
 .navbar__brand-text {
   letter-spacing: -0.02em;
-  text-shadow: 0 0 14px rgba(0, 212, 255, 0.5);
+  text-shadow: none;
 }
 
 .navbar__toggle {

@@ -31,6 +31,7 @@
   --radius-lg: 22px;
 
   --transition: 0.22s ease;
+  --navbar-height: 82px;
 }
 
 :root[data-theme='light'] {
@@ -137,7 +138,7 @@ svg { display: block; flex-shrink: 0; }
   justify-content: space-between;
   gap: 1rem;
   padding: 0 2rem;
-  height: 64px;
+  min-height: var(--navbar-height);
   background: rgba(5, 11, 24, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -148,10 +149,10 @@ svg { display: block; flex-shrink: 0; }
 .navbar__brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   color: var(--neon);
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   flex-shrink: 0;
 }
 
@@ -263,8 +264,8 @@ svg { display: block; flex-shrink: 0; }
 
 .navbar__university-logo {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
 }
 
@@ -275,6 +276,10 @@ svg { display: block; flex-shrink: 0; }
   height: 100%;
   object-fit: contain;
   transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.navbar__brand:hover .navbar__brand-text {
+  color: var(--neon-2);
 }
 
 .navbar__university-logo--light {
@@ -314,7 +319,7 @@ svg { display: block; flex-shrink: 0; }
 /* ─── Authentication and protected portal ─────────────────────────────────── */
 .auth-page,
 .portal-page {
-  min-height: calc(100svh - 64px);
+  min-height: calc(100svh - var(--navbar-height));
   display: grid;
   place-items: center;
   padding: 64px 1rem;
@@ -484,7 +489,7 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .portal-dashboard {
-  min-height: calc(100svh - 64px);
+  min-height: calc(100svh - var(--navbar-height));
   padding: clamp(24px, 4vw, 56px);
   background:
     radial-gradient(circle at 12% 12%, rgba(123, 95, 255, 0.2), transparent 32%),
@@ -500,7 +505,7 @@ svg { display: block; flex-shrink: 0; }
 
 .portal-sidebar {
   position: sticky;
-  top: 88px;
+  top: calc(var(--navbar-height) + 24px);
   display: flex;
   flex-direction: column;
   min-height: calc(100svh - 176px);
@@ -796,7 +801,7 @@ svg { display: block; flex-shrink: 0; }
 .portal-section-heading { margin: 36px 0 12px; font-size: 1.25rem; }
 
 .status-page {
-  min-height: calc(100svh - 64px);
+  min-height: calc(100svh - var(--navbar-height));
   padding: 56px 1rem;
   background: #030303;
 }
@@ -1468,7 +1473,8 @@ svg { display: block; flex-shrink: 0; }
     gap: 0;
   }
 
-  .navbar__brand { padding: 12px 0; }
+  .navbar__brand { padding: 10px 0; }
+  .navbar__university-logo { width: 48px; height: 48px; }
   .navbar__toggle { display: block; margin: 12px 0; }
 
   .navbar__links {

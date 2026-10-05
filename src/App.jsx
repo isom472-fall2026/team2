@@ -544,11 +544,11 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
   return (
     <nav className="navbar" aria-label="Main navigation">
       <a href="https://www.ku.edu.kw" target="_blank" rel="noopener noreferrer" className="navbar__brand" aria-label="KU Exchange at Kuwait University">
-        <span className="navbar__brand-text">KU Exchange</span>
         <span className="navbar__university-logo" aria-hidden="true">
           <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="" className="navbar__university-logo--light" />
           <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" className="navbar__university-logo--dark" />
         </span>
+        <span className="navbar__brand-text">KU Exchange</span>
       </a>
 
       <button

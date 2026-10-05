@@ -11,7 +11,7 @@ CREATE TABLE Country (
 CREATE TABLE exchange_cycle (
     id INT PRIMARY KEY,
     semester VARCHAR(255) NOT NULL,
-    academic_year INT NOT NULL, -- Replaced MySQL YEAR with INT
+    academic_year VARCHAR(9) NOT NULL,
     nominations_o TIMESTAMP,     -- Replaced DATETIME with TIMESTAMP
     nominations_c TIMESTAMP,     -- Replaced DATETIME with TIMESTAMP
     application_o TIMESTAMP,     -- Replaced DATETIME with TIMESTAMP
@@ -221,6 +221,7 @@ on "public"."coordinator"
 to authenticated
 using ((( SELECT auth.uid() AS uid) = user_id));
 
+-- be advised that for this policy to allow only pure ku coordinators to sign up must add 'AND ((c.email)::text !~* '^s[0-9]+'::text)
 alter policy "signup"
 on "public"."coordinator"
 to authenticated
@@ -245,8 +246,87 @@ alter policy "Enable delete for Ku students"
 on "public"."kustudentauth"
 to authenticated
 using ((( SELECT auth.uid() AS uid) = user_id));
+
+
  
 alter policy "Signup"
 on "public"."kustudentauth"
 to authenticated
 with check ((auth.uid() = user_id)); 
+
+-- be advised that for this policy to allow only pure ku coordinators to edit and delete exchange cycles, must add to policy this condition 'AND ((c.email)::text !~* '^s[0-9]+'::text)'
+alter policy "edit exchange cycle"
+on "public"."exchange_cycle"
+to authenticated
+using (
+(EXISTS ( SELECT 1
+   FROM coordinator c
+  WHERE ((c.user_id = auth.uid()) AND ((c.email)::text ~~* '%@ku.edu.kw'::text))))
+);
+
+alter policy "Enable delete for KU coordinators"
+on "public"."exchange_cycle"
+to authenticated
+using (
+(EXISTS ( SELECT 1
+   FROM coordinator c
+  WHERE ((c.user_id = auth.uid()) AND ((c.email)::text ~~* '%@ku.edu.kw'::text))))
+);
+--
+
+alter policy "Enable read access for coordinators"
+on "public"."exchange_cycle"
+to authenticated
+using (   (EXISTS ( SELECT 1
+   FROM coordinator c
+  WHERE (c.user_id = auth.uid())))
+);
+
+alter policy "Enable insert for KU coordinator users only"
+on "public"."exchange_cycle"
+to authenticated
+with check (  (EXISTS ( SELECT 1
+   FROM coordinator c
+  WHERE (((c.email)::text ~~* '%@ku.edu.kw'::text) AND (c.user_id = auth.uid()))))
+);
+ 
+
+alter policy "Enable insert for coordinators"
+on "public"."studentnominations"
+to authenticated
+with check (
+  coordinator_id = (
+    SELECT c.coordinator_id
+    FROM public.coordinator c
+    WHERE c.user_id = (SELECT auth.uid())
+  )
+);
+
+alter policy "Enable read access for coordinators"
+on "public"."studentnominations"
+to authenticated
+using (
+  coordinator_id = (
+    SELECT c.coordinator_id
+    FROM public.coordinator c
+    WHERE c.user_id = (SELECT auth.uid())
+  )
+);
+
+alter policy "Enable delete for coordinators"
+on "public"."studentnominations"
+to authenticated
+using (
+  (coordinator_id = ( SELECT c.coordinator_id
+   FROM coordinator c
+  WHERE (c.user_id = auth.uid())))
+);
+
+alter policy "coordinator edit nomination"
+on "public"."studentnominations"
+to authenticated
+using (
+(coordinator_id = ( SELECT c.coordinator_id
+   FROM coordinator c
+  WHERE (c.user_id = auth.uid())))
+);

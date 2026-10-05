@@ -677,18 +677,67 @@ function StatsBar() {
   )
 }
 
+function EligibilityCriteria() {
+  const [gpa, setGpa] = useState('')
+  const [creditsPassed, setCreditsPassed] = useState('')
+  const hasEnteredBoth = gpa !== '' && creditsPassed !== ''
+  const meetsGpaRequirement = Number(gpa) >= 3
+  const meetsCreditsRequirement = Number.isInteger(Number(creditsPassed))
+    && Number(creditsPassed) >= 60
+    && Number(creditsPassed) < 103
+  const isEligible = meetsGpaRequirement && meetsCreditsRequirement
+
+  return (
+    <section id="eligibility" className="info-cards" aria-labelledby="eligibility-heading">
+      <h2 id="eligibility-heading" className="section-heading">Eligibility Criteria</h2>
+      <p className="section-subheading">
+        Enter your academic details to check your outbound exchange eligibility.
+      </p>
+      <div className="eligibility-check">
+        <div className="eligibility-check__fields">
+          <label className="eligibility-check__field">
+            GPA
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={gpa}
+              onChange={(event) => setGpa(event.target.value)}
+              aria-label="GPA"
+            />
+          </label>
+          <label className="eligibility-check__field">
+            Credits passed
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={creditsPassed}
+              onChange={(event) => setCreditsPassed(event.target.value)}
+              aria-label="Credits passed"
+            />
+          </label>
+        </div>
+        {hasEnteredBoth ? (
+          <div className={`eligibility-check__result${isEligible ? ' eligibility-check__result--eligible' : ' eligibility-check__result--ineligible'}`} aria-live="polite">
+            <h3>{isEligible ? 'You meet the eligibility criteria' : 'You do not meet the eligibility criteria'}</h3>
+            <p>
+              Eligibility requires a GPA of at least 3.0 and 60-102 credits passed.
+              {!meetsGpaRequirement && ' Your GPA is below 3.0.'}
+              {!meetsCreditsRequirement && ' Your passed credits must be a whole number from 60 through 102.'}
+            </p>
+          </div>
+        ) : (
+          <p className="eligibility-check__hint" aria-live="polite">
+            Enter both values to see the eligibility criteria and result.
+          </p>
+        )}
+      </div>
+    </section>
+  )
+}
+
 const infoCards = [
-  {
-    id: 'eligibility',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" stroke="currentColor" strokeWidth="1.5" />
-      </svg>
-    ),
-    title: 'Eligibility',
-    body: 'Open to undergraduate and postgraduate students who have completed at least one academic year at Kuwait University with a minimum CGPA of 2.5.',
-  },
   {
     id: 'duration',
     icon: (
@@ -748,6 +797,232 @@ const partners = [
   { name: 'University of Melbourne', country: 'Australia', flag: '🇦🇺' },
   { name: 'Maastricht University', country: 'Netherlands', flag: '🇳🇱' },
 ]
+
+const isoCountryCodes = `AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW`.split(' ')
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' })
+const nationalityOptions = isoCountryCodes.filter((code) => code !== 'XK')
+  .map((code) => regionNames.of(code))
+  .sort((first, second) => first.localeCompare(second))
+
+const visaGuidance = {
+  'United Kingdom': {
+    short: {
+      status: 'ETA or visitor route for short study',
+      category: 'Electronic travel authorisation (ETA) or visitor permission',
+      timeline: 'Allow at least 3 weeks if a visitor visa is needed; check ETA processing before booking.',
+      source: 'https://www.gov.uk/standard-visitor/visit-to-study',
+      sourceLabel: 'UK study as a Standard Visitor guidance',
+    },
+    semester: {
+      status: 'Visitor route for study up to 6 months',
+      category: 'Visitor permission and an ETA where required',
+      timeline: 'Allow at least 3 weeks if a visitor visa is needed; check ETA processing before booking.',
+      source: 'https://www.gov.uk/standard-visitor/visit-to-study',
+      sourceLabel: 'UK study as a Standard Visitor guidance',
+    },
+    year: {
+      status: 'Student visa required',
+      category: 'UK Student visa',
+      timeline: 'Usually 3 weeks for applications made outside the UK.',
+      source: 'https://www.gov.uk/student-visa',
+      sourceLabel: 'UK Student visa and processing time',
+    },
+  },
+  France: {
+    short: {
+      status: 'Short-stay visa-free travel may apply',
+      category: 'Short-stay Schengen entry rules',
+      timeline: 'Check France-Visas for current appointment and processing times before travel.',
+      source: 'https://france-visas.gouv.fr/en/short-stay-visa',
+      sourceLabel: 'France-Visas short-stay guidance',
+    },
+    semester: {
+      status: 'Student visa required',
+      category: 'Long-stay student visa (check course duration and visa type)',
+      timeline: 'Apply well in advance; processing time depends on the consulate and season.',
+      source: 'https://france-visas.gouv.fr/en/student',
+      sourceLabel: 'France-Visas student guidance',
+    },
+    year: {
+      status: 'Student visa required',
+      category: 'Long-stay student visa',
+      timeline: 'Apply well in advance; processing time depends on the consulate and season.',
+      source: 'https://france-visas.gouv.fr/en/student',
+      sourceLabel: 'France-Visas student guidance',
+    },
+  },
+  Canada: {
+    short: {
+      status: 'Visitor visa required for Kuwaiti passport holders',
+      category: 'Canadian visitor visa; a study permit is generally not needed for study lasting 6 months or less',
+      timeline: 'Allow 4-8 weeks as a planning estimate; check current processing times.',
+      source: 'https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/entry-requirements-country.html',
+      sourceLabel: 'Canada entry requirements by country',
+    },
+    semester: {
+      status: 'Visitor visa required for Kuwaiti passport holders',
+      category: 'Canadian visitor visa; a study permit is generally not needed for study lasting 6 months or less',
+      timeline: 'Allow 4-8 weeks as a planning estimate; check current processing times.',
+      source: 'https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit.html',
+      sourceLabel: 'Canada study permit guidance',
+    },
+    year: {
+      status: 'Study permit and visitor visa required',
+      category: 'Canadian study permit and entry visa',
+      timeline: 'Allow 4-8 weeks as a planning estimate; check current processing times.',
+      source: 'https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit.html',
+      sourceLabel: 'Canada study permit guidance',
+    },
+  },
+  'South Korea': {
+    short: {
+      status: 'Study visa category must be confirmed',
+      category: 'Confirm the short-term study visa category for your course',
+      timeline: 'Check the Korean Visa Portal and the embassy for current processing times.',
+      source: 'https://www.visa.go.kr/openPage.do?MENU_ID=10101',
+      sourceLabel: 'Korea Visa Portal',
+    },
+    semester: {
+      status: 'Student visa required for exchange study',
+      category: 'Exchange-student visa category; confirm with the Korean embassy',
+      timeline: 'Apply well in advance; check current processing times with the embassy.',
+      source: 'https://www.visa.go.kr/openPage.do?MENU_ID=10101',
+      sourceLabel: 'Korea Visa Portal',
+    },
+    year: {
+      status: 'Student visa required for exchange study',
+      category: 'Exchange-student visa category; confirm with the Korean embassy',
+      timeline: 'Apply well in advance; check current processing times with the embassy.',
+      source: 'https://www.visa.go.kr/openPage.do?MENU_ID=10101',
+      sourceLabel: 'Korea Visa Portal',
+    },
+  },
+  Australia: {
+    short: {
+      status: 'Visitor visa required',
+      category: 'Visitor visa; visitor visas generally allow study for up to 3 months',
+      timeline: 'Allow 4-8 weeks as a planning estimate; check current processing times.',
+      source: 'https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/visitor-600',
+      sourceLabel: 'Australian Visitor visa (subclass 600)',
+    },
+    semester: {
+      status: 'Student visa required',
+      category: 'Student visa (subclass 500)',
+      timeline: 'Allow 4-8 weeks as a planning estimate; check current processing times.',
+      source: 'https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/student-500',
+      sourceLabel: 'Australian Student visa (subclass 500)',
+    },
+    year: {
+      status: 'Student visa required',
+      category: 'Student visa (subclass 500)',
+      timeline: 'Allow 4-8 weeks as a planning estimate; check current processing times.',
+      source: 'https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/student-500',
+      sourceLabel: 'Australian Student visa (subclass 500)',
+    },
+  },
+  Netherlands: {
+    short: {
+      status: 'Short-stay visa-free travel may apply',
+      category: 'Short-stay Schengen entry rules',
+      timeline: 'Check the Netherlands Worldwide visa checker for current requirements and timing.',
+      source: 'https://www.netherlandsworldwide.nl/visa-the-netherlands/visa-required',
+      sourceLabel: 'Netherlands Worldwide visa checker',
+    },
+    semester: {
+      status: 'Student residence permit may be required',
+      category: 'Student residence permit; the host institution usually submits the application',
+      timeline: 'Start with the host university well in advance; check its current processing guidance.',
+      source: 'https://ind.nl/en/residence-permits/study',
+      sourceLabel: 'Dutch IND student residence permit guidance',
+    },
+    year: {
+      status: 'Student residence permit required',
+      category: 'Student residence permit; the host institution usually submits the application',
+      timeline: 'Start with the host university well in advance; check its current processing guidance.',
+      source: 'https://ind.nl/en/residence-permits/study',
+      sourceLabel: 'Dutch IND student residence permit guidance',
+    },
+  },
+}
+
+function VisaRequirementAdvisory() {
+  const [nationality, setNationality] = useState('Kuwait')
+  const [destination, setDestination] = useState('')
+  const [duration, setDuration] = useState('')
+  const guidance = nationality === 'Kuwait' && destination && duration
+    ? visaGuidance[destination]?.[duration]
+    : null
+
+  return (
+    <section className="visa-advisory" aria-labelledby="visa-advisory-heading">
+      <h2 id="visa-advisory-heading" className="section-heading">Visa Requirement Advisory</h2>
+      <p className="section-subheading">
+        Check preliminary study visa guidance for a partner destination.
+      </p>
+      <div className="visa-advisory__form">
+        <label className="visa-advisory__field">
+          Nationality
+          <input
+            list="visa-nationalities"
+            value={nationality}
+            onChange={(event) => setNationality(event.target.value)}
+            autoComplete="country-name"
+            aria-label="Nationality"
+          />
+          <datalist id="visa-nationalities">
+            {nationalityOptions.map((option) => <option key={option} value={option} />)}
+          </datalist>
+        </label>
+        <label className="visa-advisory__field">
+          Partner university / destination
+          <select value={destination} onChange={(event) => setDestination(event.target.value)}>
+            <option value="">Select a destination</option>
+            {partners.map(({ name, country }) => (
+              <option key={name} value={country}>{name} — {country}</option>
+            ))}
+          </select>
+        </label>
+        <label className="visa-advisory__field">
+          Study duration
+          <select value={duration} onChange={(event) => setDuration(event.target.value)}>
+            <option value="">Select a duration</option>
+            <option value="short">Short visit (up to 90 days)</option>
+            <option value="semester">One semester (91 days to 6 months)</option>
+            <option value="year">Full academic year (over 6 months)</option>
+          </select>
+        </label>
+      </div>
+      {nationality && destination && duration && (
+        <div className="visa-advisory__result" aria-live="polite">
+          {nationality === 'Kuwait' && guidance ? (
+            <>
+              <span className="visa-advisory__badge">{guidance.status}</span>
+              <h3>Preliminary guidance for Kuwaiti nationals</h3>
+              <p><strong>Visa category:</strong> {guidance.category}</p>
+              <p><strong>Estimated timeline:</strong> {guidance.timeline}</p>
+              <h4>Prepare these documents</h4>
+              <ul>
+                <li>Valid passport; check the destination’s validity requirements (many require at least 6 months).</li>
+                <li>Official Kuwait University nomination letter and host-university acceptance letter.</li>
+                <li>Completed visa application, recent photographs, proof of funds, and travel/health insurance if required.</li>
+              </ul>
+              <a href={guidance.source} target="_blank" rel="noreferrer">
+                Verify requirements with {guidance.sourceLabel}
+              </a>
+              <p className="visa-advisory__disclaimer">
+                This is a preliminary guide, not an immigration decision. Rules vary by course and individual circumstances; verify current requirements with the official authority before applying or booking.
+              </p>
+            </>
+          ) : (
+            <p className="visa-advisory__disclaimer">
+              This curated advisory currently covers Kuwaiti nationals only. Check the destination country’s official immigration guidance for your selected nationality.
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
 
 function PartnerUniversities() {
   return (
@@ -966,6 +1241,8 @@ function App() {
             <>
               <HeroSection />
               <StatsBar />
+              <EligibilityCriteria />
+              <VisaRequirementAdvisory />
               <InfoCards />
               <PartnerUniversities />
               <ApplicationCTA />

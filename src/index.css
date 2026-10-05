@@ -1,6 +1,6 @@
-/* ─── Always-dark base ──────────────────────────────────────────────────────── */
+/* ─── Global theme base ─────────────────────────────────────────────────────── */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
   --sans: 'Inter', system-ui, -apple-system, sans-serif;
   --heading: 'Inter', system-ui, -apple-system, sans-serif;
@@ -20,7 +20,7 @@
 
 body {
   margin: 0;
-  background: #050b18;
+  background: var(--bg);
 }
 
 #root {
@@ -30,7 +30,7 @@ body {
 h1, h2, h3 {
   font-family: var(--heading);
   font-weight: 700;
-  color: #e8f0ff;
+  color: var(--text-strong);
   margin: 0;
 }
 

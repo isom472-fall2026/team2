@@ -52,3 +52,7 @@
 * **`incomingstudentauth` / `"Enable delete for incoming students"` (DELETE)**: Authenticated international applicants may delete only their personal record during self-service account termination.
 * **`kustudentauth` / `"Signup"` (INSERT)**: Authenticated Kuwait University students may create their profile only when `user_id` matches `auth.uid()` to enforce identity integrity.
 * **`kustudentauth` / `"Enable delete for Ku students"` (DELETE)**: Authenticated Kuwait University students may delete only their personal record during self-service account removal.
+* **`studentnominations` / `"Enable insert for coordinators"` (INSERT)**: A coordinator may create nominations only when `coordinator_id` matches the coordinator profile linked to their authenticated user.
+* **`studentnominations` / `"Enable read access for coordinators"` (SELECT)**: Coordinators may view only nominations assigned to their own coordinator profile.
+* **`exchange_cycle` / `"coordinators can update exchange cycles"` (UPDATE)**: Authenticated users with a coordinator profile may update exchange cycle details.
+* **`exchange_cycle` / `"coordinators can delete exchange cycles"` (DELETE)**: Authenticated users with a coordinator profile may permanently delete exchange cycles. Linked student nominations are removed by the foreign-key cascade.

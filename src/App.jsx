@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
 import { supabase } from './supabase'
@@ -35,6 +35,24 @@ function generateCoordinatorId() {
   return generateIncomingStudentId()
 }
 
+function SuccessToast({ message, onClose }) {
+  useEffect(() => {
+    const timeoutId = window.setTimeout(onClose, 4000)
+    return () => window.clearTimeout(timeoutId)
+  }, [message, onClose])
+
+  return (
+    <div className="success-toast" role="status" aria-live="polite">
+      <span className="success-toast__icon" aria-hidden="true">✓</span>
+      <p className="success-toast__message">{message}</p>
+      <button className="success-toast__close" type="button" onClick={onClose} aria-label="Close notification">
+        ×
+      </button>
+      <span className="success-toast__progress" aria-hidden="true" />
+    </div>
+  )
+}
+
 function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   const options = authOptions[type]
   const isSignUp = mode === 'signup'
@@ -42,7 +60,9 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   const [universities, setUniversities] = useState([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [toastId, setToastId] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const dismissSuccess = useCallback(() => setMessage(''), [])
 
   useEffect(() => {
     if (type !== 'coordinator') return
@@ -54,9 +74,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
       .order('name')
       .then(({ data, error: universityError }) => {
         if (universityError) setError(universityError.message)
-        const rows = data || []
-        const hasKuwaitUniversity = rows.some(({ name }) => name.toLowerCase() === 'kuwait university')
-        setUniversities(hasKuwaitUniversity ? rows : [{ university_id: 'ku', name: 'Kuwait University' }, ...rows])
+        setUniversities(data || [])
       })
   }, [type])
 
@@ -77,7 +95,11 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
     }
 
     const email = form.email.trim().toLowerCase()
-    const requiresKuEmail = type === 'ku' || (type === 'coordinator' && form.university === 'ku')
+    const selectedUniversity = universities.find(
+      ({ university_id }) => String(university_id) === form.university,
+    )
+    const requiresKuEmail = type === 'ku'
+      || (type === 'coordinator' && selectedUniversity?.name.trim().toLowerCase() === 'kuwait university')
     if (isSignUp && requiresKuEmail && !email.endsWith('@ku.edu.kw')) {
       setError('KU students and Kuwait University coordinators must use an email ending with @ku.edu.kw.')
       return
@@ -120,7 +142,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
             coordinator_id: profileId,
             name: form.name.trim(),
             email,
-            university: form.university === 'ku' ? null : Number(form.university),
+            university: Number(form.university),
             user_id: result.data.user.id,
           }
         : {
@@ -141,6 +163,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
 
       if (!result.data.session) {
         setMessage('Account created. Check your email to confirm your account, then sign in.')
+        setToastId((currentId) => currentId + 1)
         setIsSubmitting(false)
         return
       }
@@ -205,7 +228,6 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
           <label htmlFor="password">Password</label>
           <input id="password" name="password" type="password" value={form.password} onChange={updateField} required minLength="6" autoComplete={isSignUp ? 'new-password' : 'current-password'} />
           {error && <p className="auth-form__error" role="alert">{error}</p>}
-          {message && <p className="auth-form__message" role="status">{message}</p>}
           <button className="btn btn--primary btn--full" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Working...' : isSignUp ? 'Create account' : 'Sign in'}
           </button>
@@ -214,6 +236,13 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
           {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
         </button>
       </div>
+      {message && (
+        <SuccessToast
+          key={toastId}
+          message={message}
+          onClose={dismissSuccess}
+        />
+      )}
     </section>
   )
 }
@@ -279,7 +308,51 @@ function formatCycleDate(value) {
   return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleString()
 }
 
-function CycleForm({ form, setForm, onSubmit, isSubmitting, status }) {
+function toDateTimeLocal(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+function validateCycleForm(form) {
+  const dates = [
+    ['nominations', form.nominationsOpen, form.nominationsClose],
+    ['applications', form.applicationOpen, form.applicationClose],
+    ['exchange cycle', form.cycleStart, form.cycleEnd],
+  ]
+  return dates.some(([, open, close]) => new Date(open) >= new Date(close))
+    ? 'Each opening or start date must be before its closing or end date.'
+    : ''
+}
+
+function cycleDataFromForm(form) {
+  return {
+    semester: form.semester,
+    academic_year: form.academicYear,
+    nominations_o: new Date(form.nominationsOpen).toISOString(),
+    nominations_c: new Date(form.nominationsClose).toISOString(),
+    application_o: new Date(form.applicationOpen).toISOString(),
+    application_c: new Date(form.applicationClose).toISOString(),
+    cycle_start: new Date(form.cycleStart).toISOString(),
+    cycle_end: new Date(form.cycleEnd).toISOString(),
+  }
+}
+
+function cycleFormFromCycle(cycle) {
+  return {
+    semester: cycle.semester,
+    academicYear: cycle.academic_year,
+    nominationsOpen: toDateTimeLocal(cycle.nominations_o),
+    nominationsClose: toDateTimeLocal(cycle.nominations_c),
+    applicationOpen: toDateTimeLocal(cycle.application_o),
+    applicationClose: toDateTimeLocal(cycle.application_c),
+    cycleStart: toDateTimeLocal(cycle.cycle_start),
+    cycleEnd: toDateTimeLocal(cycle.cycle_end),
+  }
+}
+
+function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel, onCancel }) {
   const updateField = (event) => setForm({ ...form, [event.target.name]: event.target.value })
 
   return (
@@ -314,95 +387,240 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status }) {
         </label>
       </div>
       {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
-      <button className="btn btn--primary" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Starting cycle...' : 'Start exchange cycle'}
-      </button>
+      <div className="cycle-form__actions">
+        <button className="btn btn--primary" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving cycle...' : submitLabel}
+        </button>
+        {onCancel && <button className="btn btn--secondary" type="button" onClick={onCancel} disabled={isSubmitting}>Cancel</button>}
+      </div>
     </form>
   )
 }
 
 function CoordinatorPortal({ profile, onDeleted }) {
   const [nominations, setNominations] = useState([])
+  const [isLoadingNominations, setIsLoadingNominations] = useState(true)
+  const [editingNominationId, setEditingNominationId] = useState(null)
+  const [nominationEditForm, setNominationEditForm] = useState({
+    studentName: '',
+    studentEmail: '',
+    studentNationality: '',
+    semester: '',
+  })
+  const [nominationEditError, setNominationEditError] = useState('')
+  const [isSavingNomination, setIsSavingNomination] = useState(false)
+  const [pendingDeleteNomination, setPendingDeleteNomination] = useState(null)
+  const [isDeletingNomination, setIsDeletingNomination] = useState(false)
   const [semesters, setSemesters] = useState([])
   const [form, setForm] = useState({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
   const [cycleForm, setCycleForm] = useState(emptyCycleForm)
   const [cycles, setCycles] = useState([])
+  const [editingCycleId, setEditingCycleId] = useState(null)
+  const [pendingDeleteCycle, setPendingDeleteCycle] = useState(null)
+  const [isDeletingCycle, setIsDeletingCycle] = useState(false)
   const [activeView, setActiveView] = useState('manage')
   const [isStartingCycle, setIsStartingCycle] = useState(false)
   const [status, setStatus] = useState({ error: '', message: '' })
+  const [toastId, setToastId] = useState(0)
+  const dismissSuccess = useCallback(
+    () => setStatus((currentStatus) => ({ ...currentStatus, message: '' })),
+    [],
+  )
 
   const loadCycles = async () => {
     const { data, error } = await supabase
       .from('exchange_cycle')
       .select('id, semester, academic_year, nominations_o, nominations_c, application_o, application_c, cycle_start, cycle_end')
+      .order('cycle_start', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
-    if (error) setStatus({ error: error.message, message: '' })
-    else setCycles(data || [])
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return false
+    }
+    setCycles(data || [])
+    return true
   }
 
   useEffect(() => {
+    let isCurrent = true
     supabase
       .from('studentnominations')
       .select('id, student_name, student_email, student_nationality, created_at, semester')
       .eq('coordinator_id', profile.coordinator_id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
+        if (!isCurrent) return
         if (error) setStatus({ error: error.message, message: '' })
         else setNominations(data || [])
+        setIsLoadingNominations(false)
       })
+
     supabase
       .from('exchange_cycle')
       .select('id, semester, academic_year, nominations_o, nominations_c, application_o, application_c, cycle_start, cycle_end')
+      .order('cycle_start', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
       .then(({ data, error }) => {
         if (error) setStatus({ error: error.message, message: '' })
         else setCycles(data || [])
       })
-    supabase.from('exchange_cycle').select('id').order('id').then(({ data, error }) => {
+    supabase.from('exchange_cycle').select('id, semester, academic_year').order('id').then(({ data, error }) => {
       if (error) setStatus({ error: error.message, message: '' })
       else setSemesters(data || [])
     })
+    return () => {
+      isCurrent = false
+    }
   }, [profile.coordinator_id])
 
   const startExchangeCycle = async (event) => {
     event.preventDefault()
     setStatus({ error: '', message: '' })
-    const dates = [
-      ['nominations', cycleForm.nominationsOpen, cycleForm.nominationsClose],
-      ['applications', cycleForm.applicationOpen, cycleForm.applicationClose],
-      ['exchange cycle', cycleForm.cycleStart, cycleForm.cycleEnd],
-    ]
-    if (dates.some(([, open, close]) => new Date(open) >= new Date(close))) {
-      setStatus({ error: 'Each opening or start date must be before its closing or end date.', message: '' })
+    const validationError = validateCycleForm(cycleForm)
+    if (validationError) {
+      setStatus({ error: validationError, message: '' })
       return
     }
     setIsStartingCycle(true)
+    const { data: existingCycle, error: duplicateCheckError } = await supabase
+      .from('exchange_cycle')
+      .select('id')
+      .eq('semester', cycleForm.semester)
+      .eq('academic_year', cycleForm.academicYear)
+      .limit(1)
+      .maybeSingle()
+    if (duplicateCheckError) {
+      setStatus({ error: duplicateCheckError.message, message: '' })
+      setIsStartingCycle(false)
+      return
+    }
+    if (existingCycle) {
+      setStatus({
+        error: `A ${cycleForm.semester} ${cycleForm.academicYear} exchange cycle already exists.`,
+        message: '',
+      })
+      setIsStartingCycle(false)
+      return
+    }
+
+    const { data: latestCycle, error: latestCycleError } = await supabase
+      .from('exchange_cycle')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (latestCycleError) {
+      setStatus({ error: latestCycleError.message, message: '' })
+      setIsStartingCycle(false)
+      return
+    }
+
     const { error } = await supabase.from('exchange_cycle').insert({
-      semester: cycleForm.semester,
-      academic_year: cycleForm.academicYear,
-      nominations_o: new Date(cycleForm.nominationsOpen).toISOString(),
-      nominations_c: new Date(cycleForm.nominationsClose).toISOString(),
-      application_o: new Date(cycleForm.applicationOpen).toISOString(),
-      application_c: new Date(cycleForm.applicationClose).toISOString(),
-      cycle_start: new Date(cycleForm.cycleStart).toISOString(),
-      cycle_end: new Date(cycleForm.cycleEnd).toISOString(),
+      id: (latestCycle?.id ?? 0) + 1,
+      ...cycleDataFromForm(cycleForm),
     })
     if (error) {
       setStatus({ error: error.message, message: '' })
     } else {
       setCycleForm(emptyCycleForm)
-      await loadCycles()
-      setStatus({ error: '', message: 'Exchange cycle started.' })
-      setActiveView('manage')
+      if (await loadCycles()) {
+        setStatus({ error: '', message: 'Exchange cycle started.' })
+        setToastId((currentId) => currentId + 1)
+        setActiveView('manage')
+      }
     }
     setIsStartingCycle(false)
+  }
+
+  const editExchangeCycle = async (event) => {
+    event.preventDefault()
+    setStatus({ error: '', message: '' })
+    const validationError = validateCycleForm(cycleForm)
+    if (validationError) {
+      setStatus({ error: validationError, message: '' })
+      return
+    }
+
+    const { data: existingCycle, error: duplicateCheckError } = await supabase
+      .from('exchange_cycle')
+      .select('id')
+      .eq('semester', cycleForm.semester)
+      .eq('academic_year', cycleForm.academicYear)
+      .neq('id', editingCycleId)
+      .limit(1)
+      .maybeSingle()
+    if (duplicateCheckError) {
+      setStatus({ error: duplicateCheckError.message, message: '' })
+      return
+    }
+    if (existingCycle) {
+      setStatus({
+        error: `A ${cycleForm.semester} ${cycleForm.academicYear} exchange cycle already exists.`,
+        message: '',
+      })
+      return
+    }
+
+    setIsStartingCycle(true)
+    const { data: updatedCycle, error } = await supabase
+      .from('exchange_cycle')
+      .update(cycleDataFromForm(cycleForm))
+      .eq('id', editingCycleId)
+      .select('id')
+      .maybeSingle()
+    setIsStartingCycle(false)
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return
+    }
+    if (!updatedCycle) {
+      setStatus({ error: 'The cycle was not updated. It may have been removed or you may not have permission.', message: '' })
+      return
+    }
+    if (await loadCycles()) {
+      setEditingCycleId(null)
+      setStatus({ error: '', message: 'Exchange cycle updated.' })
+      setToastId((currentId) => currentId + 1)
+    }
+  }
+
+  const deleteExchangeCycle = async () => {
+    if (!pendingDeleteCycle) return
+    const cycle = pendingDeleteCycle
+    setStatus({ error: '', message: '' })
+    setIsDeletingCycle(true)
+    const { data: deletedCycle, error } = await supabase
+      .from('exchange_cycle')
+      .delete()
+      .eq('id', cycle.id)
+      .select('id')
+      .maybeSingle()
+    setIsDeletingCycle(false)
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return
+    }
+    if (!deletedCycle) {
+      setStatus({ error: 'The cycle was not deleted. It may have already been removed or you may not have permission.', message: '' })
+      return
+    }
+    setCycles((currentCycles) => currentCycles.filter(({ id }) => id !== cycle.id))
+    if (editingCycleId === cycle.id) setEditingCycleId(null)
+    setPendingDeleteCycle(null)
+    setStatus({ error: '', message: 'Exchange cycle deleted.' })
+    setToastId((currentId) => currentId + 1)
   }
 
   const submitNomination = async (event) => {
     event.preventDefault()
     setStatus({ error: '', message: '' })
+    const coordinatorId = Number(profile.coordinator_id)
+    if (!Number.isInteger(coordinatorId) || coordinatorId <= 0) {
+      setStatus({ error: 'Your coordinator profile could not be identified. Please sign in again.', message: '' })
+      return
+    }
     const { error } = await supabase.from('studentnominations').insert({
-      coordinator_id: profile.coordinator_id,
+      coordinator_id: coordinatorId,
       student_name: form.studentName.trim(),
       student_email: form.studentEmail.trim(),
       student_nationality: form.studentNationality.trim(),
@@ -414,10 +632,11 @@ function CoordinatorPortal({ profile, onDeleted }) {
     }
     setForm({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
     setStatus({ error: '', message: 'Student nomination submitted.' })
+    setToastId((currentId) => currentId + 1)
     const { data: updatedNominations, error: refreshError } = await supabase
       .from('studentnominations')
       .select('id, student_name, student_email, student_nationality, created_at, semester')
-      .eq('coordinator_id', profile.coordinator_id)
+      .eq('coordinator_id', coordinatorId)
       .order('created_at', { ascending: false })
     if (refreshError) {
       setStatus({ error: refreshError.message, message: '' })
@@ -426,8 +645,174 @@ function CoordinatorPortal({ profile, onDeleted }) {
     setNominations(updatedNominations || [])
   }
 
+  const saveNomination = async (event) => {
+    event.preventDefault()
+    setNominationEditError('')
+    const coordinatorId = Number(profile.coordinator_id)
+    if (!Number.isInteger(coordinatorId) || coordinatorId <= 0) {
+      setNominationEditError('Your coordinator profile could not be identified. Please sign in again.')
+      return
+    }
+
+    setIsSavingNomination(true)
+    const { data: updatedNomination, error } = await supabase
+      .from('studentnominations')
+      .update({
+        student_name: nominationEditForm.studentName.trim(),
+        student_email: nominationEditForm.studentEmail.trim(),
+        student_nationality: nominationEditForm.studentNationality.trim(),
+        semester: Number(nominationEditForm.semester),
+      })
+      .eq('id', editingNominationId)
+      .eq('coordinator_id', coordinatorId)
+      .select('id, student_name, student_email, student_nationality, created_at, semester')
+      .maybeSingle()
+    setIsSavingNomination(false)
+    if (error) {
+      setNominationEditError(error.message)
+      return
+    }
+    if (!updatedNomination) {
+      setNominationEditError('The nomination was not updated. It may have been removed or you may not have permission.')
+      return
+    }
+
+    setNominations((currentNominations) => currentNominations.map(
+      (nomination) => nomination.id === updatedNomination.id ? updatedNomination : nomination,
+    ))
+    setEditingNominationId(null)
+    setStatus({ error: '', message: 'Nomination updated.' })
+    setToastId((currentId) => currentId + 1)
+  }
+
+  const deleteNomination = async () => {
+    if (!pendingDeleteNomination) return
+    const coordinatorId = Number(profile.coordinator_id)
+    if (!Number.isInteger(coordinatorId) || coordinatorId <= 0) {
+      setStatus({ error: 'Your coordinator profile could not be identified. Please sign in again.', message: '' })
+      return
+    }
+
+    setStatus({ error: '', message: '' })
+    setIsDeletingNomination(true)
+    const { data: deletedNomination, error } = await supabase
+      .from('studentnominations')
+      .delete()
+      .eq('id', pendingDeleteNomination.id)
+      .eq('coordinator_id', coordinatorId)
+      .select('id')
+      .maybeSingle()
+    setIsDeletingNomination(false)
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return
+    }
+    if (!deletedNomination) {
+      setStatus({ error: 'The nomination was not deleted. It may have already been removed or you may not have permission.', message: '' })
+      return
+    }
+
+    setNominations((currentNominations) => currentNominations.filter(
+      ({ id }) => id !== deletedNomination.id,
+    ))
+    if (editingNominationId === deletedNomination.id) setEditingNominationId(null)
+    setPendingDeleteNomination(null)
+    setStatus({ error: '', message: 'Nomination deleted.' })
+    setToastId((currentId) => currentId + 1)
+  }
+
   return (
     <div className="portal-dashboard portal-dashboard--coordinator">
+      {status.message && (
+        <SuccessToast
+          key={toastId}
+          message={status.message}
+          onClose={dismissSuccess}
+        />
+      )}
+      {pendingDeleteCycle && (
+        <div className="cycle-delete-dialog__backdrop">
+          <section
+            className="cycle-delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="cycle-delete-heading"
+            aria-describedby="cycle-delete-description"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !isDeletingCycle) {
+                setPendingDeleteCycle(null)
+                setStatus({ error: '', message: '' })
+              }
+            }}
+          >
+            <span className="cycle-delete-dialog__icon" aria-hidden="true">!</span>
+            <h2 id="cycle-delete-heading">Delete exchange cycle?</h2>
+            <p id="cycle-delete-description">
+              You’re about to permanently delete <strong>{pendingDeleteCycle.semester} {pendingDeleteCycle.academic_year}</strong>.
+              Any student nominations linked to this cycle will also be deleted. This action cannot be undone.
+            </p>
+            {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+            <div className="cycle-delete-dialog__actions">
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  setPendingDeleteCycle(null)
+                  setStatus({ error: '', message: '' })
+                }}
+                disabled={isDeletingCycle}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button className="btn btn--danger" type="button" onClick={deleteExchangeCycle} disabled={isDeletingCycle}>
+                {isDeletingCycle ? 'Deleting cycle...' : 'Delete cycle'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {pendingDeleteNomination && (
+        <div className="cycle-delete-dialog__backdrop">
+          <section
+            className="cycle-delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="nomination-delete-heading"
+            aria-describedby="nomination-delete-description"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !isDeletingNomination) {
+                setPendingDeleteNomination(null)
+                setStatus({ error: '', message: '' })
+              }
+            }}
+          >
+            <span className="cycle-delete-dialog__icon" aria-hidden="true">!</span>
+            <h2 id="nomination-delete-heading">Delete student nomination?</h2>
+            <p id="nomination-delete-description">
+              Permanently delete the nomination for <strong>{pendingDeleteNomination.student_name}</strong>? This action cannot be undone.
+            </p>
+            {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+            <div className="cycle-delete-dialog__actions">
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  setPendingDeleteNomination(null)
+                  setStatus({ error: '', message: '' })
+                }}
+                disabled={isDeletingNomination}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button className="btn btn--danger" type="button" onClick={deleteNomination} disabled={isDeletingNomination}>
+                {isDeletingNomination ? 'Deleting nomination...' : 'Delete nomination'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <aside className="portal-sidebar" aria-label="Coordinator portal navigation">
         <span className="portal-sidebar__eyebrow">Coordinator portal</span>
         <h1 className="portal-sidebar__title">KU Exchange</h1>
@@ -453,7 +838,7 @@ function CoordinatorPortal({ profile, onDeleted }) {
             <span className="auth-card__eyebrow">New cycle</span>
             <h2 id="portal-heading">Start an exchange cycle</h2>
             <p>Set the timetable for inbound nominations and exchange applications.</p>
-            <CycleForm form={cycleForm} setForm={setCycleForm} onSubmit={startExchangeCycle} isSubmitting={isStartingCycle} status={status} />
+            <CycleForm form={cycleForm} setForm={setCycleForm} onSubmit={startExchangeCycle} isSubmitting={isStartingCycle} status={status} submitLabel="Start exchange cycle" />
           </>
         )}
         {activeView === 'manage' && (
@@ -461,18 +846,53 @@ function CoordinatorPortal({ profile, onDeleted }) {
             <span className="auth-card__eyebrow">Cycle dashboard</span>
             <h2 id="portal-heading">Manage exchange cycles</h2>
             <p>Review the schedules currently available to students and coordinators.</p>
-            {status.message && <p className="auth-form__message" role="status">{status.message}</p>}
             {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
             {cycles.length === 0 ? <div className="portal-empty-state">No exchange cycles have been started yet.</div> : (
               <ul className="cycle-list">
                 {cycles.map((cycle) => (
                   <li key={cycle.id} className="cycle-list__item">
-                    <div><strong>{cycle.semester} {cycle.academic_year}</strong><span>Cycle #{cycle.id}</span></div>
-                    <dl>
-                      <div><dt>Nominations</dt><dd>{formatCycleDate(cycle.nominations_o)} – {formatCycleDate(cycle.nominations_c)}</dd></div>
-                      <div><dt>Applications</dt><dd>{formatCycleDate(cycle.application_o)} – {formatCycleDate(cycle.application_c)}</dd></div>
-                      <div><dt>Exchange cycle</dt><dd>{formatCycleDate(cycle.cycle_start)} – {formatCycleDate(cycle.cycle_end)}</dd></div>
-                    </dl>
+                    {editingCycleId === cycle.id ? (
+                      <CycleForm
+                        form={cycleForm}
+                        setForm={setCycleForm}
+                        onSubmit={editExchangeCycle}
+                        isSubmitting={isStartingCycle}
+                        status={status}
+                        submitLabel="Save changes"
+                        onCancel={() => {
+                          setEditingCycleId(null)
+                          setStatus({ error: '', message: '' })
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <div className="cycle-list__heading"><strong>{cycle.semester} {cycle.academic_year}</strong><span>Cycle #{cycle.id}</span></div>
+                        <dl>
+                          <div><dt>Nominations</dt><dd>{formatCycleDate(cycle.nominations_o)} – {formatCycleDate(cycle.nominations_c)}</dd></div>
+                          <div><dt>Applications</dt><dd>{formatCycleDate(cycle.application_o)} – {formatCycleDate(cycle.application_c)}</dd></div>
+                          <div><dt>Exchange cycle</dt><dd>{formatCycleDate(cycle.cycle_start)} – {formatCycleDate(cycle.cycle_end)}</dd></div>
+                        </dl>
+                        <div className="cycle-list__actions">
+                          <button
+                            className="btn btn--secondary"
+                            type="button"
+                            onClick={() => {
+                              setCycleForm(cycleFormFromCycle(cycle))
+                              setEditingCycleId(cycle.id)
+                              setStatus({ error: '', message: '' })
+                            }}
+                          >
+                            Edit cycle
+                          </button>
+                          <button className="btn btn--danger" type="button" onClick={() => {
+                            setPendingDeleteCycle(cycle)
+                            setStatus({ error: '', message: '' })
+                          }}>
+                            Delete cycle
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -494,22 +914,135 @@ function CoordinatorPortal({ profile, onDeleted }) {
           <label htmlFor="semester">Exchange semester</label>
           <select id="semester" value={form.semester} onChange={(event) => setForm({ ...form, semester: event.target.value })} required>
             <option value="">Choose a semester</option>
-            {semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.id}</option>)}
+            {semesters.map((semester) => (
+              <option key={semester.id} value={semester.id}>
+                {semester.semester} {semester.academic_year}
+              </option>
+            ))}
           </select>
           {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
-          {status.message && <p className="auth-form__message" role="status">{status.message}</p>}
           <button className="btn btn--primary" type="submit">Submit nomination</button>
         </form>
         <h2 className="portal-section-heading">Submitted nominations</h2>
-        {nominations.length === 0 ? <p>No nominations submitted yet.</p> : (
-          <ul className="nomination-list">
-            {nominations.map((nomination) => (
-              <li key={nomination.id}>
-                <strong>{nomination.student_name}</strong> · {nomination.student_email} · {nomination.student_nationality}
-              </li>
-            ))}
-          </ul>
+        {editingNominationId !== null && (
+          <form className="nomination-form nomination-edit-form" onSubmit={saveNomination}>
+            <h3>Edit nomination</h3>
+            <label htmlFor="edit-student-name">Student name</label>
+            <input
+              id="edit-student-name"
+              value={nominationEditForm.studentName}
+              onChange={(event) => setNominationEditForm({ ...nominationEditForm, studentName: event.target.value })}
+              required
+            />
+            <label htmlFor="edit-student-email">Student email</label>
+            <input
+              id="edit-student-email"
+              type="email"
+              value={nominationEditForm.studentEmail}
+              onChange={(event) => setNominationEditForm({ ...nominationEditForm, studentEmail: event.target.value })}
+              required
+            />
+            <label htmlFor="edit-student-nationality">Student nationality</label>
+            <input
+              id="edit-student-nationality"
+              value={nominationEditForm.studentNationality}
+              onChange={(event) => setNominationEditForm({ ...nominationEditForm, studentNationality: event.target.value })}
+              required
+            />
+            <label htmlFor="edit-nomination-semester">Exchange semester</label>
+            <select
+              id="edit-nomination-semester"
+              value={nominationEditForm.semester}
+              onChange={(event) => setNominationEditForm({ ...nominationEditForm, semester: event.target.value })}
+              required
+            >
+              <option value="">Choose a semester</option>
+              {semesters.map((semester) => (
+                <option key={semester.id} value={semester.id}>
+                  {semester.semester} {semester.academic_year}
+                </option>
+              ))}
+            </select>
+            {nominationEditError && <p className="auth-form__error" role="alert">{nominationEditError}</p>}
+            <div className="cycle-form__actions">
+              <button className="btn btn--primary" type="submit" disabled={isSavingNomination}>
+                {isSavingNomination ? 'Saving changes...' : 'Save changes'}
+              </button>
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  setEditingNominationId(null)
+                  setNominationEditError('')
+                }}
+                disabled={isSavingNomination}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         )}
+        {isLoadingNominations ? <p role="status">Loading submitted nominations...</p>
+          : nominations.length === 0 ? <p>No nominations submitted yet.</p> : (
+            <div className="nomination-table-wrap">
+              <table className="nomination-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Student</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Nationality</th>
+                    <th scope="col">Exchange semester</th>
+                    <th scope="col">Submitted</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {nominations.map((nomination) => {
+                    const semester = semesters.find(({ id }) => Number(id) === Number(nomination.semester))
+                    return (
+                      <tr key={nomination.id}>
+                        <th scope="row">{nomination.student_name}</th>
+                        <td>{nomination.student_email}</td>
+                        <td>{nomination.student_nationality}</td>
+                        <td>{semester ? `${semester.semester} ${semester.academic_year}` : `Cycle #${nomination.semester}`}</td>
+                        <td>{formatCycleDate(nomination.created_at)}</td>
+                        <td>
+                          <div className="nomination-table__actions">
+                            <button
+                              className="btn btn--secondary"
+                              type="button"
+                              onClick={() => {
+                                setEditingNominationId(nomination.id)
+                                setNominationEditForm({
+                                  studentName: nomination.student_name,
+                                  studentEmail: nomination.student_email,
+                                  studentNationality: nomination.student_nationality,
+                                  semester: String(nomination.semester),
+                                })
+                                setNominationEditError('')
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn--danger"
+                              type="button"
+                              onClick={() => {
+                                setPendingDeleteNomination(nomination)
+                                setStatus({ error: '', message: '' })
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
           </>
         )}
         <AccountDeleteButton onDeleted={onDeleted} />

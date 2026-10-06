@@ -1214,7 +1214,9 @@ function EligibilityCriteria() {
   const [gpa, setGpa] = useState('')
   const [creditsPassed, setCreditsPassed] = useState('')
   const hasEnteredBoth = gpa !== '' && creditsPassed !== ''
-  const meetsGpaRequirement = Number(gpa) >= 3
+  const exceedsMaximumGpa = gpa !== '' && Number(gpa) > 4
+  const isBelowMinimumGpa = gpa !== '' && Number(gpa) < 3
+  const meetsGpaRequirement = !isBelowMinimumGpa && !exceedsMaximumGpa
   const meetsCreditsRequirement = Number.isInteger(Number(creditsPassed))
     && Number(creditsPassed) >= 60
     && Number(creditsPassed) < 103
@@ -1233,11 +1235,15 @@ function EligibilityCriteria() {
             <input
               type="number"
               min="0"
+              max="4"
               step="any"
               value={gpa}
               onChange={(event) => setGpa(event.target.value)}
               aria-label="GPA"
+              aria-invalid={exceedsMaximumGpa}
+              aria-describedby={exceedsMaximumGpa ? 'gpa-error' : undefined}
             />
+            {exceedsMaximumGpa && <span id="gpa-error" className="eligibility-check__error" role="alert">GPA must be 4.0 or less.</span>}
           </label>
           <label className="eligibility-check__field">
             Credits passed
@@ -1256,7 +1262,8 @@ function EligibilityCriteria() {
             <h3>{isEligible ? 'You meet the eligibility criteria' : 'You do not meet the eligibility criteria'}</h3>
             <p>
               Eligibility requires a GPA of at least 3.0 and 60-102 credits passed.
-              {!meetsGpaRequirement && ' Your GPA is below 3.0.'}
+              {exceedsMaximumGpa && ' Your GPA cannot be greater than 4.0.'}
+              {isBelowMinimumGpa && ' Your GPA is below 3.0.'}
               {!meetsCreditsRequirement && ' Your passed credits must be a whole number from 60 through 102.'}
             </p>
           </div>

@@ -1478,6 +1478,12 @@ svg { display: block; flex-shrink: 0; }
   outline-offset: 1px;
 }
 
+.eligibility-check__error {
+  color: #e77878;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 .eligibility-check__hint {
   margin-top: 20px;
   color: var(--text-muted);

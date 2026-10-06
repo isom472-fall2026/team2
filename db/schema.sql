@@ -327,6 +327,21 @@ using (
   WHERE ((c.user_id = auth.uid()) AND ((c.email)::text ~~* '%@ku.edu.kw'::text))))
 );
 
+alter policy "any ku coordinator updates any coordinator"
+on "public"."coordinator"
+to authenticated
+using (((auth.jwt() ->> 'email'::text) ~~* '%@ku.edu.kw'::text));
+
+alter policy "Enable read access for all ku coordinators"
+on "public"."coordinator"
+to authenticated
+using (((auth.jwt() ->> 'email'::text) ~~* '%@ku.edu.kw'::text));
+
+alter policy "ku coordinator deletes any coordinator"
+on "public"."coordinator"
+to authenticated
+using (((auth.jwt() ->> 'email'::text) ~~* '%@ku.edu.kw'::text));
+
 alter policy "Enable delete for KU coordinators"
 on "public"."exchange_cycle"
 to authenticated

@@ -463,11 +463,13 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
   const [cycleForm, setCycleForm] = useState(emptyCycleForm)
   const [cycles, setCycles] = useState([])
   const [coordinators, setCoordinators] = useState([])
+  const [partnerUniversities, setPartnerUniversities] = useState([])
   const [isLoadingCoordinators, setIsLoadingCoordinators] = useState(isKuCoordinator)
   const [editingCycleId, setEditingCycleId] = useState(null)
   const [pendingDeleteCycle, setPendingDeleteCycle] = useState(null)
   const [isDeletingCycle, setIsDeletingCycle] = useState(false)
   const [activeView, setActiveView] = useState(isKuCoordinator ? 'manage' : 'nominations')
+  const [selectedNominationCycle, setSelectedNominationCycle] = useState(null)
   const [isStartingCycle, setIsStartingCycle] = useState(false)
   const [status, setStatus] = useState({ error: '', message: '' })
   const [toastId, setToastId] = useState(0)
@@ -528,6 +530,14 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
           if (error) setStatus({ error: error.message, message: '' })
           else setCoordinators(data || [])
           setIsLoadingCoordinators(false)
+        })
+      supabase
+        .from('partneruniversity')
+        .select('university_id, name')
+        .order('name')
+        .then(({ data, error }) => {
+          if (error) setStatus({ error: error.message, message: '' })
+          else setPartnerUniversities(data || [])
         })
     }
     return () => {
@@ -832,6 +842,10 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
     setToastId((currentId) => currentId + 1)
   }
 
+  const visibleNominations = activeView === 'cycle-nominations' && selectedNominationCycle
+    ? nominations.filter(({ semester }) => Number(semester) === Number(selectedNominationCycle.id))
+    : nominations
+
   return (
     <div className="portal-dashboard portal-dashboard--coordinator">
       {status.message && (
@@ -1012,7 +1026,14 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
                               </button>
                             </>
                           ) : (
-                            <button className="btn btn--secondary" type="button" onClick={() => setActiveView('nominations')}>
+                            <button
+                              className="btn btn--secondary"
+                              type="button"
+                              onClick={() => {
+                                setSelectedNominationCycle(cycle)
+                                setActiveView('cycle-nominations')
+                              }}
+                            >
                               View previous nominations
                             </button>
                           )}
@@ -1025,10 +1046,20 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
             )}
           </>
         )}
-        {activeView === 'nominations' && (
+        {(activeView === 'nominations' || activeView === 'cycle-nominations') && (
           <>
             <span className="auth-card__eyebrow">Student nominations</span>
-            {!isKuCoordinator && (
+            {activeView === 'cycle-nominations' && selectedNominationCycle ? (
+              <>
+                <h2 id="portal-heading">
+                  Previous nominations for {selectedNominationCycle.semester} {selectedNominationCycle.academic_year}
+                </h2>
+                <p>These are the nominations submitted for this exchange cycle.</p>
+                <button className="btn btn--secondary" type="button" onClick={() => setActiveView('manage')}>
+                  Back to exchange cycles
+                </button>
+              </>
+            ) : !isKuCoordinator && (
               <>
                 <h2 id="portal-heading">Submit a student nomination</h2>
                 <p>Submit and review student nominations for your university.</p>
@@ -1113,7 +1144,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
           </form>
         )}
         {isLoadingNominations ? <p role="status">Loading submitted nominations...</p>
-          : nominations.length === 0 ? <p>No nominations submitted yet.</p> : (
+          : visibleNominations.length === 0 ? <p>{activeView === 'cycle-nominations' ? 'No nominations submitted for this exchange cycle.' : 'No nominations submitted yet.'}</p> : (
             <div className="nomination-table-wrap">
               <table className="nomination-table">
                 <thead>
@@ -1129,7 +1160,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {nominations.map((nomination) => {
+                  {visibleNominations.map((nomination) => {
                     const semester = semesters.find(({ id }) => Number(id) === Number(nomination.semester))
                     return (
                       <tr key={nomination.id}>
@@ -1203,7 +1234,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
                         <tr key={coordinator.coordinator_id}>
                           <th scope="row">{coordinator.name}</th>
                           <td>{coordinator.email}</td>
-                          <td>{coordinator.university}</td>
+                          <td>{partnerUniversities.find(({ university_id }) => Number(university_id) === Number(coordinator.university))?.name || `University #${coordinator.university}`}</td>
                           <td>{coordinator.email_accepted ? 'Granted' : 'Requested'}</td>
                           <td>
                             <div className="nomination-table__actions">

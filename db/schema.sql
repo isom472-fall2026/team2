@@ -143,13 +143,14 @@ ALTER TABLE public.incomingstudentauth
 ADD COLUMN user_id uuid REFERENCES auth.users(id);
 
 CREATE TABLE studentnominations (
-    id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    id BIGINT PRIMARY KEY,
     coordinator_id INT NOT NULL,
     student_name VARCHAR(255) NOT NULL,
     student_email VARCHAR(255) NOT NULL,
     student_nationality VARCHAR(255) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     semester INT NOT NULL,
+    nomination_status VARCHAR(20) NOT NULL DEFAULT 'Active',
  
     FOREIGN KEY (coordinator_id)
         REFERENCES Coordinator(coordinator_id)
@@ -210,9 +211,71 @@ REFERENCES studentnominations(id);
 ALTER TABLE coordinator
 ADD COLUMN email_accepted BOOLEAN DEFAULT FALSE;
 
+CREATE POLICY "KU coordinators can review coordinator access"
+ON public.coordinator
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.coordinator ku_coordinator
+    WHERE ku_coordinator.user_id = auth.uid()
+      AND ku_coordinator.university = 4
+      AND ku_coordinator.email ILIKE '%@ku.edu.kw'
+  )
+  OR user_id = auth.uid()
+);
+
+CREATE POLICY "KU coordinators can approve coordinator access"
+ON public.coordinator
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.coordinator ku_coordinator
+    WHERE ku_coordinator.user_id = auth.uid()
+      AND ku_coordinator.university = 4
+      AND ku_coordinator.email ILIKE '%@ku.edu.kw'
+  )
+)
+WITH CHECK (email_accepted IN (true, false));
+
+CREATE POLICY "KU coordinators can refuse coordinator access"
+ON public.coordinator
+FOR DELETE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.coordinator ku_coordinator
+    WHERE ku_coordinator.user_id = auth.uid()
+      AND ku_coordinator.university = 4
+      AND ku_coordinator.email ILIKE '%@ku.edu.kw'
+  )
+  OR user_id = auth.uid()
+);
+
 ALTER TABLE public.exchange_cycle
   ADD COLUMN cycle_start timestamp with time zone,
   ADD COLUMN cycle_end timestamp with time zone;
+
+CREATE OR REPLACE FUNCTION public.expire_exchange_cycle_nominations()
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    UPDATE public.studentnominations AS nomination
+    SET nomination_status = 'Expired'
+    FROM public.exchange_cycle AS cycle
+    WHERE nomination.semester = cycle.id
+      AND cycle.cycle_end <= now()
+      AND nomination.nomination_status <> 'Expired';
+$$;
+
+REVOKE ALL ON FUNCTION public.expire_exchange_cycle_nominations() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.expire_exchange_cycle_nominations() TO authenticated;
 
 -- This line is for policies CURRENTLY implemented using RLS
 
@@ -310,6 +373,13 @@ using (
     SELECT c.coordinator_id
     FROM public.coordinator c
     WHERE c.user_id = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.coordinator c
+    WHERE c.user_id = auth.uid()
+      AND c.university = 4
+      AND c.email ILIKE '%@ku.edu.kw'
   )
 );
 

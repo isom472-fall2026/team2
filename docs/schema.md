@@ -40,6 +40,7 @@
 * **`KUStudentAuth` -> `auth.users`**: Connects the institutional student record to Supabase authentication identity (`ON DELETE CASCADE`).
 * **`incomingstudentAuth` -> `auth.users`**: Connects the international applicant record to Supabase authentication identity (`ON DELETE CASCADE`).
 * **`Coordinator` -> `auth.users`**: Connects the partner coordinator record to Supabase authentication identity (`ON DELETE CASCADE`).
+* **`Coordinator.email_accepted`**: KU coordinators are accepted at signup; partner coordinators start as access requests and remain blocked until a KU coordinator approves them.
 
 ---
 
@@ -53,6 +54,8 @@
 * **`kustudentauth` / `"Signup"` (INSERT)**: Authenticated Kuwait University students may create their profile only when `user_id` matches `auth.uid()` to enforce identity integrity.
 * **`kustudentauth` / `"Enable delete for Ku students"` (DELETE)**: Authenticated Kuwait University students may delete only their personal record during self-service account removal.
 * **`studentnominations` / `"Enable insert for coordinators"` (INSERT)**: A coordinator may create nominations only when `coordinator_id` matches the coordinator profile linked to their authenticated user.
-* **`studentnominations` / `"Enable read access for coordinators"` (SELECT)**: Coordinators may view only nominations assigned to their own coordinator profile.
+* **`studentnominations` / `"Enable read access for coordinators"` (SELECT)**: Partner coordinators may view nominations assigned to their own coordinator profile; KU coordinators may view all nominations.
+* **`studentnominations.id`**: Each nomination uses a unique, randomly generated eight-digit identifier that coordinators share with the nominated student.
+* **`studentnominations.nomination_status`**: New nominations default to `Active`; the database expiration function changes them to `Expired` when their exchange cycle end time has passed.
 * **`exchange_cycle` / `"coordinators can update exchange cycles"` (UPDATE)**: Authenticated users with a coordinator profile may update exchange cycle details.
 * **`exchange_cycle` / `"coordinators can delete exchange cycles"` (DELETE)**: Authenticated users with a coordinator profile may permanently delete exchange cycles. Linked student nominations are removed by the foreign-key cascade.

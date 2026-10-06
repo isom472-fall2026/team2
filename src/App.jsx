@@ -35,6 +35,12 @@ function generateCoordinatorId() {
   return generateIncomingStudentId()
 }
 
+function generateNominationId() {
+  const randomValues = new Uint32Array(1)
+  crypto.getRandomValues(randomValues)
+  return 10000000 + (randomValues[0] % 90000000)
+}
+
 function SuccessToast({ message, onClose }) {
   useEffect(() => {
     const timeoutId = window.setTimeout(onClose, 4000)
@@ -62,6 +68,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   const [message, setMessage] = useState('')
   const [toastId, setToastId] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [accessRequested, setAccessRequested] = useState(false)
   const dismissSuccess = useCallback(() => setMessage(''), [])
 
   useEffect(() => {
@@ -95,13 +102,15 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
     }
 
     const email = form.email.trim().toLowerCase()
-    const selectedUniversity = universities.find(
-      ({ university_id }) => String(university_id) === form.university,
-    )
-    const requiresKuEmail = type === 'ku'
-      || (type === 'coordinator' && selectedUniversity?.name.trim().toLowerCase() === 'kuwait university')
-    if (isSignUp && requiresKuEmail && !email.endsWith('@ku.edu.kw')) {
-      setError('KU students and Kuwait University coordinators must use an email ending with @ku.edu.kw.')
+    const selectedUniversityId = Number(form.university)
+    const isKuEmail = email.endsWith('@ku.edu.kw')
+    const isKuUniversity = selectedUniversityId === 4
+    if (isSignUp && type === 'ku' && !isKuEmail) {
+      setError('KU students must use an email ending with @ku.edu.kw.')
+      return
+    }
+    if (isSignUp && type === 'coordinator' && isKuEmail !== isKuUniversity) {
+      setError('Kuwait University coordinators must select Kuwait University and use an email ending with @ku.edu.kw.')
       return
     }
 
@@ -142,7 +151,8 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
             coordinator_id: profileId,
             name: form.name.trim(),
             email,
-            university: Number(form.university),
+            university: isKuEmail ? 4 : selectedUniversityId,
+            email_accepted: type === 'coordinator' ? isKuEmail : undefined,
             user_id: result.data.user.id,
           }
         : {
@@ -167,10 +177,41 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
         setIsSubmitting(false)
         return
       }
+      if (type === 'coordinator' && !isKuEmail) {
+        const { error: signOutError } = await supabase.auth.signOut()
+        if (signOutError) {
+          setError(signOutError.message)
+          setIsSubmitting(false)
+          return
+        }
+        setAccessRequested(true)
+        setIsSubmitting(false)
+        return
+      }
     }
 
     onAuthenticated(result.data.session)
     setIsSubmitting(false)
+  }
+
+  if (accessRequested) {
+    return (
+      <section className="auth-page" aria-labelledby="access-requested-heading">
+        <div className="auth-card">
+          <span className="auth-card__eyebrow">Access requested</span>
+          <h1 id="access-requested-heading">Your request is under review</h1>
+          <p className="auth-card__description">
+            Your coordinator account was created. A Kuwait University coordinator will review your request, and you will be notified as soon as access is granted.
+          </p>
+          <button className="btn btn--primary btn--full" type="button" onClick={() => {
+            setAccessRequested(false)
+            onModeChange('signin')
+          }}>
+            Return to sign in
+          </button>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -229,7 +270,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
           <input id="password" name="password" type="password" value={form.password} onChange={updateField} required minLength="6" autoComplete={isSignUp ? 'new-password' : 'current-password'} />
           {error && <p className="auth-form__error" role="alert">{error}</p>}
           <button className="btn btn--primary btn--full" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Working...' : isSignUp ? 'Create account' : 'Sign in'}
+            {isSubmitting ? 'Working...' : isSignUp && type === 'coordinator' && Number(form.university) !== 4 ? 'Request access' : isSignUp ? 'Create account' : 'Sign in'}
           </button>
         </form>
         <button className="auth-card__switch" type="button" onClick={() => onModeChange(isSignUp ? 'signin' : 'signup')}>
@@ -397,7 +438,13 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel,
   )
 }
 
-function CoordinatorPortal({ profile, onDeleted }) {
+function CoordinatorPortal({ profile, userEmail, onDeleted }) {
+  const profileEmailIsKu = profile.email?.trim().toLowerCase().endsWith('@ku.edu.kw')
+  const authenticatedEmailIsKu = userEmail?.trim().toLowerCase().endsWith('@ku.edu.kw')
+  const universityId = profile.university ?? profile.university_id
+  const isKuCoordinator = Number(universityId) === 4
+    || profileEmailIsKu
+    || authenticatedEmailIsKu
   const [nominations, setNominations] = useState([])
   const [isLoadingNominations, setIsLoadingNominations] = useState(true)
   const [editingNominationId, setEditingNominationId] = useState(null)
@@ -415,10 +462,12 @@ function CoordinatorPortal({ profile, onDeleted }) {
   const [form, setForm] = useState({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
   const [cycleForm, setCycleForm] = useState(emptyCycleForm)
   const [cycles, setCycles] = useState([])
+  const [coordinators, setCoordinators] = useState([])
+  const [isLoadingCoordinators, setIsLoadingCoordinators] = useState(isKuCoordinator)
   const [editingCycleId, setEditingCycleId] = useState(null)
   const [pendingDeleteCycle, setPendingDeleteCycle] = useState(null)
   const [isDeletingCycle, setIsDeletingCycle] = useState(false)
-  const [activeView, setActiveView] = useState('manage')
+  const [activeView, setActiveView] = useState(isKuCoordinator ? 'manage' : 'nominations')
   const [isStartingCycle, setIsStartingCycle] = useState(false)
   const [status, setStatus] = useState({ error: '', message: '' })
   const [toastId, setToastId] = useState(0)
@@ -443,17 +492,18 @@ function CoordinatorPortal({ profile, onDeleted }) {
 
   useEffect(() => {
     let isCurrent = true
-    supabase
-      .from('studentnominations')
-      .select('id, student_name, student_email, student_nationality, created_at, semester')
-      .eq('coordinator_id', profile.coordinator_id)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (!isCurrent) return
-        if (error) setStatus({ error: error.message, message: '' })
-        else setNominations(data || [])
-        setIsLoadingNominations(false)
-      })
+    const loadNominations = async () => {
+      let nominationsQuery = supabase
+        .from('studentnominations')
+        .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
+      if (!isKuCoordinator) nominationsQuery = nominationsQuery.eq('coordinator_id', profile.coordinator_id)
+      const { data, error } = await nominationsQuery.order('created_at', { ascending: false })
+      if (!isCurrent) return
+      if (error) setStatus({ error: error.message, message: '' })
+      else setNominations(data || [])
+      setIsLoadingNominations(false)
+    }
+    loadNominations()
 
     supabase
       .from('exchange_cycle')
@@ -468,10 +518,62 @@ function CoordinatorPortal({ profile, onDeleted }) {
       if (error) setStatus({ error: error.message, message: '' })
       else setSemesters(data || [])
     })
+    if (isKuCoordinator) {
+      supabase
+        .from('coordinator')
+        .select('coordinator_id, name, email, university, email_accepted')
+        .neq('coordinator_id', profile.coordinator_id)
+        .order('name')
+        .then(({ data, error }) => {
+          if (error) setStatus({ error: error.message, message: '' })
+          else setCoordinators(data || [])
+          setIsLoadingCoordinators(false)
+        })
+    }
     return () => {
       isCurrent = false
     }
-  }, [profile.coordinator_id])
+  }, [profile.coordinator_id, isKuCoordinator])
+
+  const updateCoordinatorAccess = async (coordinator, isAccepted) => {
+    setStatus({ error: '', message: '' })
+    if (isAccepted) {
+      const { data, error } = await supabase
+        .from('coordinator')
+        .update({ email_accepted: true })
+        .eq('coordinator_id', coordinator.coordinator_id)
+        .select('coordinator_id, name, email, university, email_accepted')
+        .maybeSingle()
+      if (error) {
+        setStatus({ error: error.message, message: '' })
+        return
+      }
+      if (!data) {
+        setStatus({ error: 'The coordinator access was not updated. You may not have permission.', message: '' })
+        return
+      }
+      setCoordinators((current) => current.map((item) => item.coordinator_id === data.coordinator_id ? data : item))
+      setStatus({ error: '', message: 'Coordinator access granted.' })
+    } else {
+      const { data, error } = await supabase
+        .from('coordinator')
+        .delete()
+        .eq('coordinator_id', coordinator.coordinator_id)
+        .select('coordinator_id')
+        .maybeSingle()
+      if (error) {
+        setStatus({ error: error.message, message: '' })
+        return
+      }
+      if (!data) {
+        setStatus({ error: 'The coordinator request was not removed. You may not have permission.', message: '' })
+        return
+      }
+      setCoordinators((current) => current.filter((item) => item.coordinator_id !== data.coordinator_id))
+      setStatus({ error: '', message: 'Coordinator request refused.' })
+    }
+    setToastId((currentId) => currentId + 1)
+  }
 
   const startExchangeCycle = async (event) => {
     event.preventDefault()
@@ -619,24 +721,33 @@ function CoordinatorPortal({ profile, onDeleted }) {
       setStatus({ error: 'Your coordinator profile could not be identified. Please sign in again.', message: '' })
       return
     }
-    const { error } = await supabase.from('studentnominations').insert({
-      coordinator_id: coordinatorId,
-      student_name: form.studentName.trim(),
-      student_email: form.studentEmail.trim(),
-      student_nationality: form.studentNationality.trim(),
-      semester: Number(form.semester),
-    })
+    let nominationId
+    let error
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      nominationId = generateNominationId()
+      const result = await supabase.from('studentnominations').insert({
+        id: nominationId,
+        coordinator_id: coordinatorId,
+        student_name: form.studentName.trim(),
+        student_email: form.studentEmail.trim(),
+        student_nationality: form.studentNationality.trim(),
+        semester: Number(form.semester),
+      })
+      error = result.error
+      if (!error || error.code !== '23505') break
+    }
     if (error) {
-      setStatus({ error: error.message, message: '' })
+      setStatus({ error: error.code === '23505' ? 'A unique nomination ID could not be generated. Please try again.' : error.message, message: '' })
       return
     }
     setForm({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
-    setStatus({ error: '', message: 'Student nomination submitted.' })
+    setStatus({ error: '', message: `Student nomination submitted. Save nomination ID ${nominationId} and share it with the student.` })
     setToastId((currentId) => currentId + 1)
-    const { data: updatedNominations, error: refreshError } = await supabase
+    let nominationsQuery = supabase
       .from('studentnominations')
-      .select('id, student_name, student_email, student_nationality, created_at, semester')
-      .eq('coordinator_id', coordinatorId)
+      .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
+    if (!isKuCoordinator) nominationsQuery = nominationsQuery.eq('coordinator_id', coordinatorId)
+    const { data: updatedNominations, error: refreshError } = await nominationsQuery
       .order('created_at', { ascending: false })
     if (refreshError) {
       setStatus({ error: refreshError.message, message: '' })
@@ -665,7 +776,7 @@ function CoordinatorPortal({ profile, onDeleted }) {
       })
       .eq('id', editingNominationId)
       .eq('coordinator_id', coordinatorId)
-      .select('id, student_name, student_email, student_nationality, created_at, semester')
+      .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
       .maybeSingle()
     setIsSavingNomination(false)
     if (error) {
@@ -818,22 +929,29 @@ function CoordinatorPortal({ profile, onDeleted }) {
         <h1 className="portal-sidebar__title">KU Exchange</h1>
         <p className="portal-sidebar__welcome">Welcome, {profile.name}</p>
         <nav className="portal-sidebar__nav">
-          <button className={activeView === 'start' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('start')}>
-            <span aria-hidden="true">＋</span> Start exchange cycle
-          </button>
+          {isKuCoordinator && (
+            <button className={activeView === 'start' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('start')}>
+              <span aria-hidden="true">＋</span> Start exchange cycle
+            </button>
+          )}
           <button className={activeView === 'manage' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('manage')}>
             <span aria-hidden="true">▦</span> Manage exchange cycle
           </button>
           <button className={activeView === 'nominations' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('nominations')}>
             <span aria-hidden="true">◌</span> Student nominations
           </button>
+          {isKuCoordinator && (
+            <button className={activeView === 'coordinators' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('coordinators')}>
+              <span aria-hidden="true">♙</span> Coordinator access
+            </button>
+          )}
         </nav>
         <div className="portal-sidebar__footer">
           <span className="portal-sidebar__secure">Signed in securely</span>
         </div>
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
-        {activeView === 'start' && (
+        {isKuCoordinator && activeView === 'start' && (
           <>
             <span className="auth-card__eyebrow">New cycle</span>
             <h2 id="portal-heading">Start an exchange cycle</h2>
@@ -873,23 +991,31 @@ function CoordinatorPortal({ profile, onDeleted }) {
                           <div><dt>Exchange cycle</dt><dd>{formatCycleDate(cycle.cycle_start)} – {formatCycleDate(cycle.cycle_end)}</dd></div>
                         </dl>
                         <div className="cycle-list__actions">
-                          <button
-                            className="btn btn--secondary"
-                            type="button"
-                            onClick={() => {
-                              setCycleForm(cycleFormFromCycle(cycle))
-                              setEditingCycleId(cycle.id)
-                              setStatus({ error: '', message: '' })
-                            }}
-                          >
-                            Edit cycle
-                          </button>
-                          <button className="btn btn--danger" type="button" onClick={() => {
-                            setPendingDeleteCycle(cycle)
-                            setStatus({ error: '', message: '' })
-                          }}>
-                            Delete cycle
-                          </button>
+                          {isKuCoordinator ? (
+                            <>
+                              <button
+                                className="btn btn--secondary"
+                                type="button"
+                                onClick={() => {
+                                  setCycleForm(cycleFormFromCycle(cycle))
+                                  setEditingCycleId(cycle.id)
+                                  setStatus({ error: '', message: '' })
+                                }}
+                              >
+                                Edit cycle
+                              </button>
+                              <button className="btn btn--danger" type="button" onClick={() => {
+                                setPendingDeleteCycle(cycle)
+                                setStatus({ error: '', message: '' })
+                              }}>
+                                Delete cycle
+                              </button>
+                            </>
+                          ) : (
+                            <button className="btn btn--secondary" type="button" onClick={() => setActiveView('nominations')}>
+                              View previous nominations
+                            </button>
+                          )}
                         </div>
                       </>
                     )}
@@ -902,28 +1028,32 @@ function CoordinatorPortal({ profile, onDeleted }) {
         {activeView === 'nominations' && (
           <>
             <span className="auth-card__eyebrow">Student nominations</span>
-            <h2 id="portal-heading">Submit a student nomination</h2>
-            <p>Submit and review student nominations for your university.</p>
-        <form className="nomination-form" onSubmit={submitNomination}>
-          <label htmlFor="studentName">Student name</label>
-          <input id="studentName" value={form.studentName} onChange={(event) => setForm({ ...form, studentName: event.target.value })} required />
-          <label htmlFor="studentEmail">Student email</label>
-          <input id="studentEmail" type="email" value={form.studentEmail} onChange={(event) => setForm({ ...form, studentEmail: event.target.value })} required />
-          <label htmlFor="studentNationality">Student nationality</label>
-          <input id="studentNationality" value={form.studentNationality} onChange={(event) => setForm({ ...form, studentNationality: event.target.value })} required />
-          <label htmlFor="semester">Exchange semester</label>
-          <select id="semester" value={form.semester} onChange={(event) => setForm({ ...form, semester: event.target.value })} required>
-            <option value="">Choose a semester</option>
-            {semesters.map((semester) => (
-              <option key={semester.id} value={semester.id}>
-                {semester.semester} {semester.academic_year}
-              </option>
-            ))}
-          </select>
-          {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
-          <button className="btn btn--primary" type="submit">Submit nomination</button>
-        </form>
-        <h2 className="portal-section-heading">Submitted nominations</h2>
+            {!isKuCoordinator && (
+              <>
+                <h2 id="portal-heading">Submit a student nomination</h2>
+                <p>Submit and review student nominations for your university.</p>
+                <form className="nomination-form" onSubmit={submitNomination}>
+                  <label htmlFor="studentName">Student name</label>
+                  <input id="studentName" value={form.studentName} onChange={(event) => setForm({ ...form, studentName: event.target.value })} required />
+                  <label htmlFor="studentEmail">Student email</label>
+                  <input id="studentEmail" type="email" value={form.studentEmail} onChange={(event) => setForm({ ...form, studentEmail: event.target.value })} required />
+                  <label htmlFor="studentNationality">Student nationality</label>
+                  <input id="studentNationality" value={form.studentNationality} onChange={(event) => setForm({ ...form, studentNationality: event.target.value })} required />
+                  <label htmlFor="semester">Exchange semester</label>
+                  <select id="semester" value={form.semester} onChange={(event) => setForm({ ...form, semester: event.target.value })} required>
+                    <option value="">Choose a semester</option>
+                    {semesters.map((semester) => (
+                      <option key={semester.id} value={semester.id}>
+                        {semester.semester} {semester.academic_year}
+                      </option>
+                    ))}
+                  </select>
+                  {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+                  <button className="btn btn--primary" type="submit">Submit nomination</button>
+                </form>
+              </>
+            )}
+            <h2 className="portal-section-heading">Submitted nominations</h2>
         {editingNominationId !== null && (
           <form className="nomination-form nomination-edit-form" onSubmit={saveNomination}>
             <h3>Edit nomination</h3>
@@ -988,10 +1118,12 @@ function CoordinatorPortal({ profile, onDeleted }) {
               <table className="nomination-table">
                 <thead>
                   <tr>
+                    <th scope="col">Nomination ID</th>
                     <th scope="col">Student</th>
                     <th scope="col">Email</th>
                     <th scope="col">Nationality</th>
                     <th scope="col">Exchange semester</th>
+                    <th scope="col">Status</th>
                     <th scope="col">Submitted</th>
                     <th scope="col">Actions</th>
                   </tr>
@@ -1001,10 +1133,12 @@ function CoordinatorPortal({ profile, onDeleted }) {
                     const semester = semesters.find(({ id }) => Number(id) === Number(nomination.semester))
                     return (
                       <tr key={nomination.id}>
+                        <td>{nomination.id}</td>
                         <th scope="row">{nomination.student_name}</th>
                         <td>{nomination.student_email}</td>
                         <td>{nomination.student_nationality}</td>
                         <td>{semester ? `${semester.semester} ${semester.academic_year}` : `Cycle #${nomination.semester}`}</td>
+                        <td>{nomination.nomination_status}</td>
                         <td>{formatCycleDate(nomination.created_at)}</td>
                         <td>
                           <div className="nomination-table__actions">
@@ -1045,14 +1179,90 @@ function CoordinatorPortal({ profile, onDeleted }) {
           )}
           </>
         )}
+        {isKuCoordinator && activeView === 'coordinators' && (
+          <>
+            <span className="auth-card__eyebrow">Access control</span>
+            <h2 id="portal-heading">Coordinator access</h2>
+            <p>Review partner coordinator accounts and access requests.</p>
+            {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+            {isLoadingCoordinators ? <p role="status">Loading coordinator accounts...</p>
+              : coordinators.length === 0 ? <p>No other coordinator accounts found.</p> : (
+                <div className="nomination-table-wrap">
+                  <table className="nomination-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Coordinator</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">University</th>
+                        <th scope="col">Access</th>
+                        <th scope="col">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coordinators.map((coordinator) => (
+                        <tr key={coordinator.coordinator_id}>
+                          <th scope="row">{coordinator.name}</th>
+                          <td>{coordinator.email}</td>
+                          <td>{coordinator.university}</td>
+                          <td>{coordinator.email_accepted ? 'Granted' : 'Requested'}</td>
+                          <td>
+                            <div className="nomination-table__actions">
+                              {!coordinator.email_accepted && (
+                                <button className="btn btn--secondary" type="button" onClick={() => updateCoordinatorAccess(coordinator, true)}>
+                                  Accept
+                                </button>
+                              )}
+                              <button className="btn btn--danger" type="button" onClick={() => updateCoordinatorAccess(coordinator, false)}>
+                                Refuse
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+          </>
+        )}
         <AccountDeleteButton onDeleted={onDeleted} />
       </section>
     </div>
   )
 }
 
+function CoordinatorAccessPending({ user, onSignOut, onDeleted }) {
+  return (
+    <section className="portal-page" aria-labelledby="access-pending-heading">
+      <div className="portal-card">
+        <span className="auth-card__eyebrow">Access pending</span>
+        <h1 id="access-pending-heading">Your coordinator access is being reviewed</h1>
+        <p>
+          Your request for <strong>{user.email}</strong> has been sent to a Kuwait University coordinator.
+          You will be notified as soon as your access is granted.
+        </p>
+        <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+        <AccountDeleteButton onDeleted={onDeleted} />
+      </div>
+    </section>
+  )
+}
+
+function isKuCoordinatorProfile(profile, userEmail) {
+  const profileEmailIsKu = profile.email?.trim().toLowerCase().endsWith('@ku.edu.kw')
+  const authenticatedEmailIsKu = userEmail?.trim().toLowerCase().endsWith('@ku.edu.kw')
+  const universityId = profile.university ?? profile.university_id
+  return Number(universityId) === 4 || profileEmailIsKu || authenticatedEmailIsKu
+}
+
 function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
-  if (profile?.role === 'coordinator') return <CoordinatorPortal profile={profile} onDeleted={onDeleted} />
+  if (profile?.role === 'coordinator') {
+    const isKuCoordinator = isKuCoordinatorProfile(profile, user.email)
+    if (!isKuCoordinator && profile.email_accepted !== true) {
+      return <CoordinatorAccessPending user={user} onSignOut={onSignOut} onDeleted={onDeleted} />
+    }
+    return <CoordinatorPortal profile={profile} userEmail={user.email} onDeleted={onDeleted} />
+  }
 
   return (
     <section className="portal-page" aria-labelledby="portal-heading">
@@ -1076,13 +1286,13 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
 
   return (
     <nav className="navbar" aria-label="Main navigation">
-      <a href="https://www.ku.edu.kw" target="_blank" rel="noopener noreferrer" className="navbar__brand" aria-label="KU Exchange at Kuwait University">
+      <Link to="/" className="navbar__brand" aria-label="Go to KU Exchange home">
         <span className="navbar__university-logo" aria-hidden="true">
           <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="" className="navbar__university-logo--light" />
           <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" className="navbar__university-logo--dark" />
         </span>
         <span className="navbar__brand-text">KU Exchange</span>
-      </a>
+      </Link>
 
       <button
         className="navbar__toggle"
@@ -1096,6 +1306,9 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
       </button>
 
       <ul className={`navbar__links ${isOpen ? 'navbar__links--open' : ''}`} role="list">
+        <li>
+          <Link to="/" className="navbar__link">Home</Link>
+        </li>
         <li>
           <button className="navbar__link navbar__theme-toggle" type="button" onClick={onThemeChange} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
             <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
@@ -1124,6 +1337,16 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
               <path d="M8 13l-3 3a2 2 0 0 0 2.83 2.83L11 15.66M16 13l3 3a2 2 0 0 1-2.83 2.83L13 15.66M11 15.66l1 1 1-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Partner Universities
+          </a>
+        </li>
+        <li>
+          <a
+            href="https://www.ku.edu.kw"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="navbar__link"
+          >
+            Kuwait University
           </a>
         </li>
         <li>

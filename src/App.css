@@ -1672,6 +1672,106 @@ svg { display: block; flex-shrink: 0; }
   margin-top: 2px;
 }
 
+/* ─── Partner directory route ──────────────────────────────────────────────── */
+.partner-directory {
+  min-height: calc(100svh - var(--navbar-height));
+  padding: 96px 0 120px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 20%, rgba(123, 95, 255, 0.12) 0%, transparent 70%),
+    var(--bg);
+}
+
+.partner-directory__intro {
+  max-width: 760px;
+  margin: 0 auto 72px;
+  padding: 0 2rem;
+  text-align: center;
+}
+
+.partner-directory__intro h1 {
+  margin-top: 12px;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.partner-directory__intro p {
+  margin-top: 18px;
+  color: var(--text-muted);
+}
+
+.partner-directory__viewport {
+  width: 100%;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+.partner-directory__track {
+  display: flex;
+  width: max-content;
+  gap: 24px;
+  animation: partner-directory-scroll 70s linear infinite;
+}
+
+.partner-directory__university {
+  display: flex;
+  flex: 0 0 270px;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 22px 24px;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glow-card);
+}
+
+.partner-directory__logo {
+  display: grid;
+  place-items: center;
+  width: 128px;
+  height: 128px;
+  padding: 12px;
+  overflow: hidden;
+  color: var(--neon);
+  font-size: 3rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+}
+
+.partner-directory__logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.partner-directory__university p {
+  max-width: 220px;
+  color: var(--text-strong);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.partner-directory__status {
+  padding: 0 2rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.partner-directory__status--error {
+  color: var(--danger, #ff6b81);
+}
+
+@keyframes partner-directory-scroll {
+  to { transform: translateX(calc(-50% - 12px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partner-directory__track { animation-play-state: paused; }
+}
+
 /* ─── Apply CTA ────────────────────────────────────────────────────────────── */
 .apply-cta {
   padding: 80px 2rem;

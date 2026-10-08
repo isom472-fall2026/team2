@@ -1312,6 +1312,68 @@ function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
   )
 }
 
+function PartnerUniversitiesRoute() {
+  const [universities, setUniversities] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let isCurrent = true
+
+    supabase
+      .from('partneruniversity')
+      .select('university_id, name, logo_url')
+      .order('name')
+      .then(({ data, error: universityError }) => {
+        if (!isCurrent) return
+        if (universityError) setError(universityError.message)
+        else setUniversities(data || [])
+        setIsLoading(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  return (
+    <section className="partner-directory" aria-labelledby="partner-directory-heading">
+      <div className="partner-directory__intro">
+        <span className="auth-card__eyebrow">Global connections</span>
+        <h1 id="partner-directory-heading">Our partner universities</h1>
+        <p>Explore the institutions that make exchange opportunities around the world possible.</p>
+      </div>
+      {isLoading && <p className="partner-directory__status">Loading partner universities...</p>}
+      {error && <p className="partner-directory__status partner-directory__status--error" role="alert">{error}</p>}
+      {!isLoading && !error && universities.length === 0 && (
+        <p className="partner-directory__status">No partner universities are available yet.</p>
+      )}
+      {!isLoading && !error && universities.length > 0 && (
+        <div className="partner-directory__viewport">
+          <div className="partner-directory__track">
+            {[...universities, ...universities].map((university, index) => (
+              <article
+                className="partner-directory__university"
+                key={`${university.university_id}-${index}`}
+                aria-hidden={index >= universities.length}
+              >
+                <div className="partner-directory__logo">
+                  {university.logo_url ? (
+                    <img src={university.logo_url} alt="" />
+                  ) : (
+                    <span aria-hidden="true">{university.name.charAt(0)}</span>
+                  )}
+                </div>
+                <p>{university.name}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function Navbar({ session, onSignOut, theme, onThemeChange }) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -1358,17 +1420,14 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
           </li>
         )}
         <li>
-          <a
-            href="#partner-universities"
-            className="navbar__link"
-          >
+          <Link to="/partners" className="navbar__link">
             {/* Handshake / partnership icon */}
             <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M16 8l-4-4-4 4M12 4v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M8 13l-3 3a2 2 0 0 0 2.83 2.83L11 15.66M16 13l3 3a2 2 0 0 1-2.83 2.83L13 15.66M11 15.66l1 1 1-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Partner Universities
-          </a>
+          </Link>
         </li>
         <li>
           <a
@@ -2049,6 +2108,7 @@ function App() {
           } />
           <Route path="/portal/inbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/portal/outbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/partners" element={<PartnerUniversitiesRoute />} />
           <Route path="/erd" element={<ErdPage />} />
           <Route path="/test-status" element={<TestStatusPage />} />
         </Routes>

@@ -1405,6 +1405,36 @@ const partnerUniversityFlags = {
   'University of Technology Sydney': '🇦🇺',
 }
 
+const partnerUniversityAirports = {
+  'Audencia Nantes School of Management': { name: 'Nantes Atlantique Airport', code: 'NTE' },
+  'Bocconi University': { name: 'Milan Linate Airport', code: 'LIN' },
+  'EM Normandie Business School': { name: 'Deauville–Normandie Airport', code: 'DOL' },
+  'Esade Business School': { name: 'Barcelona–El Prat Airport', code: 'BCN' },
+  'ESC Rennes School of Business': { name: 'Rennes–Saint-Jacques Airport', code: 'RNS' },
+  'Essec School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG' },
+  'Goethe University': { name: 'Frankfurt Airport', code: 'FRA' },
+  'Hanyang University': { name: 'Gimpo International Airport', code: 'GMP' },
+  'HEC School of Management': { name: 'Paris Orly Airport', code: 'ORY' },
+  'IE Business School': { name: 'Adolfo Suárez Madrid–Barajas Airport', code: 'MAD' },
+  'Indian Institute of Management Bangalore': { name: 'Kempegowda International Airport', code: 'BLR' },
+  'KEDGE Business School': { name: 'Bordeaux–Mérignac Airport', code: 'BOD' },
+  'Kogod School of Business': { name: 'Ronald Reagan Washington National Airport', code: 'DCA' },
+  'National Chengchi University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE' },
+  'National Taiwan University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE' },
+  'Neoma Business School': { name: 'Paris Charles de Gaulle Airport', code: 'CDG' },
+  'Paris School of Business': { name: 'Paris Orly Airport', code: 'ORY' },
+  'Rotterdam School of Management': { name: 'Rotterdam The Hague Airport', code: 'RTM' },
+  'Skema Business School': { name: 'Nice Côte d’Azur Airport', code: 'NCE' },
+  'Toulouse Business School': { name: 'Toulouse–Blagnac Airport', code: 'TLS' },
+  'University of Geneva': { name: 'Geneva Airport', code: 'GVA' },
+  'University of Manheim': { name: 'Frankfurt Airport', code: 'FRA' },
+  'University of Maryland': { name: 'Baltimore/Washington International Airport', code: 'BWI' },
+  'University of Rhode Island': { name: 'T. F. Green International Airport', code: 'PVD' },
+  'University of San Diego': { name: 'San Diego International Airport', code: 'SAN' },
+  'University of St.Gallen': { name: 'Zurich Airport', code: 'ZRH' },
+  'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD' },
+}
+
 const mapStyles = [
   { id: 'dark', label: 'Dark', url: 'mapbox://styles/mapbox/dark-v11' },
   { id: 'streets', label: 'Streets', url: 'mapbox://styles/mapbox/streets-v12' },
@@ -1416,6 +1446,7 @@ function PartnerUniversityMap({ universities, selectedUniversity, onSelect }) {
   const mapContainer = useRef(null)
   const map = useRef(null)
   const markers = useRef([])
+  const hasSelectedUniversity = useRef(false)
   const [styleId, setStyleId] = useState('dark')
 
   const addMarkers = useCallback(() => {
@@ -1437,8 +1468,8 @@ function PartnerUniversityMap({ universities, selectedUniversity, onSelect }) {
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: mapStyles[0].url,
-      center: [10, 25],
-      zoom: 1.35,
+      center: [47.973, 29.253],
+      zoom: 12,
     })
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
     return () => {
@@ -1466,6 +1497,10 @@ function PartnerUniversityMap({ universities, selectedUniversity, onSelect }) {
 
   useEffect(() => {
     if (!map.current || !selectedUniversity || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    if (!hasSelectedUniversity.current) {
+      hasSelectedUniversity.current = true
+      return
+    }
     map.current.flyTo({ center: [selectedUniversity.longitude, selectedUniversity.latitude], zoom: 5, duration: 900 })
   }, [selectedUniversity])
 
@@ -1493,6 +1528,7 @@ function PartnerUniversitiesRoute() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedUniversityId, setSelectedUniversityId] = useState(null)
+  const [showAirport, setShowAirport] = useState(false)
 
   useEffect(() => {
     let isCurrent = true
@@ -1530,7 +1566,10 @@ function PartnerUniversitiesRoute() {
   }, [])
 
   const selectedUniversity = universities.find((university) => university.university_id === selectedUniversityId)
-  const selectUniversity = useCallback((universityId) => setSelectedUniversityId(universityId), [])
+  const selectUniversity = useCallback((universityId) => {
+    setSelectedUniversityId(universityId)
+    setShowAirport(false)
+  }, [])
 
   return (
     <section className="partner-directory" aria-labelledby="partner-directory-heading">
@@ -1601,6 +1640,14 @@ function PartnerUniversitiesRoute() {
                     </div>
                     <h2>{selectedUniversity.name}</h2>
                     <p>{selectedUniversity.details || 'University details are not available yet.'}</p>
+                    <button className="btn btn--secondary" type="button" onClick={() => setShowAirport((isVisible) => !isVisible)}>
+                      {showAirport ? 'Hide closest airport' : 'Closest airport'}
+                    </button>
+                    {showAirport && (
+                      <p className="partner-directory__airport" role="status">
+                        {partnerUniversityAirports[selectedUniversity.name]?.name || 'Airport information is not available'} ({partnerUniversityAirports[selectedUniversity.name]?.code || '—'})
+                      </p>
+                    )}
                     <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
                       Visit university website
                     </a>

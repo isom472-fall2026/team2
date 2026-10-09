@@ -1794,10 +1794,9 @@ svg { display: block; flex-shrink: 0; }
   display: grid;
   grid-template-columns: minmax(230px, 290px) minmax(0, 1fr);
   gap: 24px;
-  max-width: 1200px;
-  min-height: 560px;
+  width: min(1700px, calc(100% - 4rem));
+  min-height: clamp(560px, 58vh, 820px);
   margin: 72px auto 0;
-  padding: 0 2rem;
 }
 
 .partner-directory__list,
@@ -1877,8 +1876,18 @@ svg { display: block; flex-shrink: 0; }
   color: var(--text-muted);
 }
 
+.partner-directory__airport {
+  margin: 14px 0 20px !important;
+  padding: 12px 14px;
+  color: var(--text-strong) !important;
+  font-size: 0.9rem;
+  background: rgba(0, 212, 255, 0.08);
+  border-left: 3px solid var(--neon);
+  border-radius: 4px;
+}
+
 .partner-directory__map {
-  min-height: 500px;
+  min-height: clamp(500px, 58vh, 820px);
   overflow: hidden;
   border-radius: var(--radius-sm);
 }
@@ -1970,6 +1979,10 @@ svg { display: block; flex-shrink: 0; }
   .partner-directory__browser,
   .partner-directory__details {
     grid-template-columns: 1fr;
+  }
+
+  .partner-directory__browser {
+    width: calc(100% - 2rem);
   }
 
   .partner-directory__list-scroll {

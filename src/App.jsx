@@ -1346,6 +1346,7 @@ const partnerUniversityWebsites = {
 }
 
 const partnerUniversityCoordinates = {
+  'Kuwait University': [29.253, 47.973],
   'Audencia Nantes School of Management': [47.2184, -1.5536],
   'Bocconi University': [45.4506, 9.1883],
   'EM Normandie Business School': [49.4944, 0.1079],
@@ -1587,6 +1588,7 @@ function PartnerUniversityMap({ universities, selectedUniversity, onSelect, onRe
 
 function PartnerUniversitiesRoute() {
   const [universities, setUniversities] = useState([])
+  const [homeUniversity, setHomeUniversity] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedUniversityId, setSelectedUniversityId] = useState(null)
@@ -1608,15 +1610,21 @@ function PartnerUniversitiesRoute() {
       if (!isCurrent) return
       if (result.error) setError(result.error.message)
       else {
-        const availableUniversities = (result.data || [])
-          .filter((university) => university.university_id !== 4)
-          .map((university) => ({
-            ...university,
-            latitude: university.latitude ?? partnerUniversityCoordinates[university.name]?.[0],
-            longitude: university.longitude ?? partnerUniversityCoordinates[university.name]?.[1],
-          }))
+        const mappedUniversities = (result.data || []).map((university) => ({
+          ...university,
+          latitude: university.latitude ?? partnerUniversityCoordinates[university.name]?.[0],
+          longitude: university.longitude ?? partnerUniversityCoordinates[university.name]?.[1],
+        }))
+        const kuwaitUniversity = mappedUniversities.find((university) => university.university_id === 4)
+        const availableUniversities = mappedUniversities.filter((university) => university.university_id !== 4)
+        setHomeUniversity(kuwaitUniversity || {
+          university_id: 4,
+          name: 'Kuwait University',
+          details: 'Kuwait University is the home institution for this exchange directory.',
+          latitude: partnerUniversityCoordinates['Kuwait University'][0],
+          longitude: partnerUniversityCoordinates['Kuwait University'][1],
+        })
         setUniversities(availableUniversities)
-        setSelectedUniversityId(availableUniversities[0]?.university_id ?? null)
       }
       setIsLoading(false)
     }
@@ -1628,6 +1636,7 @@ function PartnerUniversitiesRoute() {
   }, [])
 
   const selectedUniversity = universities.find((university) => university.university_id === selectedUniversityId)
+  const detailsUniversity = selectedUniversity || homeUniversity
   const selectUniversity = useCallback((universityId) => {
     setSelectedUniversityId(universityId)
     setShowAirport(false)
@@ -1689,33 +1698,37 @@ function PartnerUniversitiesRoute() {
               </div>
             </aside>
             <div className="partner-directory__details">
-              {selectedUniversity && (
+              {detailsUniversity && (
                 <>
                   <div className="partner-directory__details-copy">
-                    <span className="auth-card__eyebrow">Selected partner</span>
+                    <span className="auth-card__eyebrow">{selectedUniversity ? 'Selected partner' : 'Home'}</span>
                     <div className="partner-directory__selected-logo">
-                      {selectedUniversity.logo_url ? (
-                        <img src={selectedUniversity.logo_url} alt="" />
+                      {detailsUniversity.logo_url ? (
+                        <img src={detailsUniversity.logo_url} alt="" />
                       ) : (
-                        <span aria-hidden="true">{selectedUniversity.name.charAt(0)}</span>
+                        <span aria-hidden="true">{detailsUniversity.name.charAt(0)}</span>
                       )}
                     </div>
-                    <h2>{selectedUniversity.name}</h2>
-                    <p>{selectedUniversity.details || 'University details are not available yet.'}</p>
-                    <button className="btn btn--secondary" type="button" onClick={() => setShowAirport((isVisible) => !isVisible)}>
-                      {showAirport ? 'Hide closest airport' : 'Closest airport'}
-                    </button>
-                    {showAirport && (
-                      <p className="partner-directory__airport" role="status">
-                        {partnerUniversityAirports[selectedUniversity.name]?.name || 'Airport information is not available'} ({partnerUniversityAirports[selectedUniversity.name]?.code || '—'})
-                        <span>
-                          {partnerUniversityAirports[selectedUniversity.name]?.distanceKm ?? '—'} km by road · approximately {partnerUniversityAirports[selectedUniversity.name]?.driveMinutes ?? '—'} minutes by car
-                        </span>
-                      </p>
+                    <h2>{detailsUniversity.name}</h2>
+                    <p>{detailsUniversity.details || 'University details are not available yet.'}</p>
+                    {selectedUniversity && (
+                      <>
+                        <button className="btn btn--secondary" type="button" onClick={() => setShowAirport((isVisible) => !isVisible)}>
+                          {showAirport ? 'Hide closest airport' : 'Closest airport'}
+                        </button>
+                        {showAirport && (
+                          <p className="partner-directory__airport" role="status">
+                            {partnerUniversityAirports[selectedUniversity.name]?.name || 'Airport information is not available'} ({partnerUniversityAirports[selectedUniversity.name]?.code || '—'})
+                            <span>
+                              {partnerUniversityAirports[selectedUniversity.name]?.distanceKm ?? '—'} km by road · approximately {partnerUniversityAirports[selectedUniversity.name]?.driveMinutes ?? '—'} minutes by car
+                            </span>
+                          </p>
+                        )}
+                        <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
+                          Visit university website
+                        </a>
+                      </>
                     )}
-                    <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
-                      Visit university website
-                    </a>
                   </div>
                   <PartnerUniversityMap
                     universities={universities}

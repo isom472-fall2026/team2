@@ -1973,15 +1973,16 @@ svg { display: block; flex-shrink: 0; }
 .partner-directory__selected-logo {
   display: grid;
   place-items: center;
-  width: 88px;
-  height: 88px;
+  width: 112px;
+  height: 112px;
   margin-top: 18px;
-  padding: 10px;
+  padding: 12px;
   color: var(--neon);
   font-size: 2rem;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 50%;
+  overflow: hidden;
 }
 
 .partner-directory__selected-logo img {

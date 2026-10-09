@@ -1346,7 +1346,6 @@ const partnerUniversityWebsites = {
 }
 
 const partnerUniversityCoordinates = {
-  'Kuwait University': [29.253, 47.973],
   'Audencia Nantes School of Management': [47.2184, -1.5536],
   'Bocconi University': [45.4506, 9.1883],
   'EM Normandie Business School': [49.4944, 0.1079],
@@ -1443,7 +1442,7 @@ const mapStyles = [
   { id: 'satellite', label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
 ]
 
-function PartnerUniversityMap({ universities, selectedUniversity, onSelect, onResetSelection, showAirport }) {
+function PartnerUniversityMap({ universities, homeUniversity, selectedUniversity, onSelect, onResetSelection, showAirport }) {
   const mapContainer = useRef(null)
   const map = useRef(null)
   const markers = useRef([])
@@ -1465,12 +1464,12 @@ function PartnerUniversityMap({ universities, selectedUniversity, onSelect, onRe
   }, [universities, onSelect])
 
   useEffect(() => {
-    if (!mapContainer.current) return undefined
+    if (!mapContainer.current || homeUniversity?.longitude == null || homeUniversity?.latitude == null) return undefined
     mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: mapStyles.find((style) => style.id === 'streets').url,
-      center: [47.973, 29.253],
+      center: [homeUniversity.longitude, homeUniversity.latitude],
       zoom: 12,
     })
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
@@ -1479,7 +1478,7 @@ function PartnerUniversityMap({ universities, selectedUniversity, onSelect, onRe
       map.current?.remove()
       map.current = null
     }
-  }, [])
+  }, [homeUniversity])
 
   useEffect(() => {
     if (!map.current) return undefined
@@ -1621,8 +1620,6 @@ function PartnerUniversitiesRoute() {
           university_id: 4,
           name: 'Kuwait University',
           details: 'Kuwait University is the home institution for this exchange directory.',
-          latitude: partnerUniversityCoordinates['Kuwait University'][0],
-          longitude: partnerUniversityCoordinates['Kuwait University'][1],
         })
         setUniversities(availableUniversities)
       }
@@ -1732,6 +1729,7 @@ function PartnerUniversitiesRoute() {
                   </div>
                   <PartnerUniversityMap
                     universities={universities}
+                    homeUniversity={homeUniversity}
                     selectedUniversity={selectedUniversity}
                     onSelect={selectUniversity}
                     onResetSelection={() => {

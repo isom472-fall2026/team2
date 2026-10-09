@@ -1973,10 +1973,10 @@ svg { display: block; flex-shrink: 0; }
 .partner-directory__selected-logo {
   display: grid;
   place-items: center;
-  width: 112px;
-  height: 112px;
+  width: 176px;
+  height: 176px;
   margin-top: 18px;
-  padding: 12px;
+  padding: 20px;
   color: var(--neon);
   font-size: 2rem;
   font-weight: 700;

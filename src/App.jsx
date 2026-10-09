@@ -1704,7 +1704,7 @@ function PartnerUniversitiesRoute() {
                     <h2>{detailsUniversity.name}</h2>
                     <p>{detailsUniversity.details || 'University details are not available yet.'}</p>
                     {selectedUniversity && (
-                      <>
+                      <div className="partner-directory__details-actions">
                         <button className="btn btn--secondary" type="button" onClick={() => setShowAirport((isVisible) => !isVisible)}>
                           {showAirport ? 'Hide closest airport' : 'Closest airport'}
                         </button>
@@ -1719,7 +1719,7 @@ function PartnerUniversitiesRoute() {
                         <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
                           Visit university website
                         </a>
-                      </>
+                      </div>
                     )}
                   </div>
                   <PartnerUniversityMap

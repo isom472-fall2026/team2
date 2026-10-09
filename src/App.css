@@ -1899,6 +1899,7 @@ svg { display: block; flex-shrink: 0; }
 
 .partner-directory__details-copy > .btn + .btn {
   margin-top: 12px;
+  margin-inline-start: 12px;
 }
 
 .partner-directory__map {

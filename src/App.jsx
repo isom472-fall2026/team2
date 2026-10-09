@@ -1447,7 +1447,6 @@ function PartnerUniversityMap({ universities, homeUniversity, selectedUniversity
   const map = useRef(null)
   const markers = useRef([])
   const airportMarker = useRef(null)
-  const hasSelectedUniversity = useRef(false)
   const [styleId, setStyleId] = useState('streets')
 
   const addMarkers = useCallback(() => {
@@ -1559,10 +1558,6 @@ function PartnerUniversityMap({ universities, homeUniversity, selectedUniversity
 
   useEffect(() => {
     if (!map.current || !selectedUniversity || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
-    if (!hasSelectedUniversity.current) {
-      hasSelectedUniversity.current = true
-      return
-    }
     map.current.flyTo({ center: [selectedUniversity.longitude, selectedUniversity.latitude], zoom: 5, duration: 900 })
   }, [selectedUniversity])
 

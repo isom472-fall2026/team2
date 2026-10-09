@@ -1447,7 +1447,6 @@ function PartnerUniversityMap({ universities, homeUniversity, selectedUniversity
   const map = useRef(null)
   const markers = useRef([])
   const airportMarker = useRef(null)
-  const hasSelectedUniversity = useRef(false)
   const [styleId, setStyleId] = useState('streets')
 
   const addMarkers = useCallback(() => {
@@ -1559,10 +1558,6 @@ function PartnerUniversityMap({ universities, homeUniversity, selectedUniversity
 
   useEffect(() => {
     if (!map.current || !selectedUniversity || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
-    if (!hasSelectedUniversity.current) {
-      hasSelectedUniversity.current = true
-      return
-    }
     map.current.flyTo({ center: [selectedUniversity.longitude, selectedUniversity.latitude], zoom: 5, duration: 900 })
   }, [selectedUniversity])
 
@@ -1709,7 +1704,7 @@ function PartnerUniversitiesRoute() {
                     <h2>{detailsUniversity.name}</h2>
                     <p>{detailsUniversity.details || 'University details are not available yet.'}</p>
                     {selectedUniversity && (
-                      <>
+                      <div className="partner-directory__details-actions">
                         <button className="btn btn--secondary" type="button" onClick={() => setShowAirport((isVisible) => !isVisible)}>
                           {showAirport ? 'Hide closest airport' : 'Closest airport'}
                         </button>
@@ -1724,7 +1719,7 @@ function PartnerUniversitiesRoute() {
                         <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
                           Visit university website
                         </a>
-                      </>
+                      </div>
                     )}
                   </div>
                   <PartnerUniversityMap

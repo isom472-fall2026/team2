@@ -1893,12 +1893,26 @@ svg { display: block; flex-shrink: 0; }
   font-size: 0.82rem;
 }
 
-.partner-directory__airport + .btn {
-  margin-top: 12px;
+.partner-directory__details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
 }
 
-.partner-directory__details-copy > .btn + .btn {
-  margin-top: 12px;
+.partner-directory__details-actions > .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.partner-directory__details-actions > .partner-directory__airport {
+  flex: 1 0 100%;
+  margin: 0 !important;
 }
 
 .partner-directory__map {

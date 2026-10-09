@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
 import { supabase } from './supabase'
 import './App.css'
 
@@ -1342,29 +1345,192 @@ const partnerUniversityWebsites = {
   'University of Technology Sydney': 'https://www.uts.edu.au',
 }
 
+const partnerUniversityCoordinates = {
+  'Audencia Nantes School of Management': [47.2184, -1.5536],
+  'Bocconi University': [45.4506, 9.1883],
+  'EM Normandie Business School': [49.4944, 0.1079],
+  'Esade Business School': [41.3919, 2.1136],
+  'ESC Rennes School of Business': [48.1173, -1.6778],
+  'Essec School of Business': [49.033, 2.08],
+  'Goethe University': [50.126, 8.667],
+  'Hanyang University': [37.557, 127.045],
+  'HEC School of Management': [48.758, 2.169],
+  'IE Business School': [40.439, -3.691],
+  'Indian Institute of Management Bangalore': [12.935, 77.605],
+  'KEDGE Business School': [44.792, -0.607],
+  'Kogod School of Business': [38.937, -77.087],
+  'National Chengchi University': [24.988, 121.576],
+  'National Taiwan University': [25.017, 121.54],
+  'Neoma Business School': [49.238509, 4.002832],
+  'Paris School of Business': [48.853, 2.35],
+  'Rotterdam School of Management': [51.917, 4.525],
+  'Skema Business School': [43.615, 7.073],
+  'Toulouse Business School': [43.605, 1.444],
+  'University of Geneva': [46.198, 6.14],
+  'University of Manheim': [49.483, 8.463],
+  'University of Maryland': [38.986, -76.944],
+  'University of Rhode Island': [41.484, -71.53],
+  'University of San Diego': [32.771, -117.188],
+  'University of St.Gallen': [47.431, 9.373],
+  'University of Technology Sydney': [-33.883, 151.201],
+}
+
+const partnerUniversityFlags = {
+  'Audencia Nantes School of Management': '🇫🇷',
+  'Bocconi University': '🇮🇹',
+  'EM Normandie Business School': '🇫🇷',
+  'Esade Business School': '🇪🇸',
+  'ESC Rennes School of Business': '🇫🇷',
+  'Essec School of Business': '🇫🇷',
+  'Goethe University': '🇩🇪',
+  'Hanyang University': '🇰🇷',
+  'HEC School of Management': '🇫🇷',
+  'IE Business School': '🇪🇸',
+  'Indian Institute of Management Bangalore': '🇮🇳',
+  'KEDGE Business School': '🇫🇷',
+  'Kogod School of Business': '🇺🇸',
+  'National Chengchi University': '🇹🇼',
+  'National Taiwan University': '🇹🇼',
+  'Neoma Business School': '🇫🇷',
+  'Paris School of Business': '🇫🇷',
+  'Rotterdam School of Management': '🇳🇱',
+  'Skema Business School': '🇫🇷',
+  'Toulouse Business School': '🇫🇷',
+  'University of Geneva': '🇨🇭',
+  'University of Manheim': '🇩🇪',
+  'University of Maryland': '🇺🇸',
+  'University of Rhode Island': '🇺🇸',
+  'University of San Diego': '🇺🇸',
+  'University of St.Gallen': '🇨🇭',
+  'University of Technology Sydney': '🇦🇺',
+}
+
+const mapStyles = [
+  { id: 'dark', label: 'Dark', url: 'mapbox://styles/mapbox/dark-v11' },
+  { id: 'streets', label: 'Streets', url: 'mapbox://styles/mapbox/streets-v12' },
+  { id: 'light', label: 'Light', url: 'mapbox://styles/mapbox/light-v11' },
+  { id: 'satellite', label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
+]
+
+function PartnerUniversityMap({ universities, selectedUniversity, onSelect }) {
+  const mapContainer = useRef(null)
+  const map = useRef(null)
+  const markers = useRef([])
+  const [styleId, setStyleId] = useState('dark')
+
+  const addMarkers = useCallback(() => {
+    if (!map.current) return
+    markers.current.forEach((marker) => marker.remove())
+    markers.current = universities.flatMap((university) => {
+      if (university.latitude == null || university.longitude == null) return []
+      const marker = new mapboxgl.Marker({ color: '#00d4ff' })
+        .setLngLat([university.longitude, university.latitude])
+        .addTo(map.current)
+      marker.getElement().addEventListener('click', () => onSelect(university.university_id))
+      return [marker]
+    })
+  }, [universities, onSelect])
+
+  useEffect(() => {
+    if (!mapContainer.current) return undefined
+    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: mapStyles[0].url,
+      center: [10, 25],
+      zoom: 1.35,
+    })
+    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
+    return () => {
+      map.current?.remove()
+      map.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!map.current) return undefined
+    addMarkers()
+    return () => {
+      markers.current.forEach((marker) => marker.remove())
+      markers.current = []
+    }
+  }, [addMarkers])
+
+  const changeStyle = (nextStyleId) => {
+    const nextStyle = mapStyles.find((style) => style.id === nextStyleId)
+    if (!map.current || !nextStyle || nextStyleId === styleId) return
+    setStyleId(nextStyleId)
+    map.current.once('style.load', addMarkers)
+    map.current.setStyle(nextStyle.url)
+  }
+
+  useEffect(() => {
+    if (!map.current || !selectedUniversity || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    map.current.flyTo({ center: [selectedUniversity.longitude, selectedUniversity.latitude], zoom: 5, duration: 900 })
+  }, [selectedUniversity])
+
+  return (
+    <div className="partner-directory__map-shell">
+      <div className="partner-directory__map" ref={mapContainer} />
+      <div className="partner-directory__map-styles" aria-label="Map style">
+        {mapStyles.map((style) => (
+          <button
+            className={style.id === styleId ? 'partner-directory__map-style partner-directory__map-style--active' : 'partner-directory__map-style'}
+            type="button"
+            key={style.id}
+            onClick={() => changeStyle(style.id)}
+          >
+            {style.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function PartnerUniversitiesRoute() {
   const [universities, setUniversities] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedUniversityId, setSelectedUniversityId] = useState(null)
 
   useEffect(() => {
     let isCurrent = true
-
-    supabase
-      .from('partneruniversity')
-      .select('university_id, name, logo_url')
-      .order('name')
-      .then(({ data, error: universityError }) => {
-        if (!isCurrent) return
-        if (universityError) setError(universityError.message)
-        else setUniversities((data || []).filter((university) => university.university_id !== 4))
-        setIsLoading(false)
-      })
+    const loadUniversities = async () => {
+      let result = await supabase
+        .from('partneruniversity')
+        .select('university_id, name, logo_url, details, latitude, longitude')
+        .order('name')
+      if (result.error?.message.includes('latitude') || result.error?.message.includes('longitude')) {
+        result = await supabase
+          .from('partneruniversity')
+          .select('university_id, name, logo_url, details')
+          .order('name')
+      }
+      if (!isCurrent) return
+      if (result.error) setError(result.error.message)
+      else {
+        const availableUniversities = (result.data || [])
+          .filter((university) => university.university_id !== 4)
+          .map((university) => ({
+            ...university,
+            latitude: university.latitude ?? partnerUniversityCoordinates[university.name]?.[0],
+            longitude: university.longitude ?? partnerUniversityCoordinates[university.name]?.[1],
+          }))
+        setUniversities(availableUniversities)
+        setSelectedUniversityId(availableUniversities[0]?.university_id ?? null)
+      }
+      setIsLoading(false)
+    }
+    loadUniversities()
 
     return () => {
       isCurrent = false
     }
   }, [])
+
+  const selectedUniversity = universities.find((university) => university.university_id === selectedUniversityId)
+  const selectUniversity = useCallback((universityId) => setSelectedUniversityId(universityId), [])
 
   return (
     <section className="partner-directory" aria-labelledby="partner-directory-heading">
@@ -1379,30 +1545,76 @@ function PartnerUniversitiesRoute() {
         <p className="partner-directory__status">No partner universities are available yet.</p>
       )}
       {!isLoading && !error && universities.length > 0 && (
-        <div className="partner-directory__viewport">
-          <div className="partner-directory__track">
-            {[...universities, ...universities].map((university, index) => (
-              <a
-                className="partner-directory__university"
-                href={partnerUniversityWebsites[university.name]}
-                target="_blank"
-                rel="noopener noreferrer"
-                key={`${university.university_id}-${index}`}
-                aria-hidden={index >= universities.length}
-                tabIndex={index >= universities.length ? -1 : undefined}
-              >
-                <div className="partner-directory__logo">
-                  {university.logo_url ? (
-                    <img src={university.logo_url} alt="" />
-                  ) : (
-                    <span aria-hidden="true">{university.name.charAt(0)}</span>
-                  )}
-                </div>
-                <p>{university.name}</p>
-              </a>
-            ))}
+        <>
+          <div className="partner-directory__viewport">
+            <div className="partner-directory__track">
+              {[...universities, ...universities].map((university, index) => (
+                <a
+                  className="partner-directory__university"
+                  href={partnerUniversityWebsites[university.name]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  key={`${university.university_id}-${index}`}
+                  aria-hidden={index >= universities.length}
+                  tabIndex={index >= universities.length ? -1 : undefined}
+                >
+                  <div className="partner-directory__logo">
+                    {university.logo_url ? (
+                      <img src={university.logo_url} alt="" />
+                    ) : (
+                      <span aria-hidden="true">{university.name.charAt(0)}</span>
+                    )}
+                  </div>
+                  <p>{university.name}</p>
+                </a>
+              ))}
+            </div>
           </div>
-        </div>
+          <section className="partner-directory__browser" aria-label="Partner university directory">
+            <aside className="partner-directory__list">
+              <h2>Partner university directory</h2>
+              <div className="partner-directory__list-scroll">
+                {universities.map((university) => (
+                  <button
+                    className={university.university_id === selectedUniversityId ? 'partner-directory__list-item partner-directory__list-item--active' : 'partner-directory__list-item'}
+                    type="button"
+                    key={university.university_id}
+                    onClick={() => selectUniversity(university.university_id)}
+                  >
+                    <span className="partner-directory__list-flag" aria-hidden="true">{partnerUniversityFlags[university.name] || '🌐'}</span>
+                    {university.name}
+                  </button>
+                ))}
+              </div>
+            </aside>
+            <div className="partner-directory__details">
+              {selectedUniversity && (
+                <>
+                  <div className="partner-directory__details-copy">
+                    <span className="auth-card__eyebrow">Selected partner</span>
+                    <div className="partner-directory__selected-logo">
+                      {selectedUniversity.logo_url ? (
+                        <img src={selectedUniversity.logo_url} alt="" />
+                      ) : (
+                        <span aria-hidden="true">{selectedUniversity.name.charAt(0)}</span>
+                      )}
+                    </div>
+                    <h2>{selectedUniversity.name}</h2>
+                    <p>{selectedUniversity.details || 'University details are not available yet.'}</p>
+                    <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
+                      Visit university website
+                    </a>
+                  </div>
+                  <PartnerUniversityMap
+                    universities={universities}
+                    selectedUniversity={selectedUniversity}
+                    onSelect={selectUniversity}
+                  />
+                </>
+              )}
+            </div>
+          </section>
+        </>
       )}
     </section>
   )

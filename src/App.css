@@ -1790,6 +1790,197 @@ svg { display: block; flex-shrink: 0; }
   .partner-directory__track { animation-play-state: paused; }
 }
 
+.partner-directory__browser {
+  display: grid;
+  grid-template-columns: minmax(230px, 290px) minmax(0, 1fr);
+  gap: 24px;
+  max-width: 1200px;
+  min-height: 560px;
+  margin: 72px auto 0;
+  padding: 0 2rem;
+}
+
+.partner-directory__list,
+.partner-directory__details {
+  min-width: 0;
+  padding: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glow-card);
+}
+
+.partner-directory__list h2,
+.partner-directory__details h2 {
+  font-size: 1.25rem;
+}
+
+.partner-directory__list-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 470px;
+  margin-top: 18px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.partner-directory__list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition), border-color var(--transition), transform 160ms ease;
+}
+
+.partner-directory__list-flag {
+  flex: 0 0 1.35rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.partner-directory__list-item:hover,
+.partner-directory__list-item:focus-visible,
+.partner-directory__list-item--active {
+  color: var(--text-strong);
+  background: rgba(0, 212, 255, 0.08);
+  border-color: rgba(0, 212, 255, 0.35);
+  outline: none;
+  transform: translateX(4px);
+}
+
+.partner-directory__details {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr);
+  gap: 24px;
+}
+
+.partner-directory__details-copy {
+  align-self: center;
+}
+
+.partner-directory__details-copy h2 {
+  margin-top: 12px;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+
+.partner-directory__details-copy p {
+  margin: 18px 0 24px;
+  color: var(--text-muted);
+}
+
+.partner-directory__map {
+  min-height: 500px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.partner-directory__map-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.partner-directory__map-shell .partner-directory__map {
+  height: 100%;
+}
+
+.partner-directory__map-styles {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-width: calc(100% - 24px);
+  padding: 5px;
+  background: rgba(5, 11, 24, 0.82);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(8px);
+}
+
+.partner-directory__map-style {
+  padding: 6px 9px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.72rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.partner-directory__map-style:hover,
+.partner-directory__map-style:focus-visible,
+.partner-directory__map-style--active {
+  color: var(--text-strong);
+  background: rgba(0, 212, 255, 0.16);
+  border-color: rgba(0, 212, 255, 0.45);
+  outline: none;
+}
+
+:root[data-theme='light'] .partner-directory__map-styles {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(14, 172, 227, 0.35);
+  box-shadow: 0 4px 16px rgba(18, 61, 82, 0.18);
+}
+
+:root[data-theme='light'] .partner-directory__map-style {
+  color: #315b70;
+}
+
+:root[data-theme='light'] .partner-directory__map-style:hover,
+:root[data-theme='light'] .partner-directory__map-style:focus-visible,
+:root[data-theme='light'] .partner-directory__map-style--active {
+  color: #123247;
+  background: rgba(14, 172, 227, 0.18);
+  border-color: rgba(14, 172, 227, 0.55);
+}
+
+.partner-directory__selected-logo {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  margin-top: 18px;
+  padding: 10px;
+  color: var(--neon);
+  font-size: 2rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+}
+
+.partner-directory__selected-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 800px) {
+  .partner-directory__browser,
+  .partner-directory__details {
+    grid-template-columns: 1fr;
+  }
+
+  .partner-directory__list-scroll {
+    max-height: 260px;
+  }
+
+  .partner-directory__map {
+    min-height: 380px;
+  }
+}
+
 /* ─── Apply CTA ────────────────────────────────────────────────────────────── */
 .apply-cta {
   padding: 80px 2rem;

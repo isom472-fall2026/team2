@@ -47,6 +47,8 @@ CREATE TABLE PartnerUniversity (
     university_id INT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     logo_url VARCHAR(255),
+    latitude DECIMAL(9, 6),
+    longitude DECIMAL(9, 6),
     available BOOLEAN DEFAULT TRUE,
     location INT,
     details TEXT,
@@ -60,6 +62,12 @@ CREATE TABLE Coordinator (
     university INT,
     FOREIGN KEY (university) REFERENCES PartnerUniversity(university_id) ON DELETE CASCADE
 );
+
+-- NEOMA accepts KU exchange students at its Reims campus.
+UPDATE PartnerUniversity
+SET latitude = 49.238509,
+    longitude = 4.002832
+WHERE university_id = 13;
  
 CREATE TABLE InboundApplication (
     application_id INT PRIMARY KEY,

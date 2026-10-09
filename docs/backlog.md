@@ -10,8 +10,28 @@ the story ID, the title, who built it, and what happened to it.
 
 | Story | Title | Who | State at the tag |
 |---|---|---|---|
-| #1 | <!-- EXAMPLE — delete this row --> Flag duplicate orders | Sara | done |
-| #2 | <!-- EXAMPLE — delete this row --> Supervisor can log in | Ahmad | moved to phase 3 |
+| #19 | KU student can sign up and log in to the portal | Hadi | Done |
+| #20 | incoming Student can sign up and log in to the portal | Hadi | Done |
+| #21 | A university employee coordinator can access a portal to nominate students |Hadi| Done|
+| #22 | System can verify KU students and coordinators are real |Hadi| Done |
+| #23 |  Users can delete their accounts from the portal | Hadi | Done |
+| #25 |  Explore Partner University Directory & Details | Aysha | Open (postponed to phase 3) |
+| #26 | Interactive World Map & Nearest Airport Lookup | Aysha | Open (postponed to phase 3) |
+| #27 | Nationality-Based Visa Requirement Advisory | Aysha | Open (postponed to phase 3) |
+| #28 | Real-Time Outbound Eligibility Verification |Aysha | Open (postponed to phase 3) |
+| #32 | Start Student Exchange Application | almaha | Open (postponed to phase 3) |
+| #33 | Start New Exchange Cycle | almaha | Done|
+| #34 | Inbound Student Exchange Application | Fatma | Open (postponed to phase 3)|
+| #36 | Change portal UI | Hadi | Done |
+| #37 | Coordinator Accepts System Invitation | Rawan | Done |
+| #38 | Switch Between Light and Dark Mode | Fatma | Done |
+| #39 | Coordinator Views Historical Application Log | Rawan | Open (postponed to phase 3) |
+| #44 | KU coordinator can edit exchange cycle details and delete exchange cycle | Yousef | Done |
+| #45 | Edit or Delete Nominations | Yousef | Done |
+| #47 |  Validate GPA values do not exceed 4.0 | Aysha | Done |
+| #48 | No home screen button | Hadi | Done |
+| #50 | Adjust nominations to give out a bigger id | Hadi | Done |
+| #51 | Nominations must expire to ensure they dont get reused ever | Hadi | Done |
 
 ## Phase 3 — saved 21 October
 

@@ -1901,8 +1901,13 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .partner-directory__details-actions > .btn {
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .partner-directory__details-actions > .partner-directory__airport {

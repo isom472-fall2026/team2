@@ -1312,6 +1312,36 @@ function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
   )
 }
 
+const partnerUniversityWebsites = {
+  'Audencia Nantes School of Management': 'https://www.audencia.com',
+  'Bocconi University': 'https://www.unibocconi.it',
+  'EM Normandie Business School': 'https://www.em-normandie.com',
+  'Esade Business School': 'https://www.esade.edu',
+  'ESC Rennes School of Business': 'https://www.rennes-sb.com',
+  'Essec School of Business': 'https://www.essec.edu',
+  'Goethe University': 'https://www.uni-frankfurt.de',
+  'Hanyang University': 'https://www.hanyang.ac.kr',
+  'HEC School of Management': 'https://www.hec.edu',
+  'IE Business School': 'https://www.ie.edu',
+  'Indian Institute of Management Bangalore': 'https://www.iimb.ac.in',
+  'KEDGE Business School': 'https://kedge.edu',
+  'Kogod School of Business': 'https://kogod.american.edu',
+  'National Chengchi University': 'https://www.nccu.edu.tw',
+  'National Taiwan University': 'https://www.ntu.edu.tw',
+  'Neoma Business School': 'https://neoma-bs.com',
+  'Paris School of Business': 'https://www.psbedu.paris',
+  'Rotterdam School of Management': 'https://www.rsm.nl',
+  'Skema Business School': 'https://www.skema.edu',
+  'Toulouse Business School': 'https://www.tbs-education.com',
+  'University of Geneva': 'https://www.unige.ch',
+  'University of Manheim': 'https://www.uni-mannheim.de',
+  'University of Maryland': 'https://umd.edu',
+  'University of Rhode Island': 'https://www.uri.edu',
+  'University of San Diego': 'https://www.sandiego.edu',
+  'University of St.Gallen': 'https://www.unisg.ch',
+  'University of Technology Sydney': 'https://www.uts.edu.au',
+}
+
 function PartnerUniversitiesRoute() {
   const [universities, setUniversities] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -1327,7 +1357,7 @@ function PartnerUniversitiesRoute() {
       .then(({ data, error: universityError }) => {
         if (!isCurrent) return
         if (universityError) setError(universityError.message)
-        else setUniversities(data || [])
+        else setUniversities((data || []).filter((university) => university.university_id !== 4))
         setIsLoading(false)
       })
 
@@ -1352,10 +1382,14 @@ function PartnerUniversitiesRoute() {
         <div className="partner-directory__viewport">
           <div className="partner-directory__track">
             {[...universities, ...universities].map((university, index) => (
-              <article
+              <a
                 className="partner-directory__university"
+                href={partnerUniversityWebsites[university.name]}
+                target="_blank"
+                rel="noopener noreferrer"
                 key={`${university.university_id}-${index}`}
                 aria-hidden={index >= universities.length}
+                tabIndex={index >= universities.length ? -1 : undefined}
               >
                 <div className="partner-directory__logo">
                   {university.logo_url ? (
@@ -1365,7 +1399,7 @@ function PartnerUniversitiesRoute() {
                   )}
                 </div>
                 <p>{university.name}</p>
-              </article>
+              </a>
             ))}
           </div>
         </div>

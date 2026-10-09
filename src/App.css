@@ -1720,11 +1720,27 @@ svg { display: block; flex-shrink: 0; }
   align-items: center;
   gap: 16px;
   padding: 28px 22px 24px;
+  color: inherit;
   text-align: center;
+  text-decoration: none;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  cursor: pointer;
   box-shadow: var(--glow-card);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.partner-directory__university:hover,
+.partner-directory__university:focus-visible {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.25), 0 12px 36px rgba(0, 0, 0, 0.55), var(--glow-cyan);
+  outline: none;
+  transform: translateY(-8px) scale(1.02);
+}
+
+.partner-directory__university:active {
+  transform: translateY(-2px) scale(0.98);
 }
 
 .partner-directory__logo {

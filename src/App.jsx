@@ -1406,33 +1406,33 @@ const partnerUniversityFlags = {
 }
 
 const partnerUniversityAirports = {
-  'Audencia Nantes School of Management': { name: 'Nantes Atlantique Airport', code: 'NTE' },
-  'Bocconi University': { name: 'Milan Linate Airport', code: 'LIN' },
-  'EM Normandie Business School': { name: 'Deauville–Normandie Airport', code: 'DOL' },
-  'Esade Business School': { name: 'Barcelona–El Prat Airport', code: 'BCN' },
-  'ESC Rennes School of Business': { name: 'Rennes–Saint-Jacques Airport', code: 'RNS' },
-  'Essec School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG' },
-  'Goethe University': { name: 'Frankfurt Airport', code: 'FRA' },
-  'Hanyang University': { name: 'Gimpo International Airport', code: 'GMP' },
-  'HEC School of Management': { name: 'Paris Orly Airport', code: 'ORY' },
-  'IE Business School': { name: 'Adolfo Suárez Madrid–Barajas Airport', code: 'MAD' },
-  'Indian Institute of Management Bangalore': { name: 'Kempegowda International Airport', code: 'BLR' },
-  'KEDGE Business School': { name: 'Bordeaux–Mérignac Airport', code: 'BOD' },
-  'Kogod School of Business': { name: 'Ronald Reagan Washington National Airport', code: 'DCA' },
-  'National Chengchi University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE' },
-  'National Taiwan University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE' },
-  'Neoma Business School': { name: 'Paris Charles de Gaulle Airport', code: 'CDG' },
-  'Paris School of Business': { name: 'Paris Orly Airport', code: 'ORY' },
-  'Rotterdam School of Management': { name: 'Rotterdam The Hague Airport', code: 'RTM' },
-  'Skema Business School': { name: 'Nice Côte d’Azur Airport', code: 'NCE' },
-  'Toulouse Business School': { name: 'Toulouse–Blagnac Airport', code: 'TLS' },
-  'University of Geneva': { name: 'Geneva Airport', code: 'GVA' },
-  'University of Manheim': { name: 'Frankfurt Airport', code: 'FRA' },
-  'University of Maryland': { name: 'Baltimore/Washington International Airport', code: 'BWI' },
-  'University of Rhode Island': { name: 'T. F. Green International Airport', code: 'PVD' },
-  'University of San Diego': { name: 'San Diego International Airport', code: 'SAN' },
-  'University of St.Gallen': { name: 'Zurich Airport', code: 'ZRH' },
-  'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD' },
+  'Audencia Nantes School of Management': { name: 'Nantes Atlantique Airport', code: 'NTE', coordinates: [-1.61, 47.153], distanceKm: 9, driveMinutes: 18 },
+  'Bocconi University': { name: 'Milan Linate Airport', code: 'LIN', coordinates: [9.276, 45.445], distanceKm: 6, driveMinutes: 15 },
+  'EM Normandie Business School': { name: 'Deauville–Normandie Airport', code: 'DOL', coordinates: [0.16, 49.365], distanceKm: 76, driveMinutes: 65 },
+  'Esade Business School': { name: 'Barcelona–El Prat Airport', code: 'BCN', coordinates: [2.083, 41.297], distanceKm: 27, driveMinutes: 35 },
+  'ESC Rennes School of Business': { name: 'Rennes–Saint-Jacques Airport', code: 'RNS', coordinates: [-1.734, 48.069], distanceKm: 8, driveMinutes: 18 },
+  'Essec School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 32, driveMinutes: 42 },
+  'Goethe University': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 14, driveMinutes: 22 },
+  'Hanyang University': { name: 'Gimpo International Airport', code: 'GMP', coordinates: [126.79, 37.558], distanceKm: 20, driveMinutes: 35 },
+  'HEC School of Management': { name: 'Paris Orly Airport', code: 'ORY', coordinates: [2.359, 48.728], distanceKm: 25, driveMinutes: 35 },
+  'IE Business School': { name: 'Adolfo Suárez Madrid–Barajas Airport', code: 'MAD', coordinates: [-3.561, 40.472], distanceKm: 14, driveMinutes: 25 },
+  'Indian Institute of Management Bangalore': { name: 'Kempegowda International Airport', code: 'BLR', coordinates: [77.706, 13.198], distanceKm: 42, driveMinutes: 70 },
+  'KEDGE Business School': { name: 'Bordeaux–Mérignac Airport', code: 'BOD', coordinates: [-0.715, 44.828], distanceKm: 12, driveMinutes: 25 },
+  'Kogod School of Business': { name: 'Ronald Reagan Washington National Airport', code: 'DCA', coordinates: [-77.04, 38.852], distanceKm: 8, driveMinutes: 20 },
+  'National Chengchi University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 55 },
+  'National Taiwan University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 50 },
+  'Neoma Business School': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 140, driveMinutes: 95 },
+  'Paris School of Business': { name: 'Paris Orly Airport', code: 'ORY', coordinates: [2.359, 48.728], distanceKm: 18, driveMinutes: 30 },
+  'Rotterdam School of Management': { name: 'Rotterdam The Hague Airport', code: 'RTM', coordinates: [4.438, 51.948], distanceKm: 8, driveMinutes: 20 },
+  'Skema Business School': { name: 'Nice Côte d’Azur Airport', code: 'NCE', coordinates: [7.215, 43.665], distanceKm: 25, driveMinutes: 35 },
+  'Toulouse Business School': { name: 'Toulouse–Blagnac Airport', code: 'TLS', coordinates: [1.364, 43.629], distanceKm: 10, driveMinutes: 20 },
+  'University of Geneva': { name: 'Geneva Airport', code: 'GVA', coordinates: [6.109, 46.238], distanceKm: 7, driveMinutes: 15 },
+  'University of Manheim': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 75, driveMinutes: 50 },
+  'University of Maryland': { name: 'Baltimore/Washington International Airport', code: 'BWI', coordinates: [-76.668, 39.175], distanceKm: 45, driveMinutes: 45 },
+  'University of Rhode Island': { name: 'T. F. Green International Airport', code: 'PVD', coordinates: [-71.429, 41.724], distanceKm: 10, driveMinutes: 20 },
+  'University of San Diego': { name: 'San Diego International Airport', code: 'SAN', coordinates: [-117.19, 32.733], distanceKm: 6, driveMinutes: 15 },
+  'University of St.Gallen': { name: 'Zurich Airport', code: 'ZRH', coordinates: [8.555, 47.458], distanceKm: 80, driveMinutes: 70 },
+  'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD', coordinates: [151.177, -33.946], distanceKm: 7, driveMinutes: 15 },
 }
 
 const mapStyles = [
@@ -1442,12 +1442,13 @@ const mapStyles = [
   { id: 'satellite', label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
 ]
 
-function PartnerUniversityMap({ universities, selectedUniversity, onSelect }) {
+function PartnerUniversityMap({ universities, selectedUniversity, onSelect, onResetSelection, showAirport }) {
   const mapContainer = useRef(null)
   const map = useRef(null)
   const markers = useRef([])
+  const airportMarker = useRef(null)
   const hasSelectedUniversity = useRef(false)
-  const [styleId, setStyleId] = useState('dark')
+  const [styleId, setStyleId] = useState('streets')
 
   const addMarkers = useCallback(() => {
     if (!map.current) return
@@ -1467,12 +1468,13 @@ function PartnerUniversityMap({ universities, selectedUniversity, onSelect }) {
     mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: mapStyles[0].url,
+      style: mapStyles.find((style) => style.id === 'streets').url,
       center: [47.973, 29.253],
       zoom: 12,
     })
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
     return () => {
+      airportMarker.current?.remove()
       map.current?.remove()
       map.current = null
     }
@@ -1487,9 +1489,69 @@ function PartnerUniversityMap({ universities, selectedUniversity, onSelect }) {
     }
   }, [addMarkers])
 
+  const drawAirportRoute = useCallback(() => {
+    if (!map.current || !selectedUniversity) return
+    const airport = partnerUniversityAirports[selectedUniversity.name]
+    if (!airport?.coordinates || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    airportMarker.current?.remove()
+    airportMarker.current = new mapboxgl.Marker({ color: '#f0a500' })
+      .setLngLat(airport.coordinates)
+      .addTo(map.current)
+    const sourceData = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[selectedUniversity.longitude, selectedUniversity.latitude], airport.coordinates],
+      },
+    }
+    if (map.current.getSource('airport-route')) {
+      map.current.getSource('airport-route').setData(sourceData)
+      return
+    }
+    map.current.addSource('airport-route', { type: 'geojson', data: sourceData })
+    map.current.addLayer({
+      id: 'airport-route-line',
+      type: 'line',
+      source: 'airport-route',
+      paint: { 'line-color': '#f0a500', 'line-width': 4, 'line-dasharray': [2, 1] },
+    })
+  }, [selectedUniversity])
+
+  const fitAirportRoute = useCallback(() => {
+    if (!map.current || !selectedUniversity) return
+    const airport = partnerUniversityAirports[selectedUniversity.name]
+    if (!airport?.coordinates || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    const bounds = new mapboxgl.LngLatBounds()
+    bounds.extend([selectedUniversity.longitude, selectedUniversity.latitude])
+    bounds.extend(airport.coordinates)
+    map.current.fitBounds(bounds, {
+      padding: { top: 100, right: 100, bottom: 100, left: 100 },
+      maxZoom: 13,
+      duration: 900,
+    })
+  }, [selectedUniversity])
+
+  useEffect(() => {
+    if (!map.current) return
+    if (!showAirport) {
+      airportMarker.current?.remove()
+      airportMarker.current = null
+      if (map.current.getLayer('airport-route-line')) map.current.removeLayer('airport-route-line')
+      if (map.current.getSource('airport-route')) map.current.removeSource('airport-route')
+      return
+    }
+    const showRoute = () => {
+      drawAirportRoute()
+      fitAirportRoute()
+    }
+    if (map.current.isStyleLoaded()) showRoute()
+    else map.current.once('style.load', showRoute)
+  }, [drawAirportRoute, fitAirportRoute, showAirport])
+
   const changeStyle = (nextStyleId) => {
     const nextStyle = mapStyles.find((style) => style.id === nextStyleId)
     if (!map.current || !nextStyle || nextStyleId === styleId) return
+    onResetSelection()
     setStyleId(nextStyleId)
     map.current.once('style.load', addMarkers)
     map.current.setStyle(nextStyle.url)
@@ -1646,6 +1708,9 @@ function PartnerUniversitiesRoute() {
                     {showAirport && (
                       <p className="partner-directory__airport" role="status">
                         {partnerUniversityAirports[selectedUniversity.name]?.name || 'Airport information is not available'} ({partnerUniversityAirports[selectedUniversity.name]?.code || '—'})
+                        <span>
+                          {partnerUniversityAirports[selectedUniversity.name]?.distanceKm ?? '—'} km by road · approximately {partnerUniversityAirports[selectedUniversity.name]?.driveMinutes ?? '—'} minutes by car
+                        </span>
                       </p>
                     )}
                     <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
@@ -1656,6 +1721,11 @@ function PartnerUniversitiesRoute() {
                     universities={universities}
                     selectedUniversity={selectedUniversity}
                     onSelect={selectUniversity}
+                    onResetSelection={() => {
+                      setSelectedUniversityId(null)
+                      setShowAirport(false)
+                    }}
+                    showAirport={showAirport}
                   />
                 </>
               )}

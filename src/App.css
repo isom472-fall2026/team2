@@ -1886,6 +1886,21 @@ svg { display: block; flex-shrink: 0; }
   border-radius: 4px;
 }
 
+.partner-directory__airport span {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.partner-directory__airport + .btn {
+  margin-top: 12px;
+}
+
+.partner-directory__details-copy > .btn + .btn {
+  margin-top: 12px;
+}
+
 .partner-directory__map {
   min-height: clamp(500px, 58vh, 820px);
   overflow: hidden;

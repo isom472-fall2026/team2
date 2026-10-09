@@ -1701,6 +1701,8 @@ svg { display: block; flex-shrink: 0; }
 
 .partner-directory__viewport {
   width: 100%;
+  margin: -48px 0 -56px;
+  padding: 48px 0 56px;
   overflow: hidden;
   mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);

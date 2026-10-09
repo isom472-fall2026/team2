@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
 import { supabase } from './supabase'
 import './App.css'
 
@@ -1312,6 +1315,439 @@ function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
   )
 }
 
+const partnerUniversityWebsites = {
+  'Audencia Nantes School of Management': 'https://www.audencia.com',
+  'Bocconi University': 'https://www.unibocconi.it',
+  'EM Normandie Business School': 'https://www.em-normandie.com',
+  'Esade Business School': 'https://www.esade.edu',
+  'ESC Rennes School of Business': 'https://www.rennes-sb.com',
+  'Essec School of Business': 'https://www.essec.edu',
+  'Goethe University': 'https://www.uni-frankfurt.de',
+  'Hanyang University': 'https://www.hanyang.ac.kr',
+  'HEC School of Management': 'https://www.hec.edu',
+  'IE Business School': 'https://www.ie.edu',
+  'Indian Institute of Management Bangalore': 'https://www.iimb.ac.in',
+  'KEDGE Business School': 'https://kedge.edu',
+  'Kogod School of Business': 'https://kogod.american.edu',
+  'National Chengchi University': 'https://www.nccu.edu.tw',
+  'National Taiwan University': 'https://www.ntu.edu.tw',
+  'Neoma Business School': 'https://neoma-bs.com',
+  'Paris School of Business': 'https://www.psbedu.paris',
+  'Rotterdam School of Management': 'https://www.rsm.nl',
+  'Skema Business School': 'https://www.skema.edu',
+  'Toulouse Business School': 'https://www.tbs-education.com',
+  'University of Geneva': 'https://www.unige.ch',
+  'University of Manheim': 'https://www.uni-mannheim.de',
+  'University of Maryland': 'https://umd.edu',
+  'University of Rhode Island': 'https://www.uri.edu',
+  'University of San Diego': 'https://www.sandiego.edu',
+  'University of St.Gallen': 'https://www.unisg.ch',
+  'University of Technology Sydney': 'https://www.uts.edu.au',
+}
+
+const partnerUniversityCoordinates = {
+  'Audencia Nantes School of Management': [47.2184, -1.5536],
+  'Bocconi University': [45.4506, 9.1883],
+  'EM Normandie Business School': [49.4944, 0.1079],
+  'Esade Business School': [41.3919, 2.1136],
+  'ESC Rennes School of Business': [48.1173, -1.6778],
+  'Essec School of Business': [49.033, 2.08],
+  'Goethe University': [50.126, 8.667],
+  'Hanyang University': [37.557, 127.045],
+  'HEC School of Management': [48.758, 2.169],
+  'IE Business School': [40.439, -3.691],
+  'Indian Institute of Management Bangalore': [12.935, 77.605],
+  'KEDGE Business School': [44.792, -0.607],
+  'Kogod School of Business': [38.937, -77.087],
+  'National Chengchi University': [24.988, 121.576],
+  'National Taiwan University': [25.017, 121.54],
+  'Neoma Business School': [49.238509, 4.002832],
+  'Paris School of Business': [48.853, 2.35],
+  'Rotterdam School of Management': [51.917, 4.525],
+  'Skema Business School': [43.615, 7.073],
+  'Toulouse Business School': [43.605, 1.444],
+  'University of Geneva': [46.198, 6.14],
+  'University of Manheim': [49.483, 8.463],
+  'University of Maryland': [38.986, -76.944],
+  'University of Rhode Island': [41.484, -71.53],
+  'University of San Diego': [32.771, -117.188],
+  'University of St.Gallen': [47.431, 9.373],
+  'University of Technology Sydney': [-33.883, 151.201],
+}
+
+const partnerUniversityFlags = {
+  'Audencia Nantes School of Management': '🇫🇷',
+  'Bocconi University': '🇮🇹',
+  'EM Normandie Business School': '🇫🇷',
+  'Esade Business School': '🇪🇸',
+  'ESC Rennes School of Business': '🇫🇷',
+  'Essec School of Business': '🇫🇷',
+  'Goethe University': '🇩🇪',
+  'Hanyang University': '🇰🇷',
+  'HEC School of Management': '🇫🇷',
+  'IE Business School': '🇪🇸',
+  'Indian Institute of Management Bangalore': '🇮🇳',
+  'KEDGE Business School': '🇫🇷',
+  'Kogod School of Business': '🇺🇸',
+  'National Chengchi University': '🇹🇼',
+  'National Taiwan University': '🇹🇼',
+  'Neoma Business School': '🇫🇷',
+  'Paris School of Business': '🇫🇷',
+  'Rotterdam School of Management': '🇳🇱',
+  'Skema Business School': '🇫🇷',
+  'Toulouse Business School': '🇫🇷',
+  'University of Geneva': '🇨🇭',
+  'University of Manheim': '🇩🇪',
+  'University of Maryland': '🇺🇸',
+  'University of Rhode Island': '🇺🇸',
+  'University of San Diego': '🇺🇸',
+  'University of St.Gallen': '🇨🇭',
+  'University of Technology Sydney': '🇦🇺',
+}
+
+const partnerUniversityAirports = {
+  'Audencia Nantes School of Management': { name: 'Nantes Atlantique Airport', code: 'NTE', coordinates: [-1.61, 47.153], distanceKm: 9, driveMinutes: 18 },
+  'Bocconi University': { name: 'Milan Linate Airport', code: 'LIN', coordinates: [9.276, 45.445], distanceKm: 6, driveMinutes: 15 },
+  'EM Normandie Business School': { name: 'Deauville–Normandie Airport', code: 'DOL', coordinates: [0.16, 49.365], distanceKm: 76, driveMinutes: 65 },
+  'Esade Business School': { name: 'Barcelona–El Prat Airport', code: 'BCN', coordinates: [2.083, 41.297], distanceKm: 27, driveMinutes: 35 },
+  'ESC Rennes School of Business': { name: 'Rennes–Saint-Jacques Airport', code: 'RNS', coordinates: [-1.734, 48.069], distanceKm: 8, driveMinutes: 18 },
+  'Essec School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 32, driveMinutes: 42 },
+  'Goethe University': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 14, driveMinutes: 22 },
+  'Hanyang University': { name: 'Gimpo International Airport', code: 'GMP', coordinates: [126.79, 37.558], distanceKm: 20, driveMinutes: 35 },
+  'HEC School of Management': { name: 'Paris Orly Airport', code: 'ORY', coordinates: [2.359, 48.728], distanceKm: 25, driveMinutes: 35 },
+  'IE Business School': { name: 'Adolfo Suárez Madrid–Barajas Airport', code: 'MAD', coordinates: [-3.561, 40.472], distanceKm: 14, driveMinutes: 25 },
+  'Indian Institute of Management Bangalore': { name: 'Kempegowda International Airport', code: 'BLR', coordinates: [77.706, 13.198], distanceKm: 42, driveMinutes: 70 },
+  'KEDGE Business School': { name: 'Bordeaux–Mérignac Airport', code: 'BOD', coordinates: [-0.715, 44.828], distanceKm: 12, driveMinutes: 25 },
+  'Kogod School of Business': { name: 'Ronald Reagan Washington National Airport', code: 'DCA', coordinates: [-77.04, 38.852], distanceKm: 8, driveMinutes: 20 },
+  'National Chengchi University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 55 },
+  'National Taiwan University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 50 },
+  'Neoma Business School': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 140, driveMinutes: 95 },
+  'Paris School of Business': { name: 'Paris Orly Airport', code: 'ORY', coordinates: [2.359, 48.728], distanceKm: 18, driveMinutes: 30 },
+  'Rotterdam School of Management': { name: 'Rotterdam The Hague Airport', code: 'RTM', coordinates: [4.438, 51.948], distanceKm: 8, driveMinutes: 20 },
+  'Skema Business School': { name: 'Nice Côte d’Azur Airport', code: 'NCE', coordinates: [7.215, 43.665], distanceKm: 25, driveMinutes: 35 },
+  'Toulouse Business School': { name: 'Toulouse–Blagnac Airport', code: 'TLS', coordinates: [1.364, 43.629], distanceKm: 10, driveMinutes: 20 },
+  'University of Geneva': { name: 'Geneva Airport', code: 'GVA', coordinates: [6.109, 46.238], distanceKm: 7, driveMinutes: 15 },
+  'University of Manheim': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 75, driveMinutes: 50 },
+  'University of Maryland': { name: 'Baltimore/Washington International Airport', code: 'BWI', coordinates: [-76.668, 39.175], distanceKm: 45, driveMinutes: 45 },
+  'University of Rhode Island': { name: 'T. F. Green International Airport', code: 'PVD', coordinates: [-71.429, 41.724], distanceKm: 10, driveMinutes: 20 },
+  'University of San Diego': { name: 'San Diego International Airport', code: 'SAN', coordinates: [-117.19, 32.733], distanceKm: 6, driveMinutes: 15 },
+  'University of St.Gallen': { name: 'Zurich Airport', code: 'ZRH', coordinates: [8.555, 47.458], distanceKm: 80, driveMinutes: 70 },
+  'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD', coordinates: [151.177, -33.946], distanceKm: 7, driveMinutes: 15 },
+}
+
+const mapStyles = [
+  { id: 'dark', label: 'Dark', url: 'mapbox://styles/mapbox/dark-v11' },
+  { id: 'streets', label: 'Streets', url: 'mapbox://styles/mapbox/streets-v12' },
+  { id: 'light', label: 'Light', url: 'mapbox://styles/mapbox/light-v11' },
+  { id: 'satellite', label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
+]
+
+function PartnerUniversityMap({ universities, homeUniversity, selectedUniversity, onSelect, onResetSelection, showAirport }) {
+  const mapContainer = useRef(null)
+  const map = useRef(null)
+  const markers = useRef([])
+  const airportMarker = useRef(null)
+  const hasSelectedUniversity = useRef(false)
+  const [styleId, setStyleId] = useState('streets')
+
+  const addMarkers = useCallback(() => {
+    if (!map.current) return
+    markers.current.forEach((marker) => marker.remove())
+    markers.current = universities.flatMap((university) => {
+      if (university.latitude == null || university.longitude == null) return []
+      const marker = new mapboxgl.Marker({ color: '#00d4ff' })
+        .setLngLat([university.longitude, university.latitude])
+        .addTo(map.current)
+      marker.getElement().addEventListener('click', () => onSelect(university.university_id))
+      return [marker]
+    })
+  }, [universities, onSelect])
+
+  useEffect(() => {
+    if (!mapContainer.current || homeUniversity?.longitude == null || homeUniversity?.latitude == null) return undefined
+    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: mapStyles.find((style) => style.id === 'streets').url,
+      center: [homeUniversity.longitude, homeUniversity.latitude],
+      zoom: 12,
+    })
+    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
+    return () => {
+      airportMarker.current?.remove()
+      map.current?.remove()
+      map.current = null
+    }
+  }, [homeUniversity])
+
+  useEffect(() => {
+    if (!map.current) return undefined
+    addMarkers()
+    return () => {
+      markers.current.forEach((marker) => marker.remove())
+      markers.current = []
+    }
+  }, [addMarkers])
+
+  const drawAirportRoute = useCallback(() => {
+    if (!map.current || !selectedUniversity) return
+    const airport = partnerUniversityAirports[selectedUniversity.name]
+    if (!airport?.coordinates || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    airportMarker.current?.remove()
+    airportMarker.current = new mapboxgl.Marker({ color: '#f0a500' })
+      .setLngLat(airport.coordinates)
+      .addTo(map.current)
+    const sourceData = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[selectedUniversity.longitude, selectedUniversity.latitude], airport.coordinates],
+      },
+    }
+    if (map.current.getSource('airport-route')) {
+      map.current.getSource('airport-route').setData(sourceData)
+      return
+    }
+    map.current.addSource('airport-route', { type: 'geojson', data: sourceData })
+    map.current.addLayer({
+      id: 'airport-route-line',
+      type: 'line',
+      source: 'airport-route',
+      paint: { 'line-color': '#f0a500', 'line-width': 4, 'line-dasharray': [2, 1] },
+    })
+  }, [selectedUniversity])
+
+  const fitAirportRoute = useCallback(() => {
+    if (!map.current || !selectedUniversity) return
+    const airport = partnerUniversityAirports[selectedUniversity.name]
+    if (!airport?.coordinates || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    const bounds = new mapboxgl.LngLatBounds()
+    bounds.extend([selectedUniversity.longitude, selectedUniversity.latitude])
+    bounds.extend(airport.coordinates)
+    map.current.fitBounds(bounds, {
+      padding: { top: 100, right: 100, bottom: 100, left: 100 },
+      maxZoom: 13,
+      duration: 900,
+    })
+  }, [selectedUniversity])
+
+  useEffect(() => {
+    if (!map.current) return
+    if (!showAirport) {
+      airportMarker.current?.remove()
+      airportMarker.current = null
+      if (map.current.getLayer('airport-route-line')) map.current.removeLayer('airport-route-line')
+      if (map.current.getSource('airport-route')) map.current.removeSource('airport-route')
+      return
+    }
+    const showRoute = () => {
+      drawAirportRoute()
+      fitAirportRoute()
+    }
+    if (map.current.isStyleLoaded()) showRoute()
+    else map.current.once('style.load', showRoute)
+  }, [drawAirportRoute, fitAirportRoute, showAirport])
+
+  const changeStyle = (nextStyleId) => {
+    const nextStyle = mapStyles.find((style) => style.id === nextStyleId)
+    if (!map.current || !nextStyle || nextStyleId === styleId) return
+    onResetSelection()
+    setStyleId(nextStyleId)
+    map.current.once('style.load', addMarkers)
+    map.current.setStyle(nextStyle.url)
+  }
+
+  useEffect(() => {
+    if (!map.current || !selectedUniversity || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    if (!hasSelectedUniversity.current) {
+      hasSelectedUniversity.current = true
+      return
+    }
+    map.current.flyTo({ center: [selectedUniversity.longitude, selectedUniversity.latitude], zoom: 5, duration: 900 })
+  }, [selectedUniversity])
+
+  return (
+    <div className="partner-directory__map-shell">
+      <div className="partner-directory__map" ref={mapContainer} />
+      <div className="partner-directory__map-styles" aria-label="Map style">
+        {mapStyles.map((style) => (
+          <button
+            className={style.id === styleId ? 'partner-directory__map-style partner-directory__map-style--active' : 'partner-directory__map-style'}
+            type="button"
+            key={style.id}
+            onClick={() => changeStyle(style.id)}
+          >
+            {style.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PartnerUniversitiesRoute() {
+  const [universities, setUniversities] = useState([])
+  const [homeUniversity, setHomeUniversity] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [selectedUniversityId, setSelectedUniversityId] = useState(null)
+  const [showAirport, setShowAirport] = useState(false)
+
+  useEffect(() => {
+    let isCurrent = true
+    const loadUniversities = async () => {
+      let result = await supabase
+        .from('partneruniversity')
+        .select('university_id, name, logo_url, details, latitude, longitude')
+        .order('name')
+      if (result.error?.message.includes('latitude') || result.error?.message.includes('longitude')) {
+        result = await supabase
+          .from('partneruniversity')
+          .select('university_id, name, logo_url, details')
+          .order('name')
+      }
+      if (!isCurrent) return
+      if (result.error) setError(result.error.message)
+      else {
+        const mappedUniversities = (result.data || []).map((university) => ({
+          ...university,
+          latitude: university.latitude ?? partnerUniversityCoordinates[university.name]?.[0],
+          longitude: university.longitude ?? partnerUniversityCoordinates[university.name]?.[1],
+        }))
+        const kuwaitUniversity = mappedUniversities.find((university) => university.university_id === 4)
+        const availableUniversities = mappedUniversities.filter((university) => university.university_id !== 4)
+        setHomeUniversity(kuwaitUniversity || {
+          university_id: 4,
+          name: 'Kuwait University',
+          details: 'Kuwait University is the home institution for this exchange directory.',
+        })
+        setUniversities(availableUniversities)
+      }
+      setIsLoading(false)
+    }
+    loadUniversities()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  const selectedUniversity = universities.find((university) => university.university_id === selectedUniversityId)
+  const detailsUniversity = selectedUniversity || homeUniversity
+  const selectUniversity = useCallback((universityId) => {
+    setSelectedUniversityId(universityId)
+    setShowAirport(false)
+  }, [])
+
+  return (
+    <section className="partner-directory" aria-labelledby="partner-directory-heading">
+      <div className="partner-directory__intro">
+        <span className="auth-card__eyebrow">Global connections</span>
+        <h1 id="partner-directory-heading">Our partner universities</h1>
+        <p>Explore the institutions that make exchange opportunities around the world possible.</p>
+      </div>
+      {isLoading && <p className="partner-directory__status">Loading partner universities...</p>}
+      {error && <p className="partner-directory__status partner-directory__status--error" role="alert">{error}</p>}
+      {!isLoading && !error && universities.length === 0 && (
+        <p className="partner-directory__status">No partner universities are available yet.</p>
+      )}
+      {!isLoading && !error && universities.length > 0 && (
+        <>
+          <div className="partner-directory__viewport">
+            <div className="partner-directory__track">
+              {[...universities, ...universities].map((university, index) => (
+                <a
+                  className="partner-directory__university"
+                  href={partnerUniversityWebsites[university.name]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  key={`${university.university_id}-${index}`}
+                  aria-hidden={index >= universities.length}
+                  tabIndex={index >= universities.length ? -1 : undefined}
+                >
+                  <div className="partner-directory__logo">
+                    {university.logo_url ? (
+                      <img src={university.logo_url} alt="" />
+                    ) : (
+                      <span aria-hidden="true">{university.name.charAt(0)}</span>
+                    )}
+                  </div>
+                  <p>{university.name}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+          <section className="partner-directory__browser" aria-label="Partner university directory">
+            <aside className="partner-directory__list">
+              <h2>Partner university directory</h2>
+              <div className="partner-directory__list-scroll">
+                {universities.map((university) => (
+                  <button
+                    className={university.university_id === selectedUniversityId ? 'partner-directory__list-item partner-directory__list-item--active' : 'partner-directory__list-item'}
+                    type="button"
+                    key={university.university_id}
+                    onClick={() => selectUniversity(university.university_id)}
+                  >
+                    <span className="partner-directory__list-flag" aria-hidden="true">{partnerUniversityFlags[university.name] || '🌐'}</span>
+                    {university.name}
+                  </button>
+                ))}
+              </div>
+            </aside>
+            <div className="partner-directory__details">
+              {detailsUniversity && (
+                <>
+                  <div className="partner-directory__details-copy">
+                    <span className="auth-card__eyebrow">{selectedUniversity ? 'Selected partner' : 'Home'}</span>
+                    <div className="partner-directory__selected-logo">
+                      {detailsUniversity.logo_url ? (
+                        <img src={detailsUniversity.logo_url} alt="" />
+                      ) : (
+                        <span aria-hidden="true">{detailsUniversity.name.charAt(0)}</span>
+                      )}
+                    </div>
+                    <h2>{detailsUniversity.name}</h2>
+                    <p>{detailsUniversity.details || 'University details are not available yet.'}</p>
+                    {selectedUniversity && (
+                      <>
+                        <button className="btn btn--secondary" type="button" onClick={() => setShowAirport((isVisible) => !isVisible)}>
+                          {showAirport ? 'Hide closest airport' : 'Closest airport'}
+                        </button>
+                        {showAirport && (
+                          <p className="partner-directory__airport" role="status">
+                            {partnerUniversityAirports[selectedUniversity.name]?.name || 'Airport information is not available'} ({partnerUniversityAirports[selectedUniversity.name]?.code || '—'})
+                            <span>
+                              {partnerUniversityAirports[selectedUniversity.name]?.distanceKm ?? '—'} km by road · approximately {partnerUniversityAirports[selectedUniversity.name]?.driveMinutes ?? '—'} minutes by car
+                            </span>
+                          </p>
+                        )}
+                        <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
+                          Visit university website
+                        </a>
+                      </>
+                    )}
+                  </div>
+                  <PartnerUniversityMap
+                    universities={universities}
+                    homeUniversity={homeUniversity}
+                    selectedUniversity={selectedUniversity}
+                    onSelect={selectUniversity}
+                    onResetSelection={() => {
+                      setSelectedUniversityId(null)
+                      setShowAirport(false)
+                    }}
+                    showAirport={showAirport}
+                  />
+                </>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+    </section>
+  )
+}
+
 function Navbar({ session, onSignOut, theme, onThemeChange }) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -1358,17 +1794,14 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
           </li>
         )}
         <li>
-          <a
-            href="#partner-universities"
-            className="navbar__link"
-          >
+          <Link to="/partners" className="navbar__link">
             {/* Handshake / partnership icon */}
             <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M16 8l-4-4-4 4M12 4v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M8 13l-3 3a2 2 0 0 0 2.83 2.83L11 15.66M16 13l3 3a2 2 0 0 1-2.83 2.83L13 15.66M11 15.66l1 1 1-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Partner Universities
-          </a>
+          </Link>
         </li>
         <li>
           <a
@@ -2049,6 +2482,7 @@ function App() {
           } />
           <Route path="/portal/inbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/portal/outbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/partners" element={<PartnerUniversitiesRoute />} />
           <Route path="/erd" element={<ErdPage />} />
           <Route path="/test-status" element={<TestStatusPage />} />
         </Routes>

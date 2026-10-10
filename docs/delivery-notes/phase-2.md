@@ -16,7 +16,7 @@ Coordinators can also submit, update, and delete student nominations, which are 
 | Rawan Abdrabou | #37 #39 | #20 #21 #22 #23 #33 #37 #38 #39 #44 #45 |
 | Hadi Haidar | #19 #20 #21 #22 #23 | #19 #21 #22 #23 #25 #26 #28 #32 #33 #37 #44 #47 |
 | Yousef Almohammed | #44 #45 | #19 #21 #27 |
-| Fatma Alsammari | #34 #38 | #20 #45 |
+| Fatma Alsammari | #34 #38 | #20 #45 #62 |
 
 Some of the programming was done by several team members on Hadi's laptop. Hadi is the Build Lead and in charge of the logic, and his AI agents already had the full context of the project's features and access control. Working there saved tokens that would otherwise go to analysis and exploration.
 

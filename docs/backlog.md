@@ -28,6 +28,8 @@ the story ID, the title, who built it, and what happened to it.
 | #44 | KU coordinator can edit exchange cycle details and delete exchange cycle| Hadi and Rawan | Done |
 | #45 | Edit or Delete Nominations| Fatma and Rawan | Done | 
 | #47 | Validate GPA values do not exceed 4.0| Aysha and Hadi | Done | 
+| #62 | KU coordinator can put the website in maintanence mode and back |Fatma | Done |
+
 
 
 

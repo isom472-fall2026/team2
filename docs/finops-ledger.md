@@ -10,15 +10,14 @@ The FinOps Lead keeps it. Every member supplies their own rows.
 
 ## The plan — written in Phase 2
 
-*Which assistant or model you use for which kind of work, and what your limit is. Three or
-four lines. Revisit it in Phase 4 and say whether it held.*
+*We do not feel limited as we have found a free student plan that allows for a very high limit on advanced coding models, at anyways we will include our usages and token counts*
 
 | Kind of work | What we use | Why |
 |---|---|---|
-| <!-- EXAMPLE — delete this row --> writing stories from the proposal | the browser assistant | it is free and no code is involved |
-| <!-- EXAMPLE — delete this row --> building a story | Antigravity | it edits the files directly |
+| <!-- EXAMPLE — delete this row --> writing stories from the proposal | KU account Gemini Enterprise | it is free and no code is involved |
+| <!-- EXAMPLE — delete this row --> building a story | Antigravity + VS code agents | it edits the files directly |
 
-Our limit: <!-- EXAMPLE — delete --> the free tier. If we hit it we stop and tell the team.
+Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50 thousand extra per month
 
 ## Phase 2
 

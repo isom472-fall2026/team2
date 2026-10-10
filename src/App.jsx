@@ -29,6 +29,21 @@ const authOptions = {
   },
 }
 
+async function readMaintenanceMode() {
+  const { data, error } = await supabase.rpc('get_maintenance_mode')
+  if (error) return { mode: null, error: error.message }
+  if (data === null) {
+    return {
+      mode: null,
+      error: 'Coordinator maintenance statuses are inconsistent. A KU coordinator must reconcile them before the website status can be confirmed.',
+    }
+  }
+  if (typeof data !== 'boolean') {
+    return { mode: null, error: 'The maintenance status returned an unexpected value.' }
+  }
+  return { mode: data, error: '' }
+}
+
 function generateIncomingStudentId() {
   const randomValues = new Uint32Array(1)
   crypto.getRandomValues(randomValues)
@@ -63,7 +78,41 @@ function SuccessToast({ message, onClose }) {
   )
 }
 
-function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
+function MaintenancePage() {
+  return (
+    <section className="maintenance-page" aria-labelledby="maintenance-heading">
+      <div className="maintenance-page__card">
+        <span className="auth-card__eyebrow">Website maintenance</span>
+        <h1 id="maintenance-heading">The KU Exchange website is temporarily unavailable.</h1>
+        <p>
+          We are updating the site to improve the student and coordinator experience.
+          Please sign in as a KU coordinator to restore access when the work is complete.
+        </p>
+        <div className="maintenance-page__actions">
+          <Link className="btn btn--primary" to="/auth/signin">KU coordinator sign in</Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MaintenanceStatusUnavailable({ error, onRetry }) {
+  return (
+    <section className="maintenance-page" aria-labelledby="maintenance-status-error-heading">
+      <div className="maintenance-page__card">
+        <span className="auth-card__eyebrow">Website status unavailable</span>
+        <h1 id="maintenance-status-error-heading">We could not check the website status.</h1>
+        <p role="alert">{error || 'Please try again.'}</p>
+        <div className="maintenance-page__actions">
+          <button className="btn btn--primary" type="button" onClick={onRetry}>Retry</button>
+          <Link className="btn btn--secondary" to="/auth/signin">KU coordinator sign in</Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coordinatorOnly = false }) {
   const options = authOptions[type]
   const isSignUp = mode === 'signup'
   const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '', university: '' })
@@ -141,6 +190,20 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
       setError(result.error.message)
       setIsSubmitting(false)
       return
+    }
+
+    if (coordinatorOnly && !isSignUp) {
+      const { data: coordinator, error: coordinatorError } = await supabase
+        .from('coordinator')
+        .select('coordinator_id, university, email')
+        .eq('user_id', result.data.user.id)
+        .maybeSingle()
+      if (coordinatorError || !coordinator || !isKuCoordinatorProfile(coordinator, email)) {
+        const { error: signOutError } = await supabase.auth.signOut()
+        setError(signOutError?.message || coordinatorError?.message || 'Only authorized KU coordinators can sign in during maintenance.')
+        setIsSubmitting(false)
+        return
+      }
     }
 
     if (isSignUp) {
@@ -221,27 +284,33 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   return (
     <section className="auth-page" aria-labelledby="auth-heading">
       <div className="auth-card">
-        <span className="auth-card__eyebrow">{options.label}</span>
-        <h1 id="auth-heading">{isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`}</h1>
-        <p className="auth-card__description">{options.description}</p>
-        <fieldset className="auth-type-choice">
-          <legend>User type</legend>
-          {Object.entries(authOptions).map(([userType, userOptions]) => (
-            <label key={userType} className="auth-type-choice__option">
-              <input
-                type="radio"
-                name="userType"
-                value={userType}
-                checked={type === userType}
-                onChange={() => onTypeChange(userType)}
-              />
-              {userOptions.label}
-            </label>
-          ))}
-        </fieldset>
+        <span className="auth-card__eyebrow">{coordinatorOnly ? 'KU Coordinator' : options.label}</span>
+        <h1 id="auth-heading">{coordinatorOnly ? 'Sign in as a KU coordinator' : isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`}</h1>
+        <p className="auth-card__description">
+          {coordinatorOnly ? 'Sign in to disable maintenance mode and restore public access.' : options.description}
+        </p>
+        {!coordinatorOnly && (
+          <fieldset className="auth-type-choice">
+            <legend>User type</legend>
+            {Object.entries(authOptions).map(([userType, userOptions]) => (
+              <label key={userType} className="auth-type-choice__option">
+                <input
+                  type="radio"
+                  name="userType"
+                  value={userType}
+                  checked={type === userType}
+                  onChange={() => onTypeChange(userType)}
+                />
+                {userOptions.label}
+              </label>
+            ))}
+          </fieldset>
+        )}
         {type === 'coordinator' && (
           <p className="auth-warning" role="alert">
-            only for partner university coordinators, attempts at misuse by students will be caught and legally prosecuted
+            {coordinatorOnly
+              ? 'Only authorized KU coordinators may sign in while maintenance mode is enabled.'
+              : 'only for partner university coordinators, attempts at misuse by students will be caught and legally prosecuted'}
           </p>
         )}
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -277,9 +346,11 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
             {isSubmitting ? 'Working...' : isSignUp && type === 'coordinator' && Number(form.university) !== 4 ? 'Request access' : isSignUp ? 'Create account' : 'Sign in'}
           </button>
         </form>
-        <button className="auth-card__switch" type="button" onClick={() => onModeChange(isSignUp ? 'signin' : 'signup')}>
-          {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
-        </button>
+        {!coordinatorOnly && (
+          <button className="auth-card__switch" type="button" onClick={() => onModeChange(isSignUp ? 'signin' : 'signup')}>
+            {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+          </button>
+        )}
       </div>
       {message && (
         <SuccessToast
@@ -442,7 +513,7 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel,
   )
 }
 
-function CoordinatorPortal({ profile, userEmail, onDeleted }) {
+function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenanceMode, onToggleMaintenance, onRetryMaintenanceStatus }) {
   const profileEmailIsKu = profile.email?.trim().toLowerCase().endsWith('@ku.edu.kw')
   const authenticatedEmailIsKu = userEmail?.trim().toLowerCase().endsWith('@ku.edu.kw')
   const universityId = profile.university ?? profile.university_id
@@ -477,10 +548,39 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
   const [isStartingCycle, setIsStartingCycle] = useState(false)
   const [status, setStatus] = useState({ error: '', message: '' })
   const [toastId, setToastId] = useState(0)
+  const [maintenanceError, setMaintenanceError] = useState('')
+  const [isUpdatingMaintenance, setIsUpdatingMaintenance] = useState(false)
   const dismissSuccess = useCallback(
     () => setStatus((currentStatus) => ({ ...currentStatus, message: '' })),
     [],
   )
+
+  const handleMaintenanceToggle = async () => {
+    if (maintenanceMode === null || isUpdatingMaintenance) return
+    const nextMode = !maintenanceMode
+    setIsUpdatingMaintenance(true)
+    setMaintenanceError('')
+    const { data, error } = await supabase.rpc('set_maintenance_mode', {
+      requested_mode: nextMode,
+    })
+    setIsUpdatingMaintenance(false)
+    if (error) {
+      setMaintenanceError(error.message)
+      setStatus({ error: '', message: '' })
+      return
+    }
+    if (data !== nextMode) {
+      setMaintenanceError('The database did not confirm the requested maintenance status.')
+      setStatus({ error: '', message: '' })
+      return
+    }
+    onToggleMaintenance(data)
+    setStatus({
+      error: '',
+      message: nextMode ? 'Maintenance mode enabled. Visitors will see the maintenance page.' : 'Maintenance mode disabled. The website is live again.',
+    })
+    setToastId((currentId) => currentId + 1)
+  }
 
   const loadCycles = async () => {
     const { data, error } = await supabase
@@ -963,9 +1063,17 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
               <span aria-hidden="true">♙</span> Coordinator access
             </button>
           )}
+          {isKuCoordinator && (
+            <button className={activeView === 'maintenance' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('maintenance')}>
+              <span aria-hidden="true">⚙</span> Maintenance mode
+            </button>
+          )}
         </nav>
         <div className="portal-sidebar__footer">
           <span className="portal-sidebar__secure">Signed in securely</span>
+          {maintenanceMode && (
+            <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+          )}
         </div>
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
@@ -1260,6 +1368,27 @@ function CoordinatorPortal({ profile, userEmail, onDeleted }) {
               )}
           </>
         )}
+        {isKuCoordinator && activeView === 'maintenance' && (
+          <section className="maintenance-panel" aria-labelledby="maintenance-toggle-heading">
+            <div className="maintenance-panel__header">
+              <div>
+                <span className="auth-card__eyebrow">Website status</span>
+                <h2 id="maintenance-toggle-heading">Maintenance mode</h2>
+              </div>
+              <span className={maintenanceMode === null ? 'maintenance-panel__badge' : maintenanceMode ? 'maintenance-panel__badge maintenance-panel__badge--enabled' : 'maintenance-panel__badge maintenance-panel__badge--disabled'}>
+                {maintenanceMode === null ? 'Unavailable' : maintenanceMode ? 'Enabled' : 'Disabled'}
+              </span>
+            </div>
+            <p className="maintenance-panel__copy">
+              Current status: <strong>{maintenanceMode === null ? 'Unavailable' : maintenanceMode ? 'Enabled' : 'Disabled'}</strong>
+            </p>
+            <button className={maintenanceMode ? 'btn btn--secondary' : 'btn btn--primary'} type="button" onClick={handleMaintenanceToggle} disabled={maintenanceMode === null || isUpdatingMaintenance}>
+              {isUpdatingMaintenance ? 'Updating status...' : maintenanceMode ? 'Disable maintenance mode' : 'Enable maintenance mode'}
+            </button>
+            {maintenanceMode === null && <button className="btn btn--secondary" type="button" onClick={onRetryMaintenanceStatus}>Retry status check</button>}
+            {maintenanceError && <p className="auth-form__error" role="alert">{maintenanceError}</p>}
+          </section>
+        )}
         <AccountDeleteButton onDeleted={onDeleted} />
       </section>
     </div>
@@ -1290,13 +1419,13 @@ function isKuCoordinatorProfile(profile, userEmail) {
   return Number(universityId) === 4 || profileEmailIsKu || authenticatedEmailIsKu
 }
 
-function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
+function ProtectedPortal({ user, profile, onSignOut, onDeleted, maintenanceMode, onToggleMaintenance, onRetryMaintenanceStatus }) {
   if (profile?.role === 'coordinator') {
     const isKuCoordinator = isKuCoordinatorProfile(profile, user.email)
     if (!isKuCoordinator && profile.email_accepted !== true) {
       return <CoordinatorAccessPending user={user} onSignOut={onSignOut} onDeleted={onDeleted} />
     }
-    return <CoordinatorPortal profile={profile} userEmail={user.email} onDeleted={onDeleted} />
+    return <CoordinatorPortal profile={profile} userEmail={user.email} onDeleted={onDeleted} onSignOut={onSignOut} maintenanceMode={maintenanceMode} onToggleMaintenance={onToggleMaintenance} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
   }
 
   return (
@@ -2174,6 +2303,27 @@ function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [theme, setTheme] = useState(() => localStorage.getItem('team2-theme') || 'light')
+  const [maintenanceMode, setMaintenanceMode] = useState(null)
+  const [maintenanceStatusError, setMaintenanceStatusError] = useState('')
+
+  const refreshMaintenanceStatus = useCallback(async () => {
+    setMaintenanceStatusError('')
+    const result = await readMaintenanceMode()
+    setMaintenanceMode(result.mode)
+    setMaintenanceStatusError(result.error)
+  }, [])
+
+  useEffect(() => {
+    let isCurrent = true
+    readMaintenanceMode().then((result) => {
+      if (!isCurrent) return
+      setMaintenanceMode(result.mode)
+      setMaintenanceStatusError(result.error)
+    })
+    return () => {
+      isCurrent = false
+    }
+  }, [])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -2215,6 +2365,17 @@ function App() {
     }
   }, [])
 
+  const signedInKuCoordinator = Boolean(
+    session && profile && isKuCoordinatorProfile(profile, session.user.email),
+  )
+  const showMaintenancePage = maintenanceMode !== false && !signedInKuCoordinator
+  const renderPublicPage = (page) => {
+    if (maintenanceMode === null) {
+      return <MaintenanceStatusUnavailable error={maintenanceStatusError} onRetry={refreshMaintenanceStatus} />
+    }
+    return showMaintenancePage ? <MaintenancePage /> : page
+  }
+
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut()
     if (error) window.alert(error.message)
@@ -2226,53 +2387,58 @@ function App() {
 
   return (
     <>
-      <Navbar
-        session={session}
-        onSignOut={handleSignOut}
-        theme={theme}
-        onThemeChange={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}
-      />
+      {maintenanceMode === false && (
+        <Navbar
+          session={session}
+          onSignOut={handleSignOut}
+          theme={theme}
+          onThemeChange={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}
+        />
+      )}
       <main>
         <Routes>
           <Route path="/" element={
-            <>
-              <HeroSection />
-              <StatsBar />
-              <EligibilityCriteria />
-              <VisaChecker />
-              <InfoCards />
-              <PartnerUniversities />
-              <ApplicationCTA />
-            </>
+            renderPublicPage(
+              <>
+                <HeroSection />
+                <StatsBar />
+                <EligibilityCriteria />
+                <VisaChecker />
+                <InfoCards />
+                <PartnerUniversities />
+                <ApplicationCTA />
+              </>
+            )
           } />
-          <Route path="/auth/signup" element={<AuthRoute mode="signup" />} />
-          <Route path="/auth/signin" element={<AuthRoute mode="signin" />} />
+          <Route path="/auth/signup" element={maintenanceMode !== false ? <Navigate to="/auth/signin" replace /> : <AuthRoute mode="signup" />} />
+          <Route path="/auth/signin" element={<AuthRoute mode="signin" coordinatorOnly={maintenanceMode !== false} />} />
           <Route path="/portal" element={
-            session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} onDeleted={handleDeleted} /> : <Navigate to="/auth/signin" replace />
+            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} onDeleted={handleDeleted} maintenanceMode={maintenanceMode} onToggleMaintenance={setMaintenanceMode} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
           } />
-          <Route path="/portal/inbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
-          <Route path="/portal/outbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
-          <Route path="/partners" element={<PartnerUniversitiesRoute />} />
-          <Route path="/erd" element={<ErdPage />} />
-          <Route path="/test-status" element={<TestStatusPage />} />
+          <Route path="/portal/inbound-application" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal/outbound-application" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/partners" element={renderPublicPage(<PartnerUniversitiesRoute />)} />
+          <Route path="/erd" element={renderPublicPage(<ErdPage />)} />
+          <Route path="/test-status" element={renderPublicPage(<TestStatusPage />)} />
         </Routes>
       </main>
-      <Footer />
+      {maintenanceMode !== null && !showMaintenancePage && <Footer />}
     </>
   )
 }
 
-function AuthRoute({ mode }) {
+function AuthRoute({ mode, coordinatorOnly = false }) {
   const navigate = useNavigate()
   const [type, setType] = useState('ku')
 
   return (
     <AuthPage
-      type={type}
+      type={coordinatorOnly ? 'coordinator' : type}
       mode={mode}
       onTypeChange={setType}
       onModeChange={(nextMode) => navigate(`/auth/${nextMode}`)}
       onAuthenticated={() => navigate('/portal')}
+      coordinatorOnly={coordinatorOnly}
     />
   )
 }

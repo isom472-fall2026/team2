@@ -239,6 +239,9 @@ REFERENCES studentnominations(id);
 ALTER TABLE coordinator
 ADD COLUMN email_accepted BOOLEAN DEFAULT FALSE;
 
+ALTER TABLE coordinator
+ADD COLUMN maintenance_mode BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE POLICY "KU coordinators can review coordinator access"
 ON public.coordinator
 FOR SELECT
@@ -359,6 +362,79 @@ alter policy "any ku coordinator updates any coordinator"
 on "public"."coordinator"
 to authenticated
 using (((auth.jwt() ->> 'email'::text) ~~* '%@ku.edu.kw'::text));
+
+CREATE OR REPLACE FUNCTION public.get_maintenance_mode()
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT CASE
+    WHEN COUNT(*) = 0 THEN FALSE
+    WHEN bool_and(coordinator.maintenance_mode) = bool_or(coordinator.maintenance_mode)
+      THEN bool_or(coordinator.maintenance_mode)
+    ELSE NULL
+  END
+  FROM public.coordinator AS coordinator;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_maintenance_mode() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_maintenance_mode() TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_maintenance_mode(requested_mode BOOLEAN)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+DECLARE
+  coordinator_count BIGINT;
+  mismatched_count BIGINT;
+  updated_count BIGINT;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.coordinator
+    WHERE user_id = auth.uid()
+      AND university = 4
+      AND email ILIKE '%@ku.edu.kw'
+  ) THEN
+    RAISE EXCEPTION 'Only KU coordinators can change maintenance mode';
+  END IF;
+
+  SELECT COUNT(*)
+  INTO coordinator_count
+  FROM public.coordinator;
+
+  IF coordinator_count = 0 THEN
+    RAISE EXCEPTION 'Maintenance mode cannot be changed because no coordinator rows exist';
+  END IF;
+
+  SELECT COUNT(*)
+  INTO mismatched_count
+  FROM public.coordinator
+  WHERE maintenance_mode IS DISTINCT FROM (NOT requested_mode);
+
+  IF mismatched_count > 0 THEN
+    RAISE EXCEPTION 'Maintenance mode cannot be changed because coordinator statuses are inconsistent';
+  END IF;
+
+  UPDATE public.coordinator
+  SET maintenance_mode = requested_mode
+  WHERE maintenance_mode IS DISTINCT FROM requested_mode;
+
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  IF updated_count <> coordinator_count THEN
+    RAISE EXCEPTION 'Maintenance mode was not updated for every coordinator';
+  END IF;
+
+  RETURN requested_mode;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.set_maintenance_mode(BOOLEAN) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.set_maintenance_mode(BOOLEAN) TO authenticated;
 
 alter policy "Enable read access for all ku coordinators"
 on "public"."coordinator"

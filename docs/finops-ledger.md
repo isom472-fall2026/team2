@@ -23,7 +23,11 @@ Our limit: <!-- EXAMPLE — delete --> the free tier. If we hit it we stop and t
 ## Phase 2
 
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |
-|Visa and Nationality Checker #27 | GPT and Antigravity | 507.9K Tokens | No Db data and a lot of prompts regarding the requirements | Nothing, it achieved the required task better than expectations |
+| Prototype (UI) | Claude + Antigravity | Estimate: about 20-30 prompts over several hours | Project proposal and the university website as a visual reference | The top bar took several extra prompts.a screenshot or clear spec of it (layout, items, colors) up front. |
+| #27 Nationality-based visa |  Antigravity + agent | Estimate: 70000tokens/ 2prompt | Story description | a slight change in layout|
+| #28 Real-time outbound verification | antigravity+ agent | Estimate: 60000tokens | Story description  | State the verification flow clearly before prompting. |
+| #47 validate gpa usage not exceed 4.0 | antigravity + agent | Estimate: 47800tokens | Story description | it did it correctly, 
+| Visa and Nationality Checker #27 | GPT and Antigravity | 507.9K Tokens | No Db data and a lot of prompts regarding the requirements | Nothing, it achieved the required task better than expectations |
 |  |  |  |  |  |
 
 ## Phase 3

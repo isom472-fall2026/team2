@@ -9,6 +9,7 @@ the story ID, the title, who built it, and what happened to it.
 ## Phase 2 — saved 12 October
 
 | Story | Title | Who | State at the tag |
+|---|---|---|---|
 | #19 | KU student can sign up and log in to the portal | Yousef, Almaha and Hadi | Done |
 | #20 | Incoming Student can sign up and log in to the portal | Rawan and Fatma | Done |
 | #21 | A university employee coordinator can access a portal to nominate students | Yousef , Hadi and Rawan | Done |

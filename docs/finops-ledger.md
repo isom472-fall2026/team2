@@ -23,6 +23,7 @@ Our limit: <!-- EXAMPLE — delete --> the free tier. If we hit it we stop and t
 ## Phase 2
 
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |
+|---|---|---|---|---|
 |updated RLS, implemented edit and delete nominations and cycles, showed nomination history to concerned coordinator #46 |GPT Luna + Antigravity | 123.21K |Schema + Story Description | Nothing |
 |KU coordinator can edit exchange cycle details and delete exchange cycle #44| GPT Luna + Antigravity | 42K | Story Description | Nothing |
 |Change portal UI #36| GPT Luna + Antigravity | 2K | Description of the issue that existed | Nothing |

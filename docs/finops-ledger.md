@@ -35,6 +35,7 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 | #28 Real-time outbound verification | antigravity+ agent | Estimate: 60000tokens | Story description  | State the verification flow clearly before prompting. |
 | #47 validate gpa usage not exceed 4.0 | antigravity + agent | Estimate: 47800tokens | Story description | it did it correctly, |
 | Visa and Nationality Checker #27 | GPT and Antigravity | 507.9K Tokens | No Db data and a lot of prompts regarding the requirements | Nothing, it achieved the required task better than expectations |
+| Maintenance Mode #62 | GPT and Antigravity | 180.23K Tokens | maintenance mode column in coordinator table | would have found a way to hard reset after every reload (Ctrl + F5) |
 |  |  |  |  |  |
 
 ## Phase 3

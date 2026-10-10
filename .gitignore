@@ -31,3 +31,5 @@ __pycache__/
 *.swo
 *~
 Thumbs.db
+package-lock.json
+package.json

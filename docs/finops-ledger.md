@@ -23,7 +23,7 @@ Our limit: <!-- EXAMPLE — delete --> the free tier. If we hit it we stop and t
 ## Phase 2
 
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |
-|---|---|---|---|---|
+|Visa and Nationality Checker #27 | GPT and Antigravity | 507.9K Tokens | No Db data and a lot of prompts regarding the requirements | Nothing, it achieved the required task better than expectations |
 |  |  |  |  |  |
 
 ## Phase 3

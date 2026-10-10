@@ -1,0 +1,418 @@
+.visa-advisory {
+  --visa-required-ink: #ffc1bd;
+  --visa-required-fill: #451d20;
+  --visa-required-map: #eb615c;
+  --visa-required-outline: #ffaaa5;
+  --visa-clear-ink: #9bebbb;
+  --visa-clear-fill: #123827;
+  --visa-clear-map: #4ab979;
+  --visa-clear-outline: #a2edc0;
+  --map-neighbor-fill: #78909d;
+  --map-neighbor-outline: #506573;
+  --study-warning-ink: #ffe4a0;
+  --study-warning-border: #d59b24;
+  --study-warning-background: rgba(213, 155, 36, 0.13);
+  padding: 72px 2rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card-alt);
+}
+
+:root[data-theme='light'] .visa-advisory {
+  --visa-required-ink: #a51f1f;
+  --visa-required-fill: #fff0ef;
+  --visa-required-map: #d7423d;
+  --visa-required-outline: #9f2828;
+  --visa-clear-ink: #17663a;
+  --visa-clear-fill: #eaf7ef;
+  --visa-clear-map: #2b9b5c;
+  --visa-clear-outline: #1b6c3e;
+  --map-neighbor-fill: #748894;
+  --map-neighbor-outline: #536b78;
+  --study-warning-ink: #624400;
+  --study-warning-border: #bd8500;
+  --study-warning-background: #fff6d8;
+}
+
+.visa-advisory__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.visa-advisory__field {
+  display: grid;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.visa-advisory__field input,
+.visa-advisory__field select {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg);
+  font: inherit;
+}
+
+.visa-advisory__field input:focus,
+.visa-advisory__field select:focus {
+  outline: 2px solid var(--neon);
+  outline-offset: 1px;
+}
+
+.visa-advisory__passport {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 224px);
+  margin: 24px auto 0;
+  padding: 2px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #12c6d8, #73d89a 52%, #3d8df5);
+  box-shadow: 0 8px 24px rgba(18, 120, 150, 0.18);
+}
+
+.visa-advisory__passport-frame {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 100px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.visa-advisory__passport-frame > div {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+}
+
+.visa-advisory__passport img {
+  display: block;
+  width: min(100%, 180px);
+  max-height: 250px;
+  object-fit: contain;
+}
+
+.visa-advisory__passport p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.visa-advisory__passport-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  max-width: 1000px;
+  margin: 20px auto 0;
+  padding: 0;
+  border: 0;
+}
+
+.visa-advisory__passport-confirm legend {
+  width: 100%;
+  margin-bottom: 10px;
+  color: var(--text-strong);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.visa-advisory__passport-confirm label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 0.95rem;
+}
+
+.visa-advisory__passport-confirm input[type='radio'] {
+  width: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: var(--neon);
+}
+
+.visa-advisory__notice,
+.visa-advisory__destination-error {
+  max-width: 1000px;
+  margin: 20px auto 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.visa-advisory__destination-error p {
+  margin: 0 0 8px;
+}
+
+.visa-advisory__destination-error button {
+  padding: 0;
+  border: 0;
+  color: var(--neon);
+  background: none;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.visa-advisory__follow-up {
+  margin-top: 20px;
+}
+
+.visa-advisory__result {
+  max-width: 1000px;
+  margin: 28px auto 0;
+  padding: 24px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
+.visa-advisory__journey {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.visa-advisory__journey-point {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.visa-advisory__journey-point img {
+  display: block;
+  width: 40px;
+  height: 26px;
+  object-fit: contain;
+  border: 1px solid var(--border-bright);
+  border-radius: 3px;
+  background: var(--bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.visa-advisory__journey-arrow {
+  color: var(--text-muted);
+  font-size: 1.25rem;
+}
+
+.visa-advisory__badge {
+  display: inline-flex;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--border-bright);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.visa-advisory__result .visa-advisory__badge--required {
+  border-color: var(--visa-required-outline);
+  color: var(--visa-required-ink);
+  background: var(--visa-required-fill);
+}
+
+.visa-advisory__result .visa-advisory__badge--not-required {
+  border-color: var(--visa-clear-outline);
+  color: var(--visa-clear-ink);
+  background: var(--visa-clear-fill);
+}
+
+.visa-advisory__study-warning {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--study-warning-border);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--study-warning-ink);
+  background: var(--study-warning-background);
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+.visa-advisory__country-map {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 420px);
+  margin: 20px auto;
+}
+
+.visa-advisory__country-map svg {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+}
+
+.visa-advisory__country-map path {
+  fill: var(--map-neighbor-fill);
+  fill-opacity: 0.2;
+  stroke: var(--map-neighbor-outline);
+  stroke-width: 0.8px;
+  stroke-opacity: 0.7;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.visa-advisory__country-map .visa-advisory__country-shape--selected {
+  fill-opacity: 1;
+  stroke-opacity: 1;
+  stroke-width: 1.5px;
+}
+
+.visa-advisory__country-map--required .visa-advisory__country-shape--selected {
+  fill: var(--visa-required-map);
+  stroke: var(--visa-required-outline);
+}
+
+.visa-advisory__country-map--not-required .visa-advisory__country-shape--selected {
+  fill: var(--visa-clear-map);
+  stroke: var(--visa-clear-outline);
+}
+
+.visa-advisory__country-map figcaption {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.visa-advisory__source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 16px 0 4px;
+}
+
+.visa-advisory__source-button {
+  display: inline-flex;
+  flex: 1 1 230px;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg-card-alt);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition), border-color var(--transition), transform var(--transition);
+}
+
+.visa-advisory__source-button--primary {
+  border-color: var(--neon);
+  color: var(--neon);
+}
+
+.visa-advisory__source-button:hover {
+  border-color: var(--neon);
+  background: var(--bg);
+  transform: translateY(-1px);
+}
+
+.visa-advisory__source-button:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.visa-advisory__result h3 {
+  margin: 16px 0 12px;
+  font-size: 1.15rem;
+}
+
+.visa-advisory__result h4 {
+  margin: 18px 0 6px;
+  color: var(--text-strong);
+}
+
+.visa-advisory__result p,
+.visa-advisory__result li {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.visa-advisory__result ul {
+  margin: 6px 0 16px 1.25rem;
+  list-style: disc;
+}
+
+.visa-advisory__result .visa-advisory__disclaimer {
+  margin-top: 16px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 600px) {
+  .visa-advisory {
+    padding: 56px 1rem;
+  }
+
+  .visa-advisory__form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .visa-advisory__result {
+    margin-top: 20px;
+    padding: 16px;
+  }
+
+  .visa-advisory__source-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .visa-advisory__source-button {
+    width: 100%;
+  }
+
+  .visa-advisory__study-warning {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .visa-advisory__result {
+    padding: 12px;
+  }
+
+  .visa-advisory__journey {
+    gap: 6px;
+  }
+
+  .visa-advisory__journey-point {
+    gap: 6px;
+    font-size: 0.88rem;
+  }
+
+  .visa-advisory__journey-point img {
+    width: 34px;
+    height: 23px;
+  }
+}

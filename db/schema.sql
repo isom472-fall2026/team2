@@ -7,6 +7,8 @@ CREATE TABLE Country (
     name VARCHAR(255) NOT NULL,
     city VARCHAR(255)
 );
+
+ALTER TABLE public.country ENABLE ROW LEVEL SECURITY;
  
 CREATE TABLE exchange_cycle (
     id INT PRIMARY KEY,
@@ -17,6 +19,8 @@ CREATE TABLE exchange_cycle (
     application_o TIMESTAMP,     -- Replaced DATETIME with TIMESTAMP
     application_c TIMESTAMP      -- Replaced DATETIME with TIMESTAMP
 );
+
+ALTER TABLE public.exchange_cycle ENABLE ROW LEVEL SECURITY;
  
 CREATE TABLE KUStudentAuth (
     Student_id BIGINT PRIMARY KEY,
@@ -24,6 +28,8 @@ CREATE TABLE KUStudentAuth (
     name VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE public.kustudentauth ENABLE ROW LEVEL SECURITY;
  
 CREATE TABLE incomingstudentAuth (
     Student_id INT PRIMARY KEY,
@@ -31,6 +37,8 @@ CREATE TABLE incomingstudentAuth (
     name VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE public.incomingstudentauth ENABLE ROW LEVEL SECURITY;
  
 CREATE TABLE emergency_contact (
     contact_id INT PRIMARY KEY,
@@ -38,6 +46,8 @@ CREATE TABLE emergency_contact (
     phone_number VARCHAR(50) NOT NULL,
     email VARCHAR(255)
 );
+
+ALTER TABLE public.emergency_contact ENABLE ROW LEVEL SECURITY;
  
 -- ==========================================
 -- 2. Create Dependent Tables (With Foreign Keys)
@@ -54,6 +64,8 @@ CREATE TABLE PartnerUniversity (
     details TEXT,
     FOREIGN KEY (location) REFERENCES Country(id) ON DELETE SET NULL
 );
+
+ALTER TABLE public.partneruniversity ENABLE ROW LEVEL SECURITY;
  
 CREATE TABLE Coordinator (
     coordinator_id INT PRIMARY KEY,
@@ -62,6 +74,8 @@ CREATE TABLE Coordinator (
     university INT,
     FOREIGN KEY (university) REFERENCES PartnerUniversity(university_id) ON DELETE CASCADE
 );
+
+ALTER TABLE public.coordinator ENABLE ROW LEVEL SECURITY;
 
 -- NEOMA accepts KU exchange students at its Reims campus.
 UPDATE PartnerUniversity
@@ -108,6 +122,8 @@ CREATE TABLE InboundApplication (
     FOREIGN KEY (student_id) REFERENCES incomingstudentAuth(Student_id) ON DELETE CASCADE,
     FOREIGN KEY (emergency_contact) REFERENCES emergency_contact(contact_id) ON DELETE SET NULL
 );
+
+ALTER TABLE public.inboundapplication ENABLE ROW LEVEL SECURITY;
  
 CREATE TABLE OutboundApplication (
     application_id INT PRIMARY KEY,
@@ -144,6 +160,8 @@ CREATE TABLE OutboundApplication (
     FOREIGN KEY (student_id) REFERENCES KUStudentAuth(Student_id) ON DELETE CASCADE
 );
 
+ALTER TABLE public.outboundapplication ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE public.kustudentauth
 ADD COLUMN user_id uuid REFERENCES auth.users(id);
 
@@ -168,6 +186,8 @@ CREATE TABLE studentnominations (
         REFERENCES exchange_cycle(id)
         ON DELETE CASCADE
 );
+
+ALTER TABLE public.studentnominations ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.coordinator
 ADD COLUMN user_id uuid REFERENCES auth.users(id);

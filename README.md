@@ -5,10 +5,14 @@ Client: Student Exchange Office under the Vice President for Academic Affairs (V
 
 A web-based portal that automates student exchange application intake, evaluates academic eligibility criteria, and streamlines coordinator review.
 
-Next due: Wednesday 23 September — your proposal. Write it in `docs/proposal.md`, then publish it. Steps: `docs/how-we-work.md` Update this line at the start of every phase. It is the first thing your team sees.
+Where we are: Phase 2, the design sprint
+ is being delivered. Phase 3, our first working increment, is due on Wednesday 21 October.
+ The rules and phase requirements are in `docs/how-we-work.md`. 
+This line gets updated at the start of every phase, because it is the first thing the team reads.
+ 
 
 - Proposal page: https://isom472-fall2026.github.io/team2/docs/proposal.html
-- Running system: TODO: link to the deployed system once it exists
+- Running system: https://isom472-fall2026.github.io/team2/
 - Board: https://github.com/orgs/isom472-fall2026/projects/
 
 ## Where do I go?

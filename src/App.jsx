@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
+import VisaChecker from './components/VisaChecker'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
+import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
 import { supabase } from './supabase'
 import './App.css'
 
@@ -35,6 +39,30 @@ function generateCoordinatorId() {
   return generateIncomingStudentId()
 }
 
+function generateNominationId() {
+  const randomValues = new Uint32Array(1)
+  crypto.getRandomValues(randomValues)
+  return 10000000 + (randomValues[0] % 90000000)
+}
+
+function SuccessToast({ message, onClose }) {
+  useEffect(() => {
+    const timeoutId = window.setTimeout(onClose, 4000)
+    return () => window.clearTimeout(timeoutId)
+  }, [message, onClose])
+
+  return (
+    <div className="success-toast" role="status" aria-live="polite">
+      <span className="success-toast__icon" aria-hidden="true">✓</span>
+      <p className="success-toast__message">{message}</p>
+      <button className="success-toast__close" type="button" onClick={onClose} aria-label="Close notification">
+        ×
+      </button>
+      <span className="success-toast__progress" aria-hidden="true" />
+    </div>
+  )
+}
+
 function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   const options = authOptions[type]
   const isSignUp = mode === 'signup'
@@ -42,7 +70,10 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
   const [universities, setUniversities] = useState([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [toastId, setToastId] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [accessRequested, setAccessRequested] = useState(false)
+  const dismissSuccess = useCallback(() => setMessage(''), [])
 
   useEffect(() => {
     if (type !== 'coordinator') return
@@ -54,9 +85,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
       .order('name')
       .then(({ data, error: universityError }) => {
         if (universityError) setError(universityError.message)
-        const rows = data || []
-        const hasKuwaitUniversity = rows.some(({ name }) => name.toLowerCase() === 'kuwait university')
-        setUniversities(hasKuwaitUniversity ? rows : [{ university_id: 'ku', name: 'Kuwait University' }, ...rows])
+        setUniversities(data || [])
       })
   }, [type])
 
@@ -77,9 +106,15 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
     }
 
     const email = form.email.trim().toLowerCase()
-    const requiresKuEmail = type === 'ku' || (type === 'coordinator' && form.university === 'ku')
-    if (isSignUp && requiresKuEmail && !email.endsWith('@ku.edu.kw')) {
-      setError('KU students and Kuwait University coordinators must use an email ending with @ku.edu.kw.')
+    const selectedUniversityId = Number(form.university)
+    const isKuEmail = email.endsWith('@ku.edu.kw')
+    const isKuUniversity = selectedUniversityId === 4
+    if (isSignUp && type === 'ku' && !isKuEmail) {
+      setError('KU students must use an email ending with @ku.edu.kw.')
+      return
+    }
+    if (isSignUp && type === 'coordinator' && isKuEmail !== isKuUniversity) {
+      setError('Kuwait University coordinators must select Kuwait University and use an email ending with @ku.edu.kw.')
       return
     }
 
@@ -120,7 +155,8 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
             coordinator_id: profileId,
             name: form.name.trim(),
             email,
-            university: form.university === 'ku' ? null : Number(form.university),
+            university: isKuEmail ? 4 : selectedUniversityId,
+            email_accepted: type === 'coordinator' ? isKuEmail : undefined,
             user_id: result.data.user.id,
           }
         : {
@@ -141,6 +177,18 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
 
       if (!result.data.session) {
         setMessage('Account created. Check your email to confirm your account, then sign in.')
+        setToastId((currentId) => currentId + 1)
+        setIsSubmitting(false)
+        return
+      }
+      if (type === 'coordinator' && !isKuEmail) {
+        const { error: signOutError } = await supabase.auth.signOut()
+        if (signOutError) {
+          setError(signOutError.message)
+          setIsSubmitting(false)
+          return
+        }
+        setAccessRequested(true)
         setIsSubmitting(false)
         return
       }
@@ -148,6 +196,26 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
 
     onAuthenticated(result.data.session)
     setIsSubmitting(false)
+  }
+
+  if (accessRequested) {
+    return (
+      <section className="auth-page" aria-labelledby="access-requested-heading">
+        <div className="auth-card">
+          <span className="auth-card__eyebrow">Access requested</span>
+          <h1 id="access-requested-heading">Your request is under review</h1>
+          <p className="auth-card__description">
+            Your coordinator account was created. A Kuwait University coordinator will review your request, and you will be notified as soon as access is granted.
+          </p>
+          <button className="btn btn--primary btn--full" type="button" onClick={() => {
+            setAccessRequested(false)
+            onModeChange('signin')
+          }}>
+            Return to sign in
+          </button>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -205,15 +273,21 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated }) {
           <label htmlFor="password">Password</label>
           <input id="password" name="password" type="password" value={form.password} onChange={updateField} required minLength="6" autoComplete={isSignUp ? 'new-password' : 'current-password'} />
           {error && <p className="auth-form__error" role="alert">{error}</p>}
-          {message && <p className="auth-form__message" role="status">{message}</p>}
           <button className="btn btn--primary btn--full" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Working...' : isSignUp ? 'Create account' : 'Sign in'}
+            {isSubmitting ? 'Working...' : isSignUp && type === 'coordinator' && Number(form.university) !== 4 ? 'Request access' : isSignUp ? 'Create account' : 'Sign in'}
           </button>
         </form>
         <button className="auth-card__switch" type="button" onClick={() => onModeChange(isSignUp ? 'signin' : 'signup')}>
           {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
         </button>
       </div>
+      {message && (
+        <SuccessToast
+          key={toastId}
+          message={message}
+          onClose={dismissSuccess}
+        />
+      )}
     </section>
   )
 }
@@ -279,7 +353,51 @@ function formatCycleDate(value) {
   return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleString()
 }
 
-function CycleForm({ form, setForm, onSubmit, isSubmitting, status }) {
+function toDateTimeLocal(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+function validateCycleForm(form) {
+  const dates = [
+    ['nominations', form.nominationsOpen, form.nominationsClose],
+    ['applications', form.applicationOpen, form.applicationClose],
+    ['exchange cycle', form.cycleStart, form.cycleEnd],
+  ]
+  return dates.some(([, open, close]) => new Date(open) >= new Date(close))
+    ? 'Each opening or start date must be before its closing or end date.'
+    : ''
+}
+
+function cycleDataFromForm(form) {
+  return {
+    semester: form.semester,
+    academic_year: form.academicYear,
+    nominations_o: new Date(form.nominationsOpen).toISOString(),
+    nominations_c: new Date(form.nominationsClose).toISOString(),
+    application_o: new Date(form.applicationOpen).toISOString(),
+    application_c: new Date(form.applicationClose).toISOString(),
+    cycle_start: new Date(form.cycleStart).toISOString(),
+    cycle_end: new Date(form.cycleEnd).toISOString(),
+  }
+}
+
+function cycleFormFromCycle(cycle) {
+  return {
+    semester: cycle.semester,
+    academicYear: cycle.academic_year,
+    nominationsOpen: toDateTimeLocal(cycle.nominations_o),
+    nominationsClose: toDateTimeLocal(cycle.nominations_c),
+    applicationOpen: toDateTimeLocal(cycle.application_o),
+    applicationClose: toDateTimeLocal(cycle.application_c),
+    cycleStart: toDateTimeLocal(cycle.cycle_start),
+    cycleEnd: toDateTimeLocal(cycle.cycle_end),
+  }
+}
+
+function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel, onCancel }) {
   const updateField = (event) => setForm({ ...form, [event.target.name]: event.target.value })
 
   return (
@@ -314,110 +432,336 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status }) {
         </label>
       </div>
       {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
-      <button className="btn btn--primary" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Starting cycle...' : 'Start exchange cycle'}
-      </button>
+      <div className="cycle-form__actions">
+        <button className="btn btn--primary" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving cycle...' : submitLabel}
+        </button>
+        {onCancel && <button className="btn btn--secondary" type="button" onClick={onCancel} disabled={isSubmitting}>Cancel</button>}
+      </div>
     </form>
   )
 }
 
-function CoordinatorPortal({ profile, onDeleted }) {
+function CoordinatorPortal({ profile, userEmail, onDeleted }) {
+  const profileEmailIsKu = profile.email?.trim().toLowerCase().endsWith('@ku.edu.kw')
+  const authenticatedEmailIsKu = userEmail?.trim().toLowerCase().endsWith('@ku.edu.kw')
+  const universityId = profile.university ?? profile.university_id
+  const isKuCoordinator = Number(universityId) === 4
+    || profileEmailIsKu
+    || authenticatedEmailIsKu
   const [nominations, setNominations] = useState([])
+  const [isLoadingNominations, setIsLoadingNominations] = useState(true)
+  const [editingNominationId, setEditingNominationId] = useState(null)
+  const [nominationEditForm, setNominationEditForm] = useState({
+    studentName: '',
+    studentEmail: '',
+    studentNationality: '',
+    semester: '',
+  })
+  const [nominationEditError, setNominationEditError] = useState('')
+  const [isSavingNomination, setIsSavingNomination] = useState(false)
+  const [pendingDeleteNomination, setPendingDeleteNomination] = useState(null)
+  const [isDeletingNomination, setIsDeletingNomination] = useState(false)
   const [semesters, setSemesters] = useState([])
   const [form, setForm] = useState({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
   const [cycleForm, setCycleForm] = useState(emptyCycleForm)
   const [cycles, setCycles] = useState([])
-  const [activeView, setActiveView] = useState('manage')
+  const [coordinators, setCoordinators] = useState([])
+  const [partnerUniversities, setPartnerUniversities] = useState([])
+  const [isLoadingCoordinators, setIsLoadingCoordinators] = useState(isKuCoordinator)
+  const [editingCycleId, setEditingCycleId] = useState(null)
+  const [pendingDeleteCycle, setPendingDeleteCycle] = useState(null)
+  const [isDeletingCycle, setIsDeletingCycle] = useState(false)
+  const [activeView, setActiveView] = useState(isKuCoordinator ? 'manage' : 'nominations')
+  const [selectedNominationCycle, setSelectedNominationCycle] = useState(null)
   const [isStartingCycle, setIsStartingCycle] = useState(false)
   const [status, setStatus] = useState({ error: '', message: '' })
+  const [toastId, setToastId] = useState(0)
+  const dismissSuccess = useCallback(
+    () => setStatus((currentStatus) => ({ ...currentStatus, message: '' })),
+    [],
+  )
 
   const loadCycles = async () => {
     const { data, error } = await supabase
       .from('exchange_cycle')
       .select('id, semester, academic_year, nominations_o, nominations_c, application_o, application_c, cycle_start, cycle_end')
+      .order('cycle_start', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
-    if (error) setStatus({ error: error.message, message: '' })
-    else setCycles(data || [])
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return false
+    }
+    setCycles(data || [])
+    return true
   }
 
   useEffect(() => {
-    supabase
-      .from('studentnominations')
-      .select('id, student_name, student_email, student_nationality, created_at, semester')
-      .eq('coordinator_id', profile.coordinator_id)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) setStatus({ error: error.message, message: '' })
-        else setNominations(data || [])
-      })
+    let isCurrent = true
+    const loadNominations = async () => {
+      let nominationsQuery = supabase
+        .from('studentnominations')
+        .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
+      if (!isKuCoordinator) nominationsQuery = nominationsQuery.eq('coordinator_id', profile.coordinator_id)
+      const { data, error } = await nominationsQuery.order('created_at', { ascending: false })
+      if (!isCurrent) return
+      if (error) setStatus({ error: error.message, message: '' })
+      else setNominations(data || [])
+      setIsLoadingNominations(false)
+    }
+    loadNominations()
+
     supabase
       .from('exchange_cycle')
       .select('id, semester, academic_year, nominations_o, nominations_c, application_o, application_c, cycle_start, cycle_end')
+      .order('cycle_start', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
       .then(({ data, error }) => {
         if (error) setStatus({ error: error.message, message: '' })
         else setCycles(data || [])
       })
-    supabase.from('exchange_cycle').select('id').order('id').then(({ data, error }) => {
+    supabase.from('exchange_cycle').select('id, semester, academic_year').order('id').then(({ data, error }) => {
       if (error) setStatus({ error: error.message, message: '' })
       else setSemesters(data || [])
     })
-  }, [profile.coordinator_id])
+    if (isKuCoordinator) {
+      supabase
+        .from('coordinator')
+        .select('coordinator_id, name, email, university, email_accepted')
+        .neq('coordinator_id', profile.coordinator_id)
+        .order('name')
+        .then(({ data, error }) => {
+          if (error) setStatus({ error: error.message, message: '' })
+          else setCoordinators(data || [])
+          setIsLoadingCoordinators(false)
+        })
+      supabase
+        .from('partneruniversity')
+        .select('university_id, name')
+        .order('name')
+        .then(({ data, error }) => {
+          if (error) setStatus({ error: error.message, message: '' })
+          else setPartnerUniversities(data || [])
+        })
+    }
+    return () => {
+      isCurrent = false
+    }
+  }, [profile.coordinator_id, isKuCoordinator])
+
+  const updateCoordinatorAccess = async (coordinator, isAccepted) => {
+    setStatus({ error: '', message: '' })
+    if (isAccepted) {
+      const { data, error } = await supabase
+        .from('coordinator')
+        .update({ email_accepted: true })
+        .eq('coordinator_id', coordinator.coordinator_id)
+        .select('coordinator_id, name, email, university, email_accepted')
+        .maybeSingle()
+      if (error) {
+        setStatus({ error: error.message, message: '' })
+        return
+      }
+      if (!data) {
+        setStatus({ error: 'The coordinator access was not updated. You may not have permission.', message: '' })
+        return
+      }
+      setCoordinators((current) => current.map((item) => item.coordinator_id === data.coordinator_id ? data : item))
+      setStatus({ error: '', message: 'Coordinator access granted.' })
+    } else {
+      const { data, error } = await supabase
+        .from('coordinator')
+        .delete()
+        .eq('coordinator_id', coordinator.coordinator_id)
+        .select('coordinator_id')
+        .maybeSingle()
+      if (error) {
+        setStatus({ error: error.message, message: '' })
+        return
+      }
+      if (!data) {
+        setStatus({ error: 'The coordinator request was not removed. You may not have permission.', message: '' })
+        return
+      }
+      setCoordinators((current) => current.filter((item) => item.coordinator_id !== data.coordinator_id))
+      setStatus({ error: '', message: 'Coordinator request refused.' })
+    }
+    setToastId((currentId) => currentId + 1)
+  }
 
   const startExchangeCycle = async (event) => {
     event.preventDefault()
     setStatus({ error: '', message: '' })
-    const dates = [
-      ['nominations', cycleForm.nominationsOpen, cycleForm.nominationsClose],
-      ['applications', cycleForm.applicationOpen, cycleForm.applicationClose],
-      ['exchange cycle', cycleForm.cycleStart, cycleForm.cycleEnd],
-    ]
-    if (dates.some(([, open, close]) => new Date(open) >= new Date(close))) {
-      setStatus({ error: 'Each opening or start date must be before its closing or end date.', message: '' })
+    const validationError = validateCycleForm(cycleForm)
+    if (validationError) {
+      setStatus({ error: validationError, message: '' })
       return
     }
     setIsStartingCycle(true)
+    const { data: existingCycle, error: duplicateCheckError } = await supabase
+      .from('exchange_cycle')
+      .select('id')
+      .eq('semester', cycleForm.semester)
+      .eq('academic_year', cycleForm.academicYear)
+      .limit(1)
+      .maybeSingle()
+    if (duplicateCheckError) {
+      setStatus({ error: duplicateCheckError.message, message: '' })
+      setIsStartingCycle(false)
+      return
+    }
+    if (existingCycle) {
+      setStatus({
+        error: `A ${cycleForm.semester} ${cycleForm.academicYear} exchange cycle already exists.`,
+        message: '',
+      })
+      setIsStartingCycle(false)
+      return
+    }
+
+    const { data: latestCycle, error: latestCycleError } = await supabase
+      .from('exchange_cycle')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (latestCycleError) {
+      setStatus({ error: latestCycleError.message, message: '' })
+      setIsStartingCycle(false)
+      return
+    }
+
     const { error } = await supabase.from('exchange_cycle').insert({
-      semester: cycleForm.semester,
-      academic_year: cycleForm.academicYear,
-      nominations_o: new Date(cycleForm.nominationsOpen).toISOString(),
-      nominations_c: new Date(cycleForm.nominationsClose).toISOString(),
-      application_o: new Date(cycleForm.applicationOpen).toISOString(),
-      application_c: new Date(cycleForm.applicationClose).toISOString(),
-      cycle_start: new Date(cycleForm.cycleStart).toISOString(),
-      cycle_end: new Date(cycleForm.cycleEnd).toISOString(),
+      id: (latestCycle?.id ?? 0) + 1,
+      ...cycleDataFromForm(cycleForm),
     })
     if (error) {
       setStatus({ error: error.message, message: '' })
     } else {
       setCycleForm(emptyCycleForm)
-      await loadCycles()
-      setStatus({ error: '', message: 'Exchange cycle started.' })
-      setActiveView('manage')
+      if (await loadCycles()) {
+        setStatus({ error: '', message: 'Exchange cycle started.' })
+        setToastId((currentId) => currentId + 1)
+        setActiveView('manage')
+      }
     }
     setIsStartingCycle(false)
+  }
+
+  const editExchangeCycle = async (event) => {
+    event.preventDefault()
+    setStatus({ error: '', message: '' })
+    const validationError = validateCycleForm(cycleForm)
+    if (validationError) {
+      setStatus({ error: validationError, message: '' })
+      return
+    }
+
+    const { data: existingCycle, error: duplicateCheckError } = await supabase
+      .from('exchange_cycle')
+      .select('id')
+      .eq('semester', cycleForm.semester)
+      .eq('academic_year', cycleForm.academicYear)
+      .neq('id', editingCycleId)
+      .limit(1)
+      .maybeSingle()
+    if (duplicateCheckError) {
+      setStatus({ error: duplicateCheckError.message, message: '' })
+      return
+    }
+    if (existingCycle) {
+      setStatus({
+        error: `A ${cycleForm.semester} ${cycleForm.academicYear} exchange cycle already exists.`,
+        message: '',
+      })
+      return
+    }
+
+    setIsStartingCycle(true)
+    const { data: updatedCycle, error } = await supabase
+      .from('exchange_cycle')
+      .update(cycleDataFromForm(cycleForm))
+      .eq('id', editingCycleId)
+      .select('id')
+      .maybeSingle()
+    setIsStartingCycle(false)
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return
+    }
+    if (!updatedCycle) {
+      setStatus({ error: 'The cycle was not updated. It may have been removed or you may not have permission.', message: '' })
+      return
+    }
+    if (await loadCycles()) {
+      setEditingCycleId(null)
+      setStatus({ error: '', message: 'Exchange cycle updated.' })
+      setToastId((currentId) => currentId + 1)
+    }
+  }
+
+  const deleteExchangeCycle = async () => {
+    if (!pendingDeleteCycle) return
+    const cycle = pendingDeleteCycle
+    setStatus({ error: '', message: '' })
+    setIsDeletingCycle(true)
+    const { data: deletedCycle, error } = await supabase
+      .from('exchange_cycle')
+      .delete()
+      .eq('id', cycle.id)
+      .select('id')
+      .maybeSingle()
+    setIsDeletingCycle(false)
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return
+    }
+    if (!deletedCycle) {
+      setStatus({ error: 'The cycle was not deleted. It may have already been removed or you may not have permission.', message: '' })
+      return
+    }
+    setCycles((currentCycles) => currentCycles.filter(({ id }) => id !== cycle.id))
+    if (editingCycleId === cycle.id) setEditingCycleId(null)
+    setPendingDeleteCycle(null)
+    setStatus({ error: '', message: 'Exchange cycle deleted.' })
+    setToastId((currentId) => currentId + 1)
   }
 
   const submitNomination = async (event) => {
     event.preventDefault()
     setStatus({ error: '', message: '' })
-    const { error } = await supabase.from('studentnominations').insert({
-      coordinator_id: profile.coordinator_id,
-      student_name: form.studentName.trim(),
-      student_email: form.studentEmail.trim(),
-      student_nationality: form.studentNationality.trim(),
-      semester: Number(form.semester),
-    })
+    const coordinatorId = Number(profile.coordinator_id)
+    if (!Number.isInteger(coordinatorId) || coordinatorId <= 0) {
+      setStatus({ error: 'Your coordinator profile could not be identified. Please sign in again.', message: '' })
+      return
+    }
+    let nominationId
+    let error
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      nominationId = generateNominationId()
+      const result = await supabase.from('studentnominations').insert({
+        id: nominationId,
+        coordinator_id: coordinatorId,
+        student_name: form.studentName.trim(),
+        student_email: form.studentEmail.trim(),
+        student_nationality: form.studentNationality.trim(),
+        semester: Number(form.semester),
+      })
+      error = result.error
+      if (!error || error.code !== '23505') break
+    }
     if (error) {
-      setStatus({ error: error.message, message: '' })
+      setStatus({ error: error.code === '23505' ? 'A unique nomination ID could not be generated. Please try again.' : error.message, message: '' })
       return
     }
     setForm({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
-    setStatus({ error: '', message: 'Student nomination submitted.' })
-    const { data: updatedNominations, error: refreshError } = await supabase
+    setStatus({ error: '', message: `Student nomination submitted. Save nomination ID ${nominationId} and share it with the student.` })
+    setToastId((currentId) => currentId + 1)
+    let nominationsQuery = supabase
       .from('studentnominations')
-      .select('id, student_name, student_email, student_nationality, created_at, semester')
-      .eq('coordinator_id', profile.coordinator_id)
+      .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
+    if (!isKuCoordinator) nominationsQuery = nominationsQuery.eq('coordinator_id', coordinatorId)
+    const { data: updatedNominations, error: refreshError } = await nominationsQuery
       .order('created_at', { ascending: false })
     if (refreshError) {
       setStatus({ error: refreshError.message, message: '' })
@@ -426,34 +770,211 @@ function CoordinatorPortal({ profile, onDeleted }) {
     setNominations(updatedNominations || [])
   }
 
+  const saveNomination = async (event) => {
+    event.preventDefault()
+    setNominationEditError('')
+    const coordinatorId = Number(profile.coordinator_id)
+    if (!Number.isInteger(coordinatorId) || coordinatorId <= 0) {
+      setNominationEditError('Your coordinator profile could not be identified. Please sign in again.')
+      return
+    }
+
+    setIsSavingNomination(true)
+    const { data: updatedNomination, error } = await supabase
+      .from('studentnominations')
+      .update({
+        student_name: nominationEditForm.studentName.trim(),
+        student_email: nominationEditForm.studentEmail.trim(),
+        student_nationality: nominationEditForm.studentNationality.trim(),
+        semester: Number(nominationEditForm.semester),
+      })
+      .eq('id', editingNominationId)
+      .eq('coordinator_id', coordinatorId)
+      .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
+      .maybeSingle()
+    setIsSavingNomination(false)
+    if (error) {
+      setNominationEditError(error.message)
+      return
+    }
+    if (!updatedNomination) {
+      setNominationEditError('The nomination was not updated. It may have been removed or you may not have permission.')
+      return
+    }
+
+    setNominations((currentNominations) => currentNominations.map(
+      (nomination) => nomination.id === updatedNomination.id ? updatedNomination : nomination,
+    ))
+    setEditingNominationId(null)
+    setStatus({ error: '', message: 'Nomination updated.' })
+    setToastId((currentId) => currentId + 1)
+  }
+
+  const deleteNomination = async () => {
+    if (!pendingDeleteNomination) return
+    const coordinatorId = Number(profile.coordinator_id)
+    if (!Number.isInteger(coordinatorId) || coordinatorId <= 0) {
+      setStatus({ error: 'Your coordinator profile could not be identified. Please sign in again.', message: '' })
+      return
+    }
+
+    setStatus({ error: '', message: '' })
+    setIsDeletingNomination(true)
+    const { data: deletedNomination, error } = await supabase
+      .from('studentnominations')
+      .delete()
+      .eq('id', pendingDeleteNomination.id)
+      .eq('coordinator_id', coordinatorId)
+      .select('id')
+      .maybeSingle()
+    setIsDeletingNomination(false)
+    if (error) {
+      setStatus({ error: error.message, message: '' })
+      return
+    }
+    if (!deletedNomination) {
+      setStatus({ error: 'The nomination was not deleted. It may have already been removed or you may not have permission.', message: '' })
+      return
+    }
+
+    setNominations((currentNominations) => currentNominations.filter(
+      ({ id }) => id !== deletedNomination.id,
+    ))
+    if (editingNominationId === deletedNomination.id) setEditingNominationId(null)
+    setPendingDeleteNomination(null)
+    setStatus({ error: '', message: 'Nomination deleted.' })
+    setToastId((currentId) => currentId + 1)
+  }
+
+  const visibleNominations = activeView === 'cycle-nominations' && selectedNominationCycle
+    ? nominations.filter(({ semester }) => Number(semester) === Number(selectedNominationCycle.id))
+    : nominations
+
   return (
     <div className="portal-dashboard portal-dashboard--coordinator">
+      {status.message && (
+        <SuccessToast
+          key={toastId}
+          message={status.message}
+          onClose={dismissSuccess}
+        />
+      )}
+      {pendingDeleteCycle && (
+        <div className="cycle-delete-dialog__backdrop">
+          <section
+            className="cycle-delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="cycle-delete-heading"
+            aria-describedby="cycle-delete-description"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !isDeletingCycle) {
+                setPendingDeleteCycle(null)
+                setStatus({ error: '', message: '' })
+              }
+            }}
+          >
+            <span className="cycle-delete-dialog__icon" aria-hidden="true">!</span>
+            <h2 id="cycle-delete-heading">Delete exchange cycle?</h2>
+            <p id="cycle-delete-description">
+              You’re about to permanently delete <strong>{pendingDeleteCycle.semester} {pendingDeleteCycle.academic_year}</strong>.
+              Any student nominations linked to this cycle will also be deleted. This action cannot be undone.
+            </p>
+            {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+            <div className="cycle-delete-dialog__actions">
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  setPendingDeleteCycle(null)
+                  setStatus({ error: '', message: '' })
+                }}
+                disabled={isDeletingCycle}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button className="btn btn--danger" type="button" onClick={deleteExchangeCycle} disabled={isDeletingCycle}>
+                {isDeletingCycle ? 'Deleting cycle...' : 'Delete cycle'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {pendingDeleteNomination && (
+        <div className="cycle-delete-dialog__backdrop">
+          <section
+            className="cycle-delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="nomination-delete-heading"
+            aria-describedby="nomination-delete-description"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !isDeletingNomination) {
+                setPendingDeleteNomination(null)
+                setStatus({ error: '', message: '' })
+              }
+            }}
+          >
+            <span className="cycle-delete-dialog__icon" aria-hidden="true">!</span>
+            <h2 id="nomination-delete-heading">Delete student nomination?</h2>
+            <p id="nomination-delete-description">
+              Permanently delete the nomination for <strong>{pendingDeleteNomination.student_name}</strong>? This action cannot be undone.
+            </p>
+            {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+            <div className="cycle-delete-dialog__actions">
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  setPendingDeleteNomination(null)
+                  setStatus({ error: '', message: '' })
+                }}
+                disabled={isDeletingNomination}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button className="btn btn--danger" type="button" onClick={deleteNomination} disabled={isDeletingNomination}>
+                {isDeletingNomination ? 'Deleting nomination...' : 'Delete nomination'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <aside className="portal-sidebar" aria-label="Coordinator portal navigation">
         <span className="portal-sidebar__eyebrow">Coordinator portal</span>
         <h1 className="portal-sidebar__title">KU Exchange</h1>
         <p className="portal-sidebar__welcome">Welcome, {profile.name}</p>
         <nav className="portal-sidebar__nav">
-          <button className={activeView === 'start' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('start')}>
-            <span aria-hidden="true">＋</span> Start exchange cycle
-          </button>
+          {isKuCoordinator && (
+            <button className={activeView === 'start' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('start')}>
+              <span aria-hidden="true">＋</span> Start exchange cycle
+            </button>
+          )}
           <button className={activeView === 'manage' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('manage')}>
             <span aria-hidden="true">▦</span> Manage exchange cycle
           </button>
           <button className={activeView === 'nominations' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('nominations')}>
             <span aria-hidden="true">◌</span> Student nominations
           </button>
+          {isKuCoordinator && (
+            <button className={activeView === 'coordinators' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('coordinators')}>
+              <span aria-hidden="true">♙</span> Coordinator access
+            </button>
+          )}
         </nav>
         <div className="portal-sidebar__footer">
           <span className="portal-sidebar__secure">Signed in securely</span>
         </div>
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
-        {activeView === 'start' && (
+        {isKuCoordinator && activeView === 'start' && (
           <>
             <span className="auth-card__eyebrow">New cycle</span>
             <h2 id="portal-heading">Start an exchange cycle</h2>
             <p>Set the timetable for inbound nominations and exchange applications.</p>
-            <CycleForm form={cycleForm} setForm={setCycleForm} onSubmit={startExchangeCycle} isSubmitting={isStartingCycle} status={status} />
+            <CycleForm form={cycleForm} setForm={setCycleForm} onSubmit={startExchangeCycle} isSubmitting={isStartingCycle} status={status} submitLabel="Start exchange cycle" />
           </>
         )}
         {activeView === 'manage' && (
@@ -461,55 +982,282 @@ function CoordinatorPortal({ profile, onDeleted }) {
             <span className="auth-card__eyebrow">Cycle dashboard</span>
             <h2 id="portal-heading">Manage exchange cycles</h2>
             <p>Review the schedules currently available to students and coordinators.</p>
-            {status.message && <p className="auth-form__message" role="status">{status.message}</p>}
             {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
             {cycles.length === 0 ? <div className="portal-empty-state">No exchange cycles have been started yet.</div> : (
               <ul className="cycle-list">
                 {cycles.map((cycle) => (
                   <li key={cycle.id} className="cycle-list__item">
-                    <div><strong>{cycle.semester} {cycle.academic_year}</strong><span>Cycle #{cycle.id}</span></div>
-                    <dl>
-                      <div><dt>Nominations</dt><dd>{formatCycleDate(cycle.nominations_o)} – {formatCycleDate(cycle.nominations_c)}</dd></div>
-                      <div><dt>Applications</dt><dd>{formatCycleDate(cycle.application_o)} – {formatCycleDate(cycle.application_c)}</dd></div>
-                      <div><dt>Exchange cycle</dt><dd>{formatCycleDate(cycle.cycle_start)} – {formatCycleDate(cycle.cycle_end)}</dd></div>
-                    </dl>
+                    {editingCycleId === cycle.id ? (
+                      <CycleForm
+                        form={cycleForm}
+                        setForm={setCycleForm}
+                        onSubmit={editExchangeCycle}
+                        isSubmitting={isStartingCycle}
+                        status={status}
+                        submitLabel="Save changes"
+                        onCancel={() => {
+                          setEditingCycleId(null)
+                          setStatus({ error: '', message: '' })
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <div className="cycle-list__heading"><strong>{cycle.semester} {cycle.academic_year}</strong><span>Cycle #{cycle.id}</span></div>
+                        <dl>
+                          <div><dt>Nominations</dt><dd>{formatCycleDate(cycle.nominations_o)} – {formatCycleDate(cycle.nominations_c)}</dd></div>
+                          <div><dt>Applications</dt><dd>{formatCycleDate(cycle.application_o)} – {formatCycleDate(cycle.application_c)}</dd></div>
+                          <div><dt>Exchange cycle</dt><dd>{formatCycleDate(cycle.cycle_start)} – {formatCycleDate(cycle.cycle_end)}</dd></div>
+                        </dl>
+                        <div className="cycle-list__actions">
+                          {isKuCoordinator ? (
+                            <>
+                              <button
+                                className="btn btn--secondary"
+                                type="button"
+                                onClick={() => {
+                                  setCycleForm(cycleFormFromCycle(cycle))
+                                  setEditingCycleId(cycle.id)
+                                  setStatus({ error: '', message: '' })
+                                }}
+                              >
+                                Edit cycle
+                              </button>
+                              <button className="btn btn--danger" type="button" onClick={() => {
+                                setPendingDeleteCycle(cycle)
+                                setStatus({ error: '', message: '' })
+                              }}>
+                                Delete cycle
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              className="btn btn--secondary"
+                              type="button"
+                              onClick={() => {
+                                setSelectedNominationCycle(cycle)
+                                setActiveView('cycle-nominations')
+                              }}
+                            >
+                              View previous nominations
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </>
         )}
-        {activeView === 'nominations' && (
+        {(activeView === 'nominations' || activeView === 'cycle-nominations') && (
           <>
             <span className="auth-card__eyebrow">Student nominations</span>
-            <h2 id="portal-heading">Submit a student nomination</h2>
-            <p>Submit and review student nominations for your university.</p>
-        <form className="nomination-form" onSubmit={submitNomination}>
-          <label htmlFor="studentName">Student name</label>
-          <input id="studentName" value={form.studentName} onChange={(event) => setForm({ ...form, studentName: event.target.value })} required />
-          <label htmlFor="studentEmail">Student email</label>
-          <input id="studentEmail" type="email" value={form.studentEmail} onChange={(event) => setForm({ ...form, studentEmail: event.target.value })} required />
-          <label htmlFor="studentNationality">Student nationality</label>
-          <input id="studentNationality" value={form.studentNationality} onChange={(event) => setForm({ ...form, studentNationality: event.target.value })} required />
-          <label htmlFor="semester">Exchange semester</label>
-          <select id="semester" value={form.semester} onChange={(event) => setForm({ ...form, semester: event.target.value })} required>
-            <option value="">Choose a semester</option>
-            {semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.id}</option>)}
-          </select>
-          {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
-          {status.message && <p className="auth-form__message" role="status">{status.message}</p>}
-          <button className="btn btn--primary" type="submit">Submit nomination</button>
-        </form>
-        <h2 className="portal-section-heading">Submitted nominations</h2>
-        {nominations.length === 0 ? <p>No nominations submitted yet.</p> : (
-          <ul className="nomination-list">
-            {nominations.map((nomination) => (
-              <li key={nomination.id}>
-                <strong>{nomination.student_name}</strong> · {nomination.student_email} · {nomination.student_nationality}
-              </li>
-            ))}
-          </ul>
+            {activeView === 'cycle-nominations' && selectedNominationCycle ? (
+              <>
+                <h2 id="portal-heading">
+                  Previous nominations for {selectedNominationCycle.semester} {selectedNominationCycle.academic_year}
+                </h2>
+                <p>These are the nominations submitted for this exchange cycle.</p>
+                <button className="btn btn--secondary" type="button" onClick={() => setActiveView('manage')}>
+                  Back to exchange cycles
+                </button>
+              </>
+            ) : !isKuCoordinator && (
+              <>
+                <h2 id="portal-heading">Submit a student nomination</h2>
+                <p>Submit and review student nominations for your university.</p>
+                <form className="nomination-form" onSubmit={submitNomination}>
+                  <label htmlFor="studentName">Student name</label>
+                  <input id="studentName" value={form.studentName} onChange={(event) => setForm({ ...form, studentName: event.target.value })} required />
+                  <label htmlFor="studentEmail">Student email</label>
+                  <input id="studentEmail" type="email" value={form.studentEmail} onChange={(event) => setForm({ ...form, studentEmail: event.target.value })} required />
+                  <label htmlFor="studentNationality">Student nationality</label>
+                  <input id="studentNationality" value={form.studentNationality} onChange={(event) => setForm({ ...form, studentNationality: event.target.value })} required />
+                  <label htmlFor="semester">Exchange semester</label>
+                  <select id="semester" value={form.semester} onChange={(event) => setForm({ ...form, semester: event.target.value })} required>
+                    <option value="">Choose a semester</option>
+                    {semesters.map((semester) => (
+                      <option key={semester.id} value={semester.id}>
+                        {semester.semester} {semester.academic_year}
+                      </option>
+                    ))}
+                  </select>
+                  {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+                  <button className="btn btn--primary" type="submit">Submit nomination</button>
+                </form>
+              </>
+            )}
+            <h2 className="portal-section-heading">Submitted nominations</h2>
+        {editingNominationId !== null && (
+          <form className="nomination-form nomination-edit-form" onSubmit={saveNomination}>
+            <h3>Edit nomination</h3>
+            <label htmlFor="edit-student-name">Student name</label>
+            <input
+              id="edit-student-name"
+              value={nominationEditForm.studentName}
+              onChange={(event) => setNominationEditForm({ ...nominationEditForm, studentName: event.target.value })}
+              required
+            />
+            <label htmlFor="edit-student-email">Student email</label>
+            <input
+              id="edit-student-email"
+              type="email"
+              value={nominationEditForm.studentEmail}
+              onChange={(event) => setNominationEditForm({ ...nominationEditForm, studentEmail: event.target.value })}
+              required
+            />
+            <label htmlFor="edit-student-nationality">Student nationality</label>
+            <input
+              id="edit-student-nationality"
+              value={nominationEditForm.studentNationality}
+              onChange={(event) => setNominationEditForm({ ...nominationEditForm, studentNationality: event.target.value })}
+              required
+            />
+            <label htmlFor="edit-nomination-semester">Exchange semester</label>
+            <select
+              id="edit-nomination-semester"
+              value={nominationEditForm.semester}
+              onChange={(event) => setNominationEditForm({ ...nominationEditForm, semester: event.target.value })}
+              required
+            >
+              <option value="">Choose a semester</option>
+              {semesters.map((semester) => (
+                <option key={semester.id} value={semester.id}>
+                  {semester.semester} {semester.academic_year}
+                </option>
+              ))}
+            </select>
+            {nominationEditError && <p className="auth-form__error" role="alert">{nominationEditError}</p>}
+            <div className="cycle-form__actions">
+              <button className="btn btn--primary" type="submit" disabled={isSavingNomination}>
+                {isSavingNomination ? 'Saving changes...' : 'Save changes'}
+              </button>
+              <button
+                className="btn btn--secondary"
+                type="button"
+                onClick={() => {
+                  setEditingNominationId(null)
+                  setNominationEditError('')
+                }}
+                disabled={isSavingNomination}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         )}
+        {isLoadingNominations ? <p role="status">Loading submitted nominations...</p>
+          : visibleNominations.length === 0 ? <p>{activeView === 'cycle-nominations' ? 'No nominations submitted for this exchange cycle.' : 'No nominations submitted yet.'}</p> : (
+            <div className="nomination-table-wrap">
+              <table className="nomination-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Nomination ID</th>
+                    <th scope="col">Student</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Nationality</th>
+                    <th scope="col">Exchange semester</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Submitted</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleNominations.map((nomination) => {
+                    const semester = semesters.find(({ id }) => Number(id) === Number(nomination.semester))
+                    return (
+                      <tr key={nomination.id}>
+                        <td>{nomination.id}</td>
+                        <th scope="row">{nomination.student_name}</th>
+                        <td>{nomination.student_email}</td>
+                        <td>{nomination.student_nationality}</td>
+                        <td>{semester ? `${semester.semester} ${semester.academic_year}` : `Cycle #${nomination.semester}`}</td>
+                        <td>{nomination.nomination_status}</td>
+                        <td>{formatCycleDate(nomination.created_at)}</td>
+                        <td>
+                          <div className="nomination-table__actions">
+                            <button
+                              className="btn btn--secondary"
+                              type="button"
+                              onClick={() => {
+                                setEditingNominationId(nomination.id)
+                                setNominationEditForm({
+                                  studentName: nomination.student_name,
+                                  studentEmail: nomination.student_email,
+                                  studentNationality: nomination.student_nationality,
+                                  semester: String(nomination.semester),
+                                })
+                                setNominationEditError('')
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn--danger"
+                              type="button"
+                              onClick={() => {
+                                setPendingDeleteNomination(nomination)
+                                setStatus({ error: '', message: '' })
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          </>
+        )}
+        {isKuCoordinator && activeView === 'coordinators' && (
+          <>
+            <span className="auth-card__eyebrow">Access control</span>
+            <h2 id="portal-heading">Coordinator access</h2>
+            <p>Review partner coordinator accounts and access requests.</p>
+            {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
+            {isLoadingCoordinators ? <p role="status">Loading coordinator accounts...</p>
+              : coordinators.length === 0 ? <p>No other coordinator accounts found.</p> : (
+                <div className="nomination-table-wrap">
+                  <table className="nomination-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Coordinator</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">University</th>
+                        <th scope="col">Access</th>
+                        <th scope="col">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coordinators.map((coordinator) => (
+                        <tr key={coordinator.coordinator_id}>
+                          <th scope="row">{coordinator.name}</th>
+                          <td>{coordinator.email}</td>
+                          <td>{partnerUniversities.find(({ university_id }) => Number(university_id) === Number(coordinator.university))?.name || `University #${coordinator.university}`}</td>
+                          <td>{coordinator.email_accepted ? 'Granted' : 'Requested'}</td>
+                          <td>
+                            <div className="nomination-table__actions">
+                              {!coordinator.email_accepted && (
+                                <button className="btn btn--secondary" type="button" onClick={() => updateCoordinatorAccess(coordinator, true)}>
+                                  Accept
+                                </button>
+                              )}
+                              <button className="btn btn--danger" type="button" onClick={() => updateCoordinatorAccess(coordinator, false)}>
+                                Refuse
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
           </>
         )}
         <AccountDeleteButton onDeleted={onDeleted} />
@@ -518,8 +1266,38 @@ function CoordinatorPortal({ profile, onDeleted }) {
   )
 }
 
+function CoordinatorAccessPending({ user, onSignOut, onDeleted }) {
+  return (
+    <section className="portal-page" aria-labelledby="access-pending-heading">
+      <div className="portal-card">
+        <span className="auth-card__eyebrow">Access pending</span>
+        <h1 id="access-pending-heading">Your coordinator access is being reviewed</h1>
+        <p>
+          Your request for <strong>{user.email}</strong> has been sent to a Kuwait University coordinator.
+          You will be notified as soon as your access is granted.
+        </p>
+        <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+        <AccountDeleteButton onDeleted={onDeleted} />
+      </div>
+    </section>
+  )
+}
+
+function isKuCoordinatorProfile(profile, userEmail) {
+  const profileEmailIsKu = profile.email?.trim().toLowerCase().endsWith('@ku.edu.kw')
+  const authenticatedEmailIsKu = userEmail?.trim().toLowerCase().endsWith('@ku.edu.kw')
+  const universityId = profile.university ?? profile.university_id
+  return Number(universityId) === 4 || profileEmailIsKu || authenticatedEmailIsKu
+}
+
 function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
-  if (profile?.role === 'coordinator') return <CoordinatorPortal profile={profile} onDeleted={onDeleted} />
+  if (profile?.role === 'coordinator') {
+    const isKuCoordinator = isKuCoordinatorProfile(profile, user.email)
+    if (!isKuCoordinator && profile.email_accepted !== true) {
+      return <CoordinatorAccessPending user={user} onSignOut={onSignOut} onDeleted={onDeleted} />
+    }
+    return <CoordinatorPortal profile={profile} userEmail={user.email} onDeleted={onDeleted} />
+  }
 
   return (
     <section className="portal-page" aria-labelledby="portal-heading">
@@ -538,18 +1316,446 @@ function ProtectedPortal({ user, profile, onSignOut, onDeleted }) {
   )
 }
 
+const partnerUniversityWebsites = {
+  'Audencia Nantes School of Management': 'https://www.audencia.com',
+  'Bocconi University': 'https://www.unibocconi.it',
+  'EM Normandie Business School': 'https://www.em-normandie.com',
+  'Esade Business School': 'https://www.esade.edu',
+  'ESC Rennes School of Business': 'https://www.rennes-sb.com',
+  'Essec School of Business': 'https://www.essec.edu',
+  'Goethe University': 'https://www.uni-frankfurt.de',
+  'Hanyang University': 'https://www.hanyang.ac.kr',
+  'HEC School of Management': 'https://www.hec.edu',
+  'IE Business School': 'https://www.ie.edu',
+  'Indian Institute of Management Bangalore': 'https://www.iimb.ac.in',
+  'KEDGE Business School': 'https://kedge.edu',
+  'Kogod School of Business': 'https://kogod.american.edu',
+  'National Chengchi University': 'https://www.nccu.edu.tw',
+  'National Taiwan University': 'https://www.ntu.edu.tw',
+  'Neoma Business School': 'https://neoma-bs.com',
+  'Paris School of Business': 'https://www.psbedu.paris',
+  'Rotterdam School of Management': 'https://www.rsm.nl',
+  'Skema Business School': 'https://www.skema.edu',
+  'Toulouse Business School': 'https://www.tbs-education.com',
+  'University of Geneva': 'https://www.unige.ch',
+  'University of Manheim': 'https://www.uni-mannheim.de',
+  'University of Maryland': 'https://umd.edu',
+  'University of Rhode Island': 'https://www.uri.edu',
+  'University of San Diego': 'https://www.sandiego.edu',
+  'University of St.Gallen': 'https://www.unisg.ch',
+  'University of Technology Sydney': 'https://www.uts.edu.au',
+}
+
+const partnerUniversityCoordinates = {
+  'Audencia Nantes School of Management': [47.2184, -1.5536],
+  'Bocconi University': [45.4506, 9.1883],
+  'EM Normandie Business School': [49.4944, 0.1079],
+  'Esade Business School': [41.3919, 2.1136],
+  'ESC Rennes School of Business': [48.1173, -1.6778],
+  'Essec School of Business': [49.033, 2.08],
+  'Goethe University': [50.126, 8.667],
+  'Hanyang University': [37.557, 127.045],
+  'HEC School of Management': [48.758, 2.169],
+  'IE Business School': [40.439, -3.691],
+  'Indian Institute of Management Bangalore': [12.935, 77.605],
+  'KEDGE Business School': [44.792, -0.607],
+  'Kogod School of Business': [38.937, -77.087],
+  'National Chengchi University': [24.988, 121.576],
+  'National Taiwan University': [25.017, 121.54],
+  'Neoma Business School': [49.238509, 4.002832],
+  'Paris School of Business': [48.853, 2.35],
+  'Rotterdam School of Management': [51.917, 4.525],
+  'Skema Business School': [43.615, 7.073],
+  'Toulouse Business School': [43.605, 1.444],
+  'University of Geneva': [46.198, 6.14],
+  'University of Manheim': [49.483, 8.463],
+  'University of Maryland': [38.986, -76.944],
+  'University of Rhode Island': [41.484, -71.53],
+  'University of San Diego': [32.771, -117.188],
+  'University of St.Gallen': [47.431, 9.373],
+  'University of Technology Sydney': [-33.883, 151.201],
+}
+
+const partnerUniversityFlags = {
+  'Audencia Nantes School of Management': '🇫🇷',
+  'Bocconi University': '🇮🇹',
+  'EM Normandie Business School': '🇫🇷',
+  'Esade Business School': '🇪🇸',
+  'ESC Rennes School of Business': '🇫🇷',
+  'Essec School of Business': '🇫🇷',
+  'Goethe University': '🇩🇪',
+  'Hanyang University': '🇰🇷',
+  'HEC School of Management': '🇫🇷',
+  'IE Business School': '🇪🇸',
+  'Indian Institute of Management Bangalore': '🇮🇳',
+  'KEDGE Business School': '🇫🇷',
+  'Kogod School of Business': '🇺🇸',
+  'National Chengchi University': '🇹🇼',
+  'National Taiwan University': '🇹🇼',
+  'Neoma Business School': '🇫🇷',
+  'Paris School of Business': '🇫🇷',
+  'Rotterdam School of Management': '🇳🇱',
+  'Skema Business School': '🇫🇷',
+  'Toulouse Business School': '🇫🇷',
+  'University of Geneva': '🇨🇭',
+  'University of Manheim': '🇩🇪',
+  'University of Maryland': '🇺🇸',
+  'University of Rhode Island': '🇺🇸',
+  'University of San Diego': '🇺🇸',
+  'University of St.Gallen': '🇨🇭',
+  'University of Technology Sydney': '🇦🇺',
+}
+
+const partnerUniversityAirports = {
+  'Audencia Nantes School of Management': { name: 'Nantes Atlantique Airport', code: 'NTE', coordinates: [-1.61, 47.153], distanceKm: 9, driveMinutes: 18 },
+  'Bocconi University': { name: 'Milan Linate Airport', code: 'LIN', coordinates: [9.276, 45.445], distanceKm: 6, driveMinutes: 15 },
+  'EM Normandie Business School': { name: 'Deauville–Normandie Airport', code: 'DOL', coordinates: [0.16, 49.365], distanceKm: 76, driveMinutes: 65 },
+  'Esade Business School': { name: 'Barcelona–El Prat Airport', code: 'BCN', coordinates: [2.083, 41.297], distanceKm: 27, driveMinutes: 35 },
+  'ESC Rennes School of Business': { name: 'Rennes–Saint-Jacques Airport', code: 'RNS', coordinates: [-1.734, 48.069], distanceKm: 8, driveMinutes: 18 },
+  'Essec School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 32, driveMinutes: 42 },
+  'Goethe University': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 14, driveMinutes: 22 },
+  'Hanyang University': { name: 'Gimpo International Airport', code: 'GMP', coordinates: [126.79, 37.558], distanceKm: 20, driveMinutes: 35 },
+  'HEC School of Management': { name: 'Paris Orly Airport', code: 'ORY', coordinates: [2.359, 48.728], distanceKm: 25, driveMinutes: 35 },
+  'IE Business School': { name: 'Adolfo Suárez Madrid–Barajas Airport', code: 'MAD', coordinates: [-3.561, 40.472], distanceKm: 14, driveMinutes: 25 },
+  'Indian Institute of Management Bangalore': { name: 'Kempegowda International Airport', code: 'BLR', coordinates: [77.706, 13.198], distanceKm: 42, driveMinutes: 70 },
+  'KEDGE Business School': { name: 'Bordeaux–Mérignac Airport', code: 'BOD', coordinates: [-0.715, 44.828], distanceKm: 12, driveMinutes: 25 },
+  'Kogod School of Business': { name: 'Ronald Reagan Washington National Airport', code: 'DCA', coordinates: [-77.04, 38.852], distanceKm: 8, driveMinutes: 20 },
+  'National Chengchi University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 55 },
+  'National Taiwan University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 50 },
+  'Neoma Business School': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 140, driveMinutes: 95 },
+  'Paris School of Business': { name: 'Paris Orly Airport', code: 'ORY', coordinates: [2.359, 48.728], distanceKm: 18, driveMinutes: 30 },
+  'Rotterdam School of Management': { name: 'Rotterdam The Hague Airport', code: 'RTM', coordinates: [4.438, 51.948], distanceKm: 8, driveMinutes: 20 },
+  'Skema Business School': { name: 'Nice Côte d’Azur Airport', code: 'NCE', coordinates: [7.215, 43.665], distanceKm: 25, driveMinutes: 35 },
+  'Toulouse Business School': { name: 'Toulouse–Blagnac Airport', code: 'TLS', coordinates: [1.364, 43.629], distanceKm: 10, driveMinutes: 20 },
+  'University of Geneva': { name: 'Geneva Airport', code: 'GVA', coordinates: [6.109, 46.238], distanceKm: 7, driveMinutes: 15 },
+  'University of Manheim': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 75, driveMinutes: 50 },
+  'University of Maryland': { name: 'Baltimore/Washington International Airport', code: 'BWI', coordinates: [-76.668, 39.175], distanceKm: 45, driveMinutes: 45 },
+  'University of Rhode Island': { name: 'T. F. Green International Airport', code: 'PVD', coordinates: [-71.429, 41.724], distanceKm: 10, driveMinutes: 20 },
+  'University of San Diego': { name: 'San Diego International Airport', code: 'SAN', coordinates: [-117.19, 32.733], distanceKm: 6, driveMinutes: 15 },
+  'University of St.Gallen': { name: 'Zurich Airport', code: 'ZRH', coordinates: [8.555, 47.458], distanceKm: 80, driveMinutes: 70 },
+  'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD', coordinates: [151.177, -33.946], distanceKm: 7, driveMinutes: 15 },
+}
+
+const mapStyles = [
+  { id: 'dark', label: 'Dark', url: 'mapbox://styles/mapbox/dark-v11' },
+  { id: 'streets', label: 'Streets', url: 'mapbox://styles/mapbox/streets-v12' },
+  { id: 'light', label: 'Light', url: 'mapbox://styles/mapbox/light-v11' },
+  { id: 'satellite', label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
+]
+
+function PartnerUniversityMap({ universities, homeUniversity, selectedUniversity, onSelect, onResetSelection, showAirport }) {
+  const mapContainer = useRef(null)
+  const map = useRef(null)
+  const markers = useRef([])
+  const airportMarker = useRef(null)
+  const [styleId, setStyleId] = useState('streets')
+
+  const addMarkers = useCallback(() => {
+    if (!map.current) return
+    markers.current.forEach((marker) => marker.remove())
+    markers.current = universities.flatMap((university) => {
+      if (university.latitude == null || university.longitude == null) return []
+      const marker = new mapboxgl.Marker({ color: '#00d4ff' })
+        .setLngLat([university.longitude, university.latitude])
+        .addTo(map.current)
+      marker.getElement().addEventListener('click', () => onSelect(university.university_id))
+      return [marker]
+    })
+  }, [universities, onSelect])
+
+  useEffect(() => {
+    if (!mapContainer.current || homeUniversity?.longitude == null || homeUniversity?.latitude == null) return undefined
+    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: mapStyles.find((style) => style.id === 'streets').url,
+      center: [homeUniversity.longitude, homeUniversity.latitude],
+      zoom: 12,
+    })
+    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
+    return () => {
+      airportMarker.current?.remove()
+      map.current?.remove()
+      map.current = null
+    }
+  }, [homeUniversity])
+
+  useEffect(() => {
+    if (!map.current) return undefined
+    addMarkers()
+    return () => {
+      markers.current.forEach((marker) => marker.remove())
+      markers.current = []
+    }
+  }, [addMarkers])
+
+  const drawAirportRoute = useCallback(() => {
+    if (!map.current || !selectedUniversity) return
+    const airport = partnerUniversityAirports[selectedUniversity.name]
+    if (!airport?.coordinates || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    airportMarker.current?.remove()
+    airportMarker.current = new mapboxgl.Marker({ color: '#f0a500' })
+      .setLngLat(airport.coordinates)
+      .addTo(map.current)
+    const sourceData = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[selectedUniversity.longitude, selectedUniversity.latitude], airport.coordinates],
+      },
+    }
+    if (map.current.getSource('airport-route')) {
+      map.current.getSource('airport-route').setData(sourceData)
+      return
+    }
+    map.current.addSource('airport-route', { type: 'geojson', data: sourceData })
+    map.current.addLayer({
+      id: 'airport-route-line',
+      type: 'line',
+      source: 'airport-route',
+      paint: { 'line-color': '#f0a500', 'line-width': 4, 'line-dasharray': [2, 1] },
+    })
+  }, [selectedUniversity])
+
+  const fitAirportRoute = useCallback(() => {
+    if (!map.current || !selectedUniversity) return
+    const airport = partnerUniversityAirports[selectedUniversity.name]
+    if (!airport?.coordinates || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    const bounds = new mapboxgl.LngLatBounds()
+    bounds.extend([selectedUniversity.longitude, selectedUniversity.latitude])
+    bounds.extend(airport.coordinates)
+    map.current.fitBounds(bounds, {
+      padding: { top: 100, right: 100, bottom: 100, left: 100 },
+      maxZoom: 13,
+      duration: 900,
+    })
+  }, [selectedUniversity])
+
+  useEffect(() => {
+    if (!map.current) return
+    if (!showAirport) {
+      airportMarker.current?.remove()
+      airportMarker.current = null
+      if (map.current.getLayer('airport-route-line')) map.current.removeLayer('airport-route-line')
+      if (map.current.getSource('airport-route')) map.current.removeSource('airport-route')
+      return
+    }
+    const showRoute = () => {
+      drawAirportRoute()
+      fitAirportRoute()
+    }
+    if (map.current.isStyleLoaded()) showRoute()
+    else map.current.once('style.load', showRoute)
+  }, [drawAirportRoute, fitAirportRoute, showAirport])
+
+  const changeStyle = (nextStyleId) => {
+    const nextStyle = mapStyles.find((style) => style.id === nextStyleId)
+    if (!map.current || !nextStyle || nextStyleId === styleId) return
+    onResetSelection()
+    setStyleId(nextStyleId)
+    map.current.once('style.load', addMarkers)
+    map.current.setStyle(nextStyle.url)
+  }
+
+  useEffect(() => {
+    if (!map.current || !selectedUniversity || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
+    map.current.flyTo({ center: [selectedUniversity.longitude, selectedUniversity.latitude], zoom: 5, duration: 900 })
+  }, [selectedUniversity])
+
+  return (
+    <div className="partner-directory__map-shell">
+      <div className="partner-directory__map" ref={mapContainer} />
+      <div className="partner-directory__map-styles" aria-label="Map style">
+        {mapStyles.map((style) => (
+          <button
+            className={style.id === styleId ? 'partner-directory__map-style partner-directory__map-style--active' : 'partner-directory__map-style'}
+            type="button"
+            key={style.id}
+            onClick={() => changeStyle(style.id)}
+          >
+            {style.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PartnerUniversitiesRoute() {
+  const [universities, setUniversities] = useState([])
+  const [homeUniversity, setHomeUniversity] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [selectedUniversityId, setSelectedUniversityId] = useState(null)
+  const [showAirport, setShowAirport] = useState(false)
+
+  useEffect(() => {
+    let isCurrent = true
+    const loadUniversities = async () => {
+      let result = await supabase
+        .from('partneruniversity')
+        .select('university_id, name, logo_url, details, latitude, longitude')
+        .order('name')
+      if (result.error?.message.includes('latitude') || result.error?.message.includes('longitude')) {
+        result = await supabase
+          .from('partneruniversity')
+          .select('university_id, name, logo_url, details')
+          .order('name')
+      }
+      if (!isCurrent) return
+      if (result.error) setError(result.error.message)
+      else {
+        const mappedUniversities = (result.data || []).map((university) => ({
+          ...university,
+          latitude: university.latitude ?? partnerUniversityCoordinates[university.name]?.[0],
+          longitude: university.longitude ?? partnerUniversityCoordinates[university.name]?.[1],
+        }))
+        const kuwaitUniversity = mappedUniversities.find((university) => university.university_id === 4)
+        const availableUniversities = mappedUniversities.filter((university) => university.university_id !== 4)
+        setHomeUniversity(kuwaitUniversity || {
+          university_id: 4,
+          name: 'Kuwait University',
+          details: 'Kuwait University is the home institution for this exchange directory.',
+        })
+        setUniversities(availableUniversities)
+      }
+      setIsLoading(false)
+    }
+    loadUniversities()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  const selectedUniversity = universities.find((university) => university.university_id === selectedUniversityId)
+  const detailsUniversity = selectedUniversity || homeUniversity
+  const selectUniversity = useCallback((universityId) => {
+    setSelectedUniversityId(universityId)
+    setShowAirport(false)
+  }, [])
+
+  return (
+    <section className="partner-directory" aria-labelledby="partner-directory-heading">
+      <div className="partner-directory__intro">
+        <span className="auth-card__eyebrow">Global connections</span>
+        <h1 id="partner-directory-heading">Our partner universities</h1>
+        <p>Explore the institutions that make exchange opportunities around the world possible.</p>
+      </div>
+      {isLoading && <p className="partner-directory__status">Loading partner universities...</p>}
+      {error && <p className="partner-directory__status partner-directory__status--error" role="alert">{error}</p>}
+      {!isLoading && !error && universities.length === 0 && (
+        <p className="partner-directory__status">No partner universities are available yet.</p>
+      )}
+      {!isLoading && !error && universities.length > 0 && (
+        <>
+          <div className="partner-directory__viewport">
+            <div className="partner-directory__track">
+              {[...universities, ...universities].map((university, index) => (
+                <a
+                  className="partner-directory__university"
+                  href={partnerUniversityWebsites[university.name]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  key={`${university.university_id}-${index}`}
+                  aria-hidden={index >= universities.length}
+                  tabIndex={index >= universities.length ? -1 : undefined}
+                >
+                  <div className="partner-directory__logo">
+                    {university.logo_url ? (
+                      <img src={university.logo_url} alt="" />
+                    ) : (
+                      <span aria-hidden="true">{university.name.charAt(0)}</span>
+                    )}
+                  </div>
+                  <p>{university.name}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+          <section className="partner-directory__browser" aria-label="Partner university directory">
+            <aside className="partner-directory__list">
+              <h2>Partner university directory</h2>
+              <div className="partner-directory__list-scroll">
+                {universities.map((university) => (
+                  <button
+                    className={university.university_id === selectedUniversityId ? 'partner-directory__list-item partner-directory__list-item--active' : 'partner-directory__list-item'}
+                    type="button"
+                    key={university.university_id}
+                    onClick={() => selectUniversity(university.university_id)}
+                  >
+                    <span className="partner-directory__list-flag" aria-hidden="true">{partnerUniversityFlags[university.name] || '🌐'}</span>
+                    {university.name}
+                  </button>
+                ))}
+              </div>
+            </aside>
+            <div className="partner-directory__details">
+              {detailsUniversity && (
+                <>
+                  <div className="partner-directory__details-copy">
+                    <span className="auth-card__eyebrow">{selectedUniversity ? 'Selected partner' : 'Home'}</span>
+                    <div className="partner-directory__selected-logo">
+                      {detailsUniversity.logo_url ? (
+                        <img src={detailsUniversity.logo_url} alt="" />
+                      ) : (
+                        <span aria-hidden="true">{detailsUniversity.name.charAt(0)}</span>
+                      )}
+                    </div>
+                    <h2>{detailsUniversity.name}</h2>
+                    <p>{detailsUniversity.details || 'University details are not available yet.'}</p>
+                    {selectedUniversity && (
+                      <div className="partner-directory__details-actions">
+                        <button className="btn btn--secondary" type="button" onClick={() => setShowAirport((isVisible) => !isVisible)}>
+                          {showAirport ? 'Hide closest airport' : 'Closest airport'}
+                        </button>
+                        {showAirport && (
+                          <p className="partner-directory__airport" role="status">
+                            {partnerUniversityAirports[selectedUniversity.name]?.name || 'Airport information is not available'} ({partnerUniversityAirports[selectedUniversity.name]?.code || '—'})
+                            <span>
+                              {partnerUniversityAirports[selectedUniversity.name]?.distanceKm ?? '—'} km by road · approximately {partnerUniversityAirports[selectedUniversity.name]?.driveMinutes ?? '—'} minutes by car
+                            </span>
+                          </p>
+                        )}
+                        <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
+                          Visit university website
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                  <PartnerUniversityMap
+                    universities={universities}
+                    homeUniversity={homeUniversity}
+                    selectedUniversity={selectedUniversity}
+                    onSelect={selectUniversity}
+                    onResetSelection={() => {
+                      setSelectedUniversityId(null)
+                      setShowAirport(false)
+                    }}
+                    showAirport={showAirport}
+                  />
+                </>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+    </section>
+  )
+}
+
 function Navbar({ session, onSignOut, theme, onThemeChange }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
     <nav className="navbar" aria-label="Main navigation">
-      <a href="https://www.ku.edu.kw" target="_blank" rel="noopener noreferrer" className="navbar__brand" aria-label="KU Exchange at Kuwait University">
+      <Link to="/" className="navbar__brand" aria-label="Go to KU Exchange home">
         <span className="navbar__university-logo" aria-hidden="true">
           <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="" className="navbar__university-logo--light" />
           <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" className="navbar__university-logo--dark" />
         </span>
         <span className="navbar__brand-text">KU Exchange</span>
-      </a>
+      </Link>
 
       <button
         className="navbar__toggle"
@@ -563,6 +1769,9 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
       </button>
 
       <ul className={`navbar__links ${isOpen ? 'navbar__links--open' : ''}`} role="list">
+        <li>
+          <Link to="/" className="navbar__link">Home</Link>
+        </li>
         <li>
           <button className="navbar__link navbar__theme-toggle" type="button" onClick={onThemeChange} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
             <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
@@ -581,16 +1790,23 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
           </li>
         )}
         <li>
-          <a
-            href="#partner-universities"
-            className="navbar__link"
-          >
+          <Link to="/partners" className="navbar__link">
             {/* Handshake / partnership icon */}
             <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M16 8l-4-4-4 4M12 4v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M8 13l-3 3a2 2 0 0 0 2.83 2.83L11 15.66M16 13l3 3a2 2 0 0 1-2.83 2.83L13 15.66M11 15.66l1 1 1-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Partner Universities
+          </Link>
+        </li>
+        <li>
+          <a
+            href="https://www.ku.edu.kw"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="navbar__link"
+          >
+            Kuwait University
           </a>
         </li>
         <li>
@@ -677,18 +1893,74 @@ function StatsBar() {
   )
 }
 
+function EligibilityCriteria() {
+  const [gpa, setGpa] = useState('')
+  const [creditsPassed, setCreditsPassed] = useState('')
+  const hasEnteredBoth = gpa !== '' && creditsPassed !== ''
+  const exceedsMaximumGpa = gpa !== '' && Number(gpa) > 4
+  const isBelowMinimumGpa = gpa !== '' && Number(gpa) < 3
+  const meetsGpaRequirement = !isBelowMinimumGpa && !exceedsMaximumGpa
+  const meetsCreditsRequirement = Number.isInteger(Number(creditsPassed))
+    && Number(creditsPassed) >= 60
+    && Number(creditsPassed) < 103
+  const isEligible = meetsGpaRequirement && meetsCreditsRequirement
+
+  return (
+    <section id="eligibility" className="info-cards" aria-labelledby="eligibility-heading">
+      <h2 id="eligibility-heading" className="section-heading">Eligibility Criteria</h2>
+      <p className="section-subheading">
+        Enter your academic details to check your outbound exchange eligibility.
+      </p>
+      <div className="eligibility-check">
+        <div className="eligibility-check__fields">
+          <label className="eligibility-check__field">
+            GPA
+            <input
+              type="number"
+              min="0"
+              max="4"
+              step="any"
+              value={gpa}
+              onChange={(event) => setGpa(event.target.value)}
+              aria-label="GPA"
+              aria-invalid={exceedsMaximumGpa}
+              aria-describedby={exceedsMaximumGpa ? 'gpa-error' : undefined}
+            />
+            {exceedsMaximumGpa && <span id="gpa-error" className="eligibility-check__error" role="alert">GPA must be 4.0 or less.</span>}
+          </label>
+          <label className="eligibility-check__field">
+            Credits passed
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={creditsPassed}
+              onChange={(event) => setCreditsPassed(event.target.value)}
+              aria-label="Credits passed"
+            />
+          </label>
+        </div>
+        {hasEnteredBoth ? (
+          <div className={`eligibility-check__result${isEligible ? ' eligibility-check__result--eligible' : ' eligibility-check__result--ineligible'}`} aria-live="polite">
+            <h3>{isEligible ? 'You meet the eligibility criteria' : 'You do not meet the eligibility criteria'}</h3>
+            <p>
+              Eligibility requires a GPA of at least 3.0 and 60-102 credits passed.
+              {exceedsMaximumGpa && ' Your GPA cannot be greater than 4.0.'}
+              {isBelowMinimumGpa && ' Your GPA is below 3.0.'}
+              {!meetsCreditsRequirement && ' Your passed credits must be a whole number from 60 through 102.'}
+            </p>
+          </div>
+        ) : (
+          <p className="eligibility-check__hint" aria-live="polite">
+            Enter both values to see the eligibility criteria and result.
+          </p>
+        )}
+      </div>
+    </section>
+  )
+}
+
 const infoCards = [
-  {
-    id: 'eligibility',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" stroke="currentColor" strokeWidth="1.5" />
-      </svg>
-    ),
-    title: 'Eligibility',
-    body: 'Open to undergraduate and postgraduate students who have completed at least one academic year at Kuwait University with a minimum CGPA of 2.5.',
-  },
   {
     id: 'duration',
     icon: (
@@ -966,6 +2238,8 @@ function App() {
             <>
               <HeroSection />
               <StatsBar />
+              <EligibilityCriteria />
+              <VisaChecker />
               <InfoCards />
               <PartnerUniversities />
               <ApplicationCTA />
@@ -978,6 +2252,7 @@ function App() {
           } />
           <Route path="/portal/inbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/portal/outbound-application" element={session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/partners" element={<PartnerUniversitiesRoute />} />
           <Route path="/erd" element={<ErdPage />} />
           <Route path="/test-status" element={<TestStatusPage />} />
         </Routes>

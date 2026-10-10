@@ -12,7 +12,7 @@ This line gets updated at the start of every phase, because it is the first thin
  
 
 - Proposal page: https://isom472-fall2026.github.io/team2/docs/proposal.html
-- Running system: https://isom472-fall2026.github.io/team2/
+- Running system: 
 - Board: https://github.com/orgs/isom472-fall2026/projects/
 
 ## Where do I go?

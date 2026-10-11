@@ -30,7 +30,7 @@ Some of the programming was done by several team members on Hadi's laptop. Hadi 
 
 ## The tag cut for this phase
 
-`phase-2` 
+`phase-2` , created by Almaha after pull request #67 merged.
 
 
 ## Anything not finished, and where it went

@@ -16,16 +16,25 @@ Coordinators can also submit, update, and delete student nominations, which are 
 | Rawan Abdrabou | #37 #39 | #20 #21 #22 #23 #33 #37 #38 #39 #44 #45 |
 | Hadi Haidar | #19 #20 #21 #22 #23 | #19 #21 #22 #23 #25 #26 #28 #32 #33 #37 #44 #47 |
 | Yousef Almohammed | #44 #45 | #19 #21 #27 |
-| Fatma Alsammari | #34 #38 | #20 #45 #62 |
+| Fatma Alsammari | #34 #38 #62 | #20 #45 #62 |
 
 Some of the programming was done by several team members on Hadi's laptop. Hadi is the Build Lead and in charge of the logic, and his AI agents already had the full context of the project's features and access control. Working there saved tokens that would otherwise go to analysis and exploration.
 
-## Where everything is
-- Personas: [docs/personas.md](../personas.md)
-- Stories: [Issues tab](https://github.com/isom472-fall2026/team2/issues) 18 stories, 14 are done and 4 are open with the copy at the tag in [docs/backlog.md](../backlog.md)
-- Schema: [db/schema.sql](../../db/schema.sql) and [docs/schema.md](../schema.md)
-- Prototype: [prototype/README.md](../../prototype/README.md)
-- Token plan and first ledger entry: [docs/finops-ledger.md](../finops-ledger.md)
+## The eleven things
+
+| | Done | Where it is |
+|---|---|---|
+| Personas | ☑ | [docs/personas.md](../personas.md) |
+| User stories with testable acceptance criteria | ☑ | [Issues tab](https://github.com/isom472-fall2026/team2/issues) (19 stories: 15 done, 4 open) |
+| Backlog copy saved at the phase tag | ☑ | [docs/backlog.md](../backlog.md) |
+| Database schema documented and committed | ☑ | [db/schema.sql](../../db/schema.sql) and [docs/schema.md](../schema.md) |
+| Row Level Security (RLS) turned on for every table | ☑ | [docs/schema.md](../schema.md#3-row-level-security-policies-who-what--why) |
+| Seed data in Supabase | ☑ | Supabase project |
+| HTML prototype and screen list | ☑ | [prototype/README.md](../../prototype/README.md) |
+| Split of work across all team members | ☑ | see "Who did what" table above |
+| Token plan | ☑ | [docs/finops-ledger.md](../finops-ledger.md) |
+| First entry in the FinOps ledger | ☑ | [docs/finops-ledger.md](../finops-ledger.md) |
+| Tag cut for this phase | ☑ | `phase-2` (created after pull request #67 merged) |
 
 
 ## The tag cut for this phase

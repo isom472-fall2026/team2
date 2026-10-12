@@ -34,12 +34,12 @@ Some of the programming was done by several team members on Hadi's laptop. Hadi 
 | Split of work across all team members | ☑ | see "Who did what" table above |
 | Token plan | ☑ | [docs/finops-ledger.md](../finops-ledger.md) |
 | First entry in the FinOps ledger | ☑ | [docs/finops-ledger.md](../finops-ledger.md) |
-| Tag cut for this phase | ☑ | `phase-2` (created after pull request #67 merged) |
+| Tag cut for this phase | ☑ | `phase-2` (created after pull request #71 merged) |
 
 
 ## The tag cut for this phase
 
-`phase-2` , created by Almaha after pull request #67 merged.
+`phase-2` , created by Almaha after pull request #71 merged.
 
 
 ## Anything not finished, and where it went

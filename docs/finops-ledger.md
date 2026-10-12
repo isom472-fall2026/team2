@@ -14,8 +14,8 @@ The FinOps Lead keeps it. Every member supplies their own rows.
 
 | Kind of work | What we use | Why |
 |---|---|---|
-| <!-- EXAMPLE — delete this row --> writing stories from the proposal | KU account Gemini Enterprise | it is free and no code is involved |
-| <!-- EXAMPLE — delete this row --> building a story | Antigravity + VS code agents | it edits the files directly |
+| writing stories from the proposal | KU account Gemini Enterprise | it is free and no code is involved |
+| building a story | Antigravity + VS code agents | it edits the files directly |
 
 Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50 thousand extra per month
 
@@ -40,7 +40,7 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 | Incoming can sign up and log in to the portal [#20](https://github.com/isom472-fall2026/team2/issues/20) | mais-code agent | 20K Tokens | incoming student table and auth table | None |
 | Users can delete their accounts from the portal [#23](https://github.com/isom472-fall2026/team2/issues/23) | GPT Luna | 41K Tokens | KU student table and incoming student table and coordinator table and auth table | None |
 | Explore Partner University Directory & Details [#25](https://github.com/isom472-fall2026/team2/issues/25) | GPT Luna | 210K Tokens | Partner universities table schemas and its RLS policies | None |
-| Interactive World Map & Nearest Airport Lookup [#26](https://github.com/isom472-f2026/team2/issues/26) | GPT Luna and Antigravity | 123K Tokens | Partner universities table schemas and its RLS policies + MapBox UI Public API key | None |
+| Interactive World Map & Nearest Airport Lookup [#26](https://github.com/isom472-fall2026/team2/issues/26) | GPT Luna and Antigravity | 123K Tokens | Partner universities table schemas and its RLS policies + MapBox UI Public API key | None |
 | Switch Between Light and Dark Mode [#38](https://github.com/isom472-fall2026/team2/issues/38) | GPT Luna and Mais-code agent | 90K Tokens | whole frontend code | None |
 | Coordinator Accepts System Invitation [#37](https://github.com/isom472-fall2026/team2/issues/37) | GPT Luna and Mais-code agent | 23K Tokens | whole frontend code | None |
 | No home screen button [#48](https://github.com/isom472-fall2026/team2/issues/48) | GPT Luna and Mais-code agent | 9K Tokens | None | None |

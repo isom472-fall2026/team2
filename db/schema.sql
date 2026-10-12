@@ -519,3 +519,72 @@ using (
    FROM coordinator c
   WHERE (c.user_id = auth.uid())))
 );
+
+
+-- ==========================================
+-- RLS Policies for KU Coordinators Read Access
+-- ==========================================
+
+-- 1. Policy for PartnerUniversity
+-- Allows KU coordinators to view partner university records.
+CREATE POLICY "KU coordinators can read partner universities"
+ON public.PartnerUniversity
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.coordinator ku_coordinator
+    WHERE ku_coordinator.user_id = auth.uid()
+      AND ku_coordinator.university = 4
+      AND ku_coordinator.email ILIKE '%@ku.edu.kw'
+  )
+);
+
+-- 2. Policy for InboundApplication
+-- Allows KU coordinators to view all incoming student applications.
+CREATE POLICY "KU coordinators can read inbound applications"
+ON public.InboundApplication
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.coordinator ku_coordinator
+    WHERE ku_coordinator.user_id = auth.uid()
+      AND ku_coordinator.university = 4
+      AND ku_coordinator.email ILIKE '%@ku.edu.kw'
+  )
+);
+
+-- 3. Policy for OutboundApplication
+-- Allows KU coordinators to view all outgoing student applications.
+CREATE POLICY "KU coordinators can read outbound applications"
+ON public.OutboundApplication
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.coordinator ku_coordinator
+    WHERE ku_coordinator.user_id = auth.uid()
+      AND ku_coordinator.university = 4
+      AND ku_coordinator.email ILIKE '%@ku.edu.kw'
+  )
+);
+
+-- 4. Policy for emergency_contact
+-- Allows KU coordinators to view emergency contact details linked to applications.
+CREATE POLICY "KU coordinators can read emergency contacts"
+ON public.emergency_contact
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.coordinator ku_coordinator
+    WHERE ku_coordinator.user_id = auth.uid()
+      AND ku_coordinator.university = 4
+      AND ku_coordinator.email ILIKE '%@ku.edu.kw'
+  )
+);

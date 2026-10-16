@@ -10,25 +10,19 @@ the story ID, the title, who built it, and what happened to it.
 
 | Story | Title | Who | State at the tag |
 |---|---|---|---|
-| #19 | KU student can sign up and log in to the portal | Yousef, Almaha and Hadi | Done |
-| #20 | Incoming Student can sign up and log in to the portal | Rawan and Fatma | Done |
+| #19 | KU student can sign up and log in to the portal |  Hadi | Done |
+| #20 | Incoming Student can sign up and log in to the portal | Hadi | Done |
 | #21 | A university employee coordinator can access a portal to nominate students | Yousef , Hadi and Rawan | Done |
 | #22 | System can verify KU students and coordinators are real | Rawan and Hadi | Done |
-| #23 | Users can delete their accounts from the portal | Hadi and Rawan | Done |
-| #25 | Explore Partner University Directory & Details | Hadi and  Aysha| Done |
-| #26 | Interactive World Map & Nearest Airport Lookup | Aysha and Hadi | Done |
+| #23 | Users can delete their accounts from the portal | Hadi | Done |
+| #25 | Explore Partner University Directory & Details | Hadi | Done |
+| #26 | Interactive World Map & Nearest Airport Lookup | Hadi | Done |
 | #27 | Nationality-Based Visa Requirement Advisory |Yousef and Aysha| Done |
-| #28 | Real-Time Outbound Eligibility Verification | Aysha and Hadi | Open (Moved to phase 3) |
-| #32 | Start Student Exchange Application | Hadi | Open (Moved to phase 3) |
-| #33 | Start New Exchange Cycle| Hadi and Rawan | Done |
-| #34 | Inbound Student Exchange Application | Almaha | Open (Moved to phase 3)|
-| #37 | Coordinator Accepts System Invitation |Hadi and Rawan | Done |
-| #38 | Switch Between Light and Dark Mode | Aysha and Rawan| Done |
-| #39 | Coordinator Views Historical Application Log | Rawan | Open (Moved to phase 3) |
-| #44 | KU coordinator can edit exchange cycle details and delete exchange cycle| Hadi and Rawan | Done |
-| #45 | Edit or Delete Nominations| Fatma and Rawan | Done | 
-| #47 | Validate GPA values do not exceed 4.0| Aysha and Hadi | Done | 
-| #62 | KU coordinator can put the website in maintanence mode and back |Fatma | Done |
+| #33 | Start New Exchange Cycle| Rawan | Done |
+| #38 | Switch Between Light and Dark Mode | Hadi| Done |
+| #44 | KU coordinator can edit exchange cycle details and delete exchange cycle|Rawan | Done |
+| #45 | Edit or Delete Nominations| Rawan | Done |
+| #62 | KU coordinator can put the website in maintanence mode and back | Fatma | Done |
 
 
 

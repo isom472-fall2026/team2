@@ -98,16 +98,29 @@ function MaintenancePage() {
 }
 
 function MaintenanceStatusUnavailable({ error, onRetry }) {
+  const isChecking = !error
+
   return (
     <section className="maintenance-page" aria-labelledby="maintenance-status-error-heading">
       <div className="maintenance-page__card">
-        <span className="auth-card__eyebrow">Website status unavailable</span>
-        <h1 id="maintenance-status-error-heading">We could not check the website status.</h1>
-        <p role="alert">{error || 'Please try again.'}</p>
-        <div className="maintenance-page__actions">
-          <button className="btn btn--primary" type="button" onClick={onRetry}>Retry</button>
-          <Link className="btn btn--secondary" to="/auth/signin">KU coordinator sign in</Link>
-        </div>
+        {isChecking ? (
+          <div className="maintenance-status" role="status" aria-live="polite">
+            <span className="maintenance-status__loader" aria-hidden="true" />
+            <span className="auth-card__eyebrow">Checking website status</span>
+            <h1 id="maintenance-status-error-heading">Please wait</h1>
+            <p>We are checking whether KU Exchange is available.</p>
+          </div>
+        ) : (
+          <>
+            <span className="auth-card__eyebrow">Website status unavailable</span>
+            <h1 id="maintenance-status-error-heading">We could not check the website status.</h1>
+            <p role="alert">{error}</p>
+            <div className="maintenance-page__actions">
+              <button className="btn btn--primary" type="button" onClick={onRetry}>Retry</button>
+              <Link className="btn btn--secondary" to="/auth/signin">KU coordinator sign in</Link>
+            </div>
+          </>
+        )}
       </div>
     </section>
   )

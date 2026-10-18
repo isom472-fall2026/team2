@@ -342,6 +342,28 @@ svg { display: block; flex-shrink: 0; }
   margin-top: 2rem;
 }
 
+.maintenance-status__loader {
+  display: block;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 1.75rem;
+  border: 3px solid var(--border);
+  border-top-color: var(--neon);
+  border-right-color: var(--neon-gold);
+  border-radius: 50%;
+  animation: maintenance-status-spin 1s linear infinite;
+}
+
+@keyframes maintenance-status-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maintenance-status__loader {
+    animation-duration: 2.5s;
+  }
+}
+
 .maintenance-panel {
   margin-top: 2rem;
   padding: 1.5rem;

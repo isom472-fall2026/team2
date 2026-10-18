@@ -52,6 +52,7 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |
 |---|---|---|---|---|
+| Blog "Record exact token usage" | GPT Luna | 58.1K Tokens | the method that student needs to follow | Nothing |
 |  |  |  |  |  |
 
 ## Phase 4

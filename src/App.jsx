@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
+import Blog from './Blog'
 import VisaChecker from './components/VisaChecker'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -2227,6 +2228,7 @@ function Footer() {
           <h4 className="footer__heading">Main Links</h4>
           <ul className="footer__links">
             <li><a href="#" className="footer__link">Contact Us</a></li>
+            <li><Link to="/blog" className="footer__link">Blog</Link></li>
           </ul>
         </div>
         <div className="footer__section">
@@ -2418,6 +2420,7 @@ function App() {
           <Route path="/portal/inbound-application" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/portal/outbound-application" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
           <Route path="/partners" element={renderPublicPage(<PartnerUniversitiesRoute />)} />
+          <Route path="/blog" element={renderPublicPage(<Blog />)} />
           <Route path="/erd" element={renderPublicPage(<ErdPage />)} />
           <Route path="/test-status" element={renderPublicPage(<TestStatusPage />)} />
         </Routes>

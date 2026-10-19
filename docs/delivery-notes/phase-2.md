@@ -7,6 +7,8 @@ All three user groups can register accounts, sign in, and delete their profiles,
 Coordinators can create, edit, and delete exchange cycle schedules, which are stored in `exchange_cycle`.
 Coordinators can also submit, update, and delete student nominations, which are stored in `studentnominations`.Students can browse partner universities and see them on an interactive map with the nearset airport. and The portal works in light and dark mode.
 
+- ERD: [Reference ERD diagram](../../public/images/ERD.png)
+
 
 ## Who did what
 | Name | Wrote | Assigned to build (Phase 3) |

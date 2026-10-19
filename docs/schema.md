@@ -1,6 +1,6 @@
 # Student Exchange Portal — Semantic Business Layer
 
-*Reference ERD Diagram:* `docs/assets/student-exchange-erd.png`
+*Reference ERD Diagram:* [View the ERD](../public/images/ERD.png)
 
 ---
 

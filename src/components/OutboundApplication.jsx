@@ -532,7 +532,7 @@ function TermsPage({ accepted, onChange }) {
   )
 }
 
-function ApplicationReceipt({ application, countries, cycles, universities, onDownload, onBack }) {
+function ApplicationReceipt({ application, studentId, countries, cycles, universities, onDownload, onBack }) {
   const [uploadedImages, setUploadedImages] = useState([])
   const [imageError, setImageError] = useState('')
   const [viewingImage, setViewingImage] = useState(null)
@@ -544,6 +544,7 @@ function ApplicationReceipt({ application, countries, cycles, universities, onDo
   const cycleName = cycles.find((cycle) => Number(cycle.id) === Number(application.semester_applied_for))
   const universityName = universities.find((university) => Number(university.university_id) === Number(application.university_id))?.name
   const details = [
+    ['Student ID', studentId],
     ['First name', application.first_name],
     ['Last name', application.last_name],
     ['Middle name', application.middle_name],
@@ -1570,6 +1571,7 @@ function OutboundApplication({ user }) {
   const renderSubmittedPage = submittedApplication ? (
     <ApplicationReceipt
       application={submittedApplication}
+      studentId={student.student_id}
       countries={countries}
       cycles={cycles}
       universities={universities}

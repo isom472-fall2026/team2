@@ -11,10 +11,10 @@ Coordinators can also submit, update, and delete student nominations, which are 
 ## Who did what
 | Name | Wrote | Assigned to build (Phase 3) |
 |---|---|---|
-| Almaha Alajmi | #32 #33 |  |
+| Almaha Alajmi | #32 #33 | |
 | Aysha Jan | #25 #26 #27 #28 #47 ||
-| Rawan Abdrabou | #37 #39 | |
-| Hadi Haidar | #19 #20 #21 #22 #23 |  |
+| Rawan Abdrabou | #37 #39 ||
+| Hadi Haidar | #19 #20 #21 #22 #23 | |
 | Yousef Almohammed | #44 #45 |  |
 | Fatma Alsammari | #34 #38 #62 |  |
 

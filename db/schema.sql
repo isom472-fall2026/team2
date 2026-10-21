@@ -126,7 +126,7 @@ CREATE TABLE InboundApplication (
 ALTER TABLE public.inboundapplication ENABLE ROW LEVEL SECURITY;
  
 CREATE TABLE OutboundApplication (
-    application_id INT PRIMARY KEY,
+    application_id BIGINT PRIMARY KEY,
     first_name VARCHAR(255) NOT NULL,
     last_name VARCHAR(255) NOT NULL,
     middle_name VARCHAR(255),
@@ -145,13 +145,17 @@ CREATE TABLE OutboundApplication (
     is_whatsapp_available BOOLEAN DEFAULT FALSE,
     major VARCHAR(255),
     transcript VARCHAR(255),   -- Storing the file path/URL
+    english_test_type VARCHAR(20),
+    english_test_meets_requirement BOOLEAN,
+    english_106_completed BOOLEAN,
+    language_proficiency VARCHAR(255),
     current_year_of_study VARCHAR(50),
     TOS BOOLEAN DEFAULT FALSE,
     university_id INT,
     nationality INT,
     passport_issuing_country INT,
     semester_applied_for INT,
-    student_id INT,
+    student_id BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (university_id) REFERENCES PartnerUniversity(university_id) ON DELETE SET NULL,
     FOREIGN KEY (nationality) REFERENCES Country(id) ON DELETE SET NULL,
@@ -161,6 +165,20 @@ CREATE TABLE OutboundApplication (
 );
 
 ALTER TABLE public.outboundapplication ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.outboundapplication
+ALTER COLUMN application_id TYPE BIGINT USING application_id::BIGINT;
+
+-- Match the outbound foreign key type to KUStudentAuth.Student_id.
+ALTER TABLE public.outboundapplication
+DROP CONSTRAINT IF EXISTS outboundapplication_student_id_fkey;
+
+ALTER TABLE public.outboundapplication
+ALTER COLUMN student_id TYPE BIGINT USING student_id::BIGINT;
+
+ALTER TABLE public.outboundapplication
+ADD CONSTRAINT outboundapplication_student_id_fkey
+FOREIGN KEY (student_id) REFERENCES public.kustudentauth(student_id) ON DELETE CASCADE;
 
 ALTER TABLE public.kustudentauth
 ADD COLUMN user_id uuid REFERENCES auth.users(id);
@@ -223,6 +241,21 @@ GRANT EXECUTE ON FUNCTION public.delete_my_account() TO authenticated;
 -- Outgoing applications
 ALTER TABLE outboundapplication
 ADD COLUMN application_status VARCHAR(20) DEFAULT 'Draft';
+
+ALTER TABLE outboundapplication
+ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
+
+ALTER TABLE outboundapplication
+ADD COLUMN IF NOT EXISTS english_test_type VARCHAR(20);
+
+ALTER TABLE outboundapplication
+ADD COLUMN IF NOT EXISTS english_test_meets_requirement BOOLEAN;
+
+ALTER TABLE outboundapplication
+ADD COLUMN IF NOT EXISTS english_106_completed BOOLEAN;
+
+ALTER TABLE outboundapplication
+ADD COLUMN IF NOT EXISTS language_proficiency VARCHAR(255);
  
 -- Inbound applications
 ALTER TABLE inboundapplication
@@ -586,5 +619,180 @@ USING (
     WHERE ku_coordinator.user_id = auth.uid()
       AND ku_coordinator.university = 4
       AND ku_coordinator.email ILIKE '%@ku.edu.kw'
+  )
+);
+
+CREATE POLICY "KU students can read their own profile"
+ON public.kustudentauth
+FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
+
+CREATE POLICY "KU students can read exchange cycles"
+ON public.exchange_cycle
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    WHERE student.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "KU students can read available partner universities"
+ON public.partneruniversity
+FOR SELECT
+TO authenticated
+USING (
+  available IS TRUE
+  AND EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    WHERE student.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "KU students can read their outbound applications"
+ON public.outboundapplication
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    WHERE student.user_id = auth.uid()
+      AND student.student_id = outboundapplication.student_id
+  )
+);
+
+DROP POLICY IF EXISTS "KU students can create their outbound applications"
+ON public.outboundapplication;
+
+CREATE POLICY "KU students can create their outbound applications"
+ON public.outboundapplication
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  tos IS FALSE
+  AND application_status = 'Draft'
+  AND semester_applied_for IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    WHERE student.user_id = auth.uid()
+      AND student.student_email ILIKE '%@ku.edu.kw'
+      AND student.student_id = outboundapplication.student_id
+  )
+);
+
+CREATE POLICY "KU students can update their outbound applications"
+ON public.outboundapplication
+FOR UPDATE
+TO authenticated
+USING (
+  tos IS FALSE
+  AND application_status = 'Draft'
+  AND EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    WHERE student.user_id = auth.uid()
+      AND student.student_id = outboundapplication.student_id
+  )
+)
+WITH CHECK (
+  (
+    (application_status = 'Draft' AND tos IS FALSE)
+    OR (application_status = 'Submitted' AND tos IS TRUE)
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    WHERE student.user_id = auth.uid()
+      AND student.student_id = outboundapplication.student_id
+  )
+);
+
+DROP POLICY IF EXISTS "KU students can delete their outbound application drafts"
+ON public.outboundapplication;
+
+CREATE POLICY "KU students can delete their outbound application drafts"
+ON public.outboundapplication
+FOR DELETE
+TO authenticated
+USING (
+  application_status = 'Draft'
+  AND EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    WHERE student.user_id = auth.uid()
+      AND student.student_id = outboundapplication.student_id
+  )
+);
+
+CREATE UNIQUE INDEX outboundapplication_student_cycle_unique
+ON public.outboundapplication (student_id, semester_applied_for);
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'outbound-application-files',
+  'outbound-application-files',
+  FALSE,
+  10485760,
+  ARRAY['application/pdf', 'image/jpeg', 'image/png']
+)
+ON CONFLICT (id) DO UPDATE
+SET public = FALSE,
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+CREATE POLICY "KU students can upload their outbound application files"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'outbound-application-files'
+  AND EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    JOIN public.outboundapplication application
+      ON application.student_id = student.student_id
+    WHERE student.user_id = auth.uid()
+      AND student.student_id::text = (storage.foldername(storage.objects.name))[1]
+      AND application.application_id::text = (storage.foldername(storage.objects.name))[2]
+  )
+);
+
+CREATE POLICY "KU students can read their outbound application files"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'outbound-application-files'
+  AND EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    JOIN public.outboundapplication application
+      ON application.student_id = student.student_id
+    WHERE student.user_id = auth.uid()
+      AND student.student_id::text = (storage.foldername(storage.objects.name))[1]
+      AND application.application_id::text = (storage.foldername(storage.objects.name))[2]
+  )
+);
+
+CREATE POLICY "KU students can delete their outbound application files"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'outbound-application-files'
+  AND EXISTS (
+    SELECT 1
+    FROM public.kustudentauth student
+    JOIN public.outboundapplication application
+      ON application.student_id = student.student_id
+    WHERE student.user_id = auth.uid()
+      AND student.student_id::text = (storage.foldername(storage.objects.name))[1]
+      AND application.application_id::text = (storage.foldername(storage.objects.name))[2]
   )
 );

@@ -1069,6 +1069,10 @@ svg { display: block; flex-shrink: 0; }
   font: inherit;
 }
 
+:root[data-theme='dark'] .cycle-form input[type='datetime-local'] {
+  color-scheme: dark;
+}
+
 .cycle-form input:focus,
 .cycle-form select:focus {
   outline: 2px solid var(--neon);

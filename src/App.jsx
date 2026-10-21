@@ -3,10 +3,12 @@ import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
 import Blog from './Blog'
 import VisaChecker from './components/VisaChecker'
+import OutboundApplication from './components/OutboundApplication'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
 import { supabase } from './supabase'
+import { getDatabaseErrorMessage } from './databaseErrors'
 import './App.css'
 
 const authOptions = {
@@ -32,7 +34,7 @@ const authOptions = {
 
 async function readMaintenanceMode() {
   const { data, error } = await supabase.rpc('get_maintenance_mode')
-  if (error) return { mode: null, error: error.message }
+  if (error) return { mode: null, error: getDatabaseErrorMessage(error) }
   if (data === null) {
     return {
       mode: null,
@@ -147,7 +149,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
       .eq('available', true)
       .order('name')
       .then(({ data, error: universityError }) => {
-        if (universityError) setError(universityError.message)
+        if (universityError) setError(getDatabaseErrorMessage(universityError))
         setUniversities(data || [])
       })
   }, [type])
@@ -214,7 +216,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
         .maybeSingle()
       if (coordinatorError || !coordinator || !isKuCoordinatorProfile(coordinator, email)) {
         const { error: signOutError } = await supabase.auth.signOut()
-        setError(signOutError?.message || coordinatorError?.message || 'Only authorized KU coordinators can sign in during maintenance.')
+        setError(signOutError?.message || (coordinatorError && getDatabaseErrorMessage(coordinatorError)) || 'Only authorized KU coordinators can sign in during maintenance.')
         setIsSubmitting(false)
         return
       }
@@ -247,7 +249,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
       if (profileError) {
         setError(profileError.code === '23505'
           ? 'An account with this ID or email already exists.'
-          : profileError.message)
+          : getDatabaseErrorMessage(profileError))
         setIsSubmitting(false)
         return
       }
@@ -387,7 +389,7 @@ function AccountDeleteButton({ onDeleted }) {
     setIsDeleting(true)
     const { error: deleteError } = await supabase.rpc('delete_my_account')
     if (deleteError) {
-      setError(deleteError.message)
+      setError(getDatabaseErrorMessage(deleteError))
       setIsDeleting(false)
       return
     }
@@ -579,7 +581,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
     })
     setIsUpdatingMaintenance(false)
     if (error) {
-      setMaintenanceError(error.message)
+      setMaintenanceError(getDatabaseErrorMessage(error))
       setStatus({ error: '', message: '' })
       return
     }
@@ -603,7 +605,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .order('cycle_start', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
     if (error) {
-      setStatus({ error: error.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(error), message: '' })
       return false
     }
     setCycles(data || [])
@@ -619,7 +621,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       if (!isKuCoordinator) nominationsQuery = nominationsQuery.eq('coordinator_id', profile.coordinator_id)
       const { data, error } = await nominationsQuery.order('created_at', { ascending: false })
       if (!isCurrent) return
-      if (error) setStatus({ error: error.message, message: '' })
+      if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
       else setNominations(data || [])
       setIsLoadingNominations(false)
     }
@@ -631,11 +633,11 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .order('cycle_start', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
       .then(({ data, error }) => {
-        if (error) setStatus({ error: error.message, message: '' })
+        if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
         else setCycles(data || [])
       })
     supabase.from('exchange_cycle').select('id, semester, academic_year').order('id').then(({ data, error }) => {
-      if (error) setStatus({ error: error.message, message: '' })
+      if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
       else setSemesters(data || [])
     })
     if (isKuCoordinator) {
@@ -645,7 +647,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
         .neq('coordinator_id', profile.coordinator_id)
         .order('name')
         .then(({ data, error }) => {
-          if (error) setStatus({ error: error.message, message: '' })
+          if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
           else setCoordinators(data || [])
           setIsLoadingCoordinators(false)
         })
@@ -654,7 +656,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
         .select('university_id, name')
         .order('name')
         .then(({ data, error }) => {
-          if (error) setStatus({ error: error.message, message: '' })
+          if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
           else setPartnerUniversities(data || [])
         })
     }
@@ -673,7 +675,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
         .select('coordinator_id, name, email, university, email_accepted')
         .maybeSingle()
       if (error) {
-        setStatus({ error: error.message, message: '' })
+        setStatus({ error: getDatabaseErrorMessage(error), message: '' })
         return
       }
       if (!data) {
@@ -690,7 +692,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
         .select('coordinator_id')
         .maybeSingle()
       if (error) {
-        setStatus({ error: error.message, message: '' })
+        setStatus({ error: getDatabaseErrorMessage(error), message: '' })
         return
       }
       if (!data) {
@@ -720,7 +722,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .limit(1)
       .maybeSingle()
     if (duplicateCheckError) {
-      setStatus({ error: duplicateCheckError.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(duplicateCheckError), message: '' })
       setIsStartingCycle(false)
       return
     }
@@ -740,7 +742,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .limit(1)
       .maybeSingle()
     if (latestCycleError) {
-      setStatus({ error: latestCycleError.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(latestCycleError), message: '' })
       setIsStartingCycle(false)
       return
     }
@@ -750,7 +752,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       ...cycleDataFromForm(cycleForm),
     })
     if (error) {
-      setStatus({ error: error.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(error), message: '' })
     } else {
       setCycleForm(emptyCycleForm)
       if (await loadCycles()) {
@@ -780,7 +782,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .limit(1)
       .maybeSingle()
     if (duplicateCheckError) {
-      setStatus({ error: duplicateCheckError.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(duplicateCheckError), message: '' })
       return
     }
     if (existingCycle) {
@@ -800,7 +802,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .maybeSingle()
     setIsStartingCycle(false)
     if (error) {
-      setStatus({ error: error.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(error), message: '' })
       return
     }
     if (!updatedCycle) {
@@ -827,7 +829,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .maybeSingle()
     setIsDeletingCycle(false)
     if (error) {
-      setStatus({ error: error.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(error), message: '' })
       return
     }
     if (!deletedCycle) {
@@ -865,7 +867,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       if (!error || error.code !== '23505') break
     }
     if (error) {
-      setStatus({ error: error.code === '23505' ? 'A unique nomination ID could not be generated. Please try again.' : error.message, message: '' })
+      setStatus({ error: error.code === '23505' ? 'A unique nomination ID could not be generated. Please try again.' : getDatabaseErrorMessage(error), message: '' })
       return
     }
     setForm({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
@@ -878,7 +880,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
     const { data: updatedNominations, error: refreshError } = await nominationsQuery
       .order('created_at', { ascending: false })
     if (refreshError) {
-      setStatus({ error: refreshError.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(refreshError), message: '' })
       return
     }
     setNominations(updatedNominations || [])
@@ -908,7 +910,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .maybeSingle()
     setIsSavingNomination(false)
     if (error) {
-      setNominationEditError(error.message)
+      setNominationEditError(getDatabaseErrorMessage(error))
       return
     }
     if (!updatedNomination) {
@@ -943,7 +945,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       .maybeSingle()
     setIsDeletingNomination(false)
     if (error) {
-      setStatus({ error: error.message, message: '' })
+      setStatus({ error: getDatabaseErrorMessage(error), message: '' })
       return
     }
     if (!deletedNomination) {
@@ -1746,7 +1748,7 @@ function PartnerUniversitiesRoute() {
           .order('name')
       }
       if (!isCurrent) return
-      if (result.error) setError(result.error.message)
+      if (result.error) setError(getDatabaseErrorMessage(result.error))
       else {
         const mappedUniversities = (result.data || []).map((university) => ({
           ...university,
@@ -1921,12 +1923,16 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
             {theme === 'light' ? 'Dark mode' : 'Light mode'}
           </button>
         </li>
-        <li>
-          <Link to="/auth/signup" className="navbar__link navbar__link--auth">Sign Up</Link>
-        </li>
-        <li>
-          <Link to="/auth/signin" className="navbar__link navbar__link--auth navbar__link--auth-alt">Log In</Link>
-        </li>
+        {!session && (
+          <>
+            <li>
+              <Link to="/auth/signup" className="navbar__link navbar__link--auth">Sign Up</Link>
+            </li>
+            <li>
+              <Link to="/auth/signin" className="navbar__link navbar__link--auth navbar__link--auth-alt">Log In</Link>
+            </li>
+          </>
+        )}
         {session && (
           <li>
             <button className="navbar__link navbar__link--logout" type="button" onClick={onSignOut}>Log out</button>
@@ -2275,7 +2281,7 @@ function TestStatusPage() {
 
       if (countryError) {
         setStatus('failure')
-        setError(countryError.message)
+        setError(getDatabaseErrorMessage(countryError))
         return
       }
 
@@ -2431,7 +2437,7 @@ function App() {
             !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} onDeleted={handleDeleted} maintenanceMode={maintenanceMode} onToggleMaintenance={setMaintenanceMode} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
           } />
           <Route path="/portal/inbound-application" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
-          <Route path="/portal/outbound-application" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <section className="portal-page"><div className="portal-card"><h1>Outbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal/outbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <OutboundApplication user={session.user} /> : <Navigate to="/auth/signin" replace />} />
           <Route path="/partners" element={renderPublicPage(<PartnerUniversitiesRoute />)} />
           <Route path="/blog" element={renderPublicPage(<Blog />)} />
           <Route path="/erd" element={renderPublicPage(<ErdPage />)} />

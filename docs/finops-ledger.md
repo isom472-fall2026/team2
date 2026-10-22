@@ -46,9 +46,6 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 | No home screen button [#48](https://github.com/isom472-fall2026/team2/issues/48) | GPT Luna and Mais-code agent | 9K Tokens | None | None |
 | Adjust nominations to give out a bigger id [#50](https://github.com/isom472-fall2026/team2/issues/50) | GPT Luna and Mais-code agent | 2K Tokens | Student nominations table primary key column | None |
 | Nominations must expire to ensure they dont get reused ever [#51](https://github.com/isom472-fall2026/team2/issues/51) | GPT Luna and Mais-code agent | 14.26K Tokens | Student nominations table columns and exchange cycle table | None |
-| Start Outbound Student Exchange Application [#32](https://github.com/isom472-fall2026/team2/issues/32) | GPT Luna 6 | 342.51K Tokens (out of a 700K token session) | Outbound application table columns and exchange cycle table | None |
-| KU Student exports their submitted outgoing application as a PDF [#74](https://github.com/isom472-fall2026/team2/issues/74) | GPT Luna 6 | 80.2K Tokens (out of a 700K token session) | Outbound application table columns and exchange cycle table | None |
-| KU Student’s application changes are saved automatically [#77](https://github.com/isom472-fall2026/team2/issues/77) | GPT Luna 6 | 277.29K Tokens (out of a 700K token session) | Outbound application table columns | None |
 |  |  |  |  |  |
 
 ## Phase 3
@@ -56,6 +53,14 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |
 |---|---|---|---|---|
 | Blog "Record exact token usage" | GPT Luna | 58.1K Tokens | the method that student needs to follow | Nothing |
+| Start Outbound Student Exchange Application [#32](https://github.com/isom472-fall2026/team2/issues/32) | GPT Luna 6 | 342.51K Tokens (out of a 700K token session) | Outbound application table columns and exchange cycle table | None |
+| KU Student exports their submitted outgoing application as a PDF [#74](https://github.com/isom472-fall2026/team2/issues/74) | GPT Luna 6 | 80.2K Tokens (out of a 700K token session) | Outbound application table columns and exchange cycle table | None |
+| KU Student’s application changes are saved automatically [#77](https://github.com/isom472-fall2026/team2/issues/77) | GPT Luna 6 | 277.29K Tokens (out of a 700K token session) | Outbound application table columns | None |
+| Incoming student can view submitted application and status [#95](https://github.com/isom472-fall2026/team2/issues/95) | Copilot SDK in VS Code | 8.21K tokens | Inbound application summary, status, submission date, and document details; issue description | Have an authenticated incoming-student account available for end-to-end verification. |
+| KU student can view submitted application and status [#94](https://github.com/isom472-fall2026/team2/issues/94) | Copilot SDK in VS Code | 2K tokens | Outbound application details and status; issue description | Have an authenticated KU-student account available for end-to-end verification. |
+| Inbound Student Exchange Application [#34](https://github.com/isom472-fall2026/team2/issues/34) | Copilot SDK in VS Code | 110K tokens | Outbound application flow as a reference, inbound application fields, and `db/schemanew.sql` | Verify the nomination-to-submission flow with an authenticated incoming-student account. |
+| Incoming student can export their application as a PDF [#93](https://github.com/isom472-fall2026/team2/issues/93) | Copilot SDK in VS Code | 73K tokens because new pdf visualizing package was added | Inbound application summary and submitted documents; outbound PDF implementation as a reference | Test the generated PDF with real submitted attachments and an authenticated account. |
+| Incoming student applications are saved automatically [#92](https://github.com/isom472-fall2026/team2/issues/92) | Copilot SDK in VS Code | 14K tokens | Inbound application form, draft-saving flow, and `db/schemanew.sql` | Test draft save, reload, and coordinator visibility with authenticated accounts. |
 |  |  |  |  |  |
 
 ## Phase 4

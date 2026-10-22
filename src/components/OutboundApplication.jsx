@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import './OutboundApplication.css'
@@ -44,6 +45,7 @@ const emptyForm = {
   passport_expiry_date: '',
   civil_id_number: '',
   civil_id_expiry: '',
+  civil_id_copy: '',
   passport_copy: '',
   gpa: '',
   expected_graduation_semester: '',
@@ -474,6 +476,20 @@ function ExchangeDocumentsPage({ form, onChange, cycles, universities, onUpload,
       </p>
       <div className="outbound-form__upload">
         <label className="outbound-form__field">
+          <span>Civil ID copy <span className="outbound-form__required" aria-hidden="true">*</span></span>
+          <input
+            type="file"
+            accept="application/pdf,image/jpeg,image/png"
+            onChange={(event) => onUpload('civil_id_copy', event)}
+            disabled={uploading.civil_id_copy}
+            required={!form.civil_id_copy}
+          />
+        </label>
+        {uploading.civil_id_copy && <p role="status">Uploading Civil ID copy…</p>}
+        {form.civil_id_copy && <p className="outbound-form__upload-success" role="status">{uploadedFileName(form.civil_id_copy)} uploaded successfully.</p>}
+      </div>
+      <div className="outbound-form__upload">
+        <label className="outbound-form__field">
           <span>Passport copy <span className="outbound-form__required" aria-hidden="true">*</span></span>
           <input
             type="file"
@@ -533,9 +549,11 @@ function TermsPage({ accepted, onChange }) {
 }
 
 function ApplicationReceipt({ application, studentId, countries, cycles, universities, onDownload, onBack }) {
-  const [uploadedImages, setUploadedImages] = useState([])
+  const [uploadedPages, setUploadedPages] = useState([])
   const [imageError, setImageError] = useState('')
+  const [documentsLoading, setDocumentsLoading] = useState(true)
   const [viewingImage, setViewingImage] = useState(null)
+  const receiptRef = useRef(null)
   const statusClass = String(application.application_status || 'Unknown')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -557,6 +575,7 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
     ['Passport expiry date', displayDate(application.passport_expiry_date)],
     ['Civil ID number', application.civil_id_number],
     ['Civil ID expiry date', displayDate(application.civil_id_expiry)],
+    ['Civil ID copy', uploadedFileName(application.civil_id_copy)],
     ['Passport issuing country', countryName(application.passport_issuing_country)],
     ['Major', application.major],
     ['Current year of study', application.current_year_of_study],
@@ -578,32 +597,85 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
   useEffect(() => {
     let current = true
 
-    async function loadUploadedImages() {
-      setUploadedImages([])
+    async function loadUploadedDocuments() {
+      setUploadedPages([])
       setImageError('')
-      const imageFiles = [
+      setDocumentsLoading(true)
+      const files = [
+        ['Civil ID copy', application.civil_id_copy],
         ['Passport copy', application.passport_copy],
         ['Academic transcript', application.transcript],
         ['Profile photo', application.profile_photo],
-      ].filter(([, path]) => /\.(jpe?g|png)$/i.test(String(path || '')))
-      const results = await Promise.all(imageFiles.map(async ([label, path]) => {
+        ['English score report', application.language_proficiency],
+      ].filter(([, path]) => Boolean(path))
+      const results = await Promise.all(files.map(async ([label, path]) => {
         const storage = supabase.storage.from(storageBucket)
-        const { data, error: signedUrlError } = await storage.createSignedUrl(path, 3600)
-        if (signedUrlError) throw signedUrlError
         const fileName = uploadedFileName(path)
-        const { data: downloadData, error: downloadError } = await storage
-          .createSignedUrl(path, 3600, { download: fileName })
-        if (downloadError) throw downloadError
-        return { label, path, url: data.signedUrl, downloadUrl: downloadData.signedUrl, fileName }
+        const [viewResult, downloadResult] = await Promise.all([
+          storage.createSignedUrl(path, 3600),
+          storage.createSignedUrl(path, 3600, { download: fileName }),
+        ])
+        if (viewResult.error) throw viewResult.error
+        if (downloadResult.error) throw downloadResult.error
+
+        if (/\.pdf$/i.test(fileName)) {
+          const { data: fileData, error: fileError } = await storage.download(path)
+          if (fileError) throw fileError
+          const pdfjsLib = await import('pdfjs-dist')
+          pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
+          const pdf = await pdfjsLib.getDocument({
+            data: new Uint8Array(await fileData.arrayBuffer()),
+          }).promise
+          const pdfPages = []
+          for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+            const page = await pdf.getPage(pageNumber)
+            const originalViewport = page.getViewport({ scale: 1 })
+            const viewport = page.getViewport({ scale: Math.min(2, 1400 / originalViewport.width) })
+            const canvas = document.createElement('canvas')
+            canvas.width = Math.ceil(viewport.width)
+            canvas.height = Math.ceil(viewport.height)
+            const context = canvas.getContext('2d')
+            if (!context) throw new Error('A canvas context could not be created to display a PDF page.')
+            await page.render({ canvas, canvasContext: context, viewport }).promise
+            pdfPages.push({
+              key: `${path}-${pageNumber}`,
+              label,
+              fileName,
+              previewUrl: canvas.toDataURL('image/png'),
+              downloadUrl: downloadResult.data.signedUrl,
+              pageNumber,
+              pageCount: pdf.numPages,
+            })
+            page.cleanup()
+          }
+          await pdf.destroy()
+          return pdfPages
+        }
+
+        return [{
+          key: path,
+          label,
+          fileName,
+          previewUrl: viewResult.data.signedUrl,
+          downloadUrl: downloadResult.data.signedUrl,
+          pageNumber: null,
+          pageCount: null,
+        }]
       }))
-      if (current) setUploadedImages(results)
+      if (current) {
+        setUploadedPages(results.flat())
+        setDocumentsLoading(false)
+      }
     }
 
-    loadUploadedImages().catch((loadError) => {
-      if (current) setImageError(`Uploaded images could not be loaded: ${getDatabaseErrorMessage(loadError)}`)
+    loadUploadedDocuments().catch((loadError) => {
+      if (current) {
+        setImageError(`Uploaded documents could not be loaded: ${getDatabaseErrorMessage(loadError)}`)
+        setDocumentsLoading(false)
+      }
     })
     return () => { current = false }
-  }, [application.application_id, application.passport_copy, application.transcript, application.profile_photo])
+  }, [application.application_id, application.civil_id_copy, application.language_proficiency, application.passport_copy, application.transcript, application.profile_photo])
 
   useEffect(() => {
     if (!viewingImage) return undefined
@@ -614,8 +686,20 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [viewingImage])
 
+  const handleDownload = async () => {
+    const receipt = receiptRef.current
+    if (!receipt) return
+    try {
+      const previewImages = [...receipt.querySelectorAll('.outbound-receipt__image-grid img')]
+      await Promise.all(previewImages.map((image) => image.decode()))
+      onDownload()
+    } catch (printError) {
+      setImageError(`The application PDF could not be prepared: ${getDatabaseErrorMessage(printError)}`)
+    }
+  }
+
   return (
-    <section className="outbound-receipt" aria-labelledby="outbound-receipt-heading">
+    <section ref={receiptRef} className="outbound-receipt" aria-labelledby="outbound-receipt-heading">
       <header className="outbound-receipt__brand">
         <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="Kuwait University" />
         <img src={`${import.meta.env.BASE_URL}images/exchangelogoeng.png`} alt="Kuwait University Exchange Program" />
@@ -641,21 +725,21 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
           <div key={label}><dt>{label}</dt><dd>{String(value)}</dd></div>
         ))}
       </dl>
-      {uploadedImages.length > 0 && (
+      {uploadedPages.length > 0 && (
         <section className="outbound-receipt__images" aria-labelledby="outbound-receipt-images-heading">
-          <h2 id="outbound-receipt-images-heading">Uploaded images</h2>
+          <h2 id="outbound-receipt-images-heading">Uploaded documents and images</h2>
           <div className="outbound-receipt__image-grid">
-            {uploadedImages.map((image) => (
-              <figure key={image.path}>
-                <img src={image.url} alt={image.label} />
-                <figcaption>{image.label}</figcaption>
-                <p className="outbound-receipt__image-filename">{image.fileName}</p>
+            {uploadedPages.map((page) => (
+              <figure key={page.key}>
+                <img src={page.previewUrl} alt={`${page.label}${page.pageNumber ? `, page ${page.pageNumber}` : ''}`} />
+                <figcaption>{page.label}{page.pageNumber ? ` — page ${page.pageNumber} of ${page.pageCount}` : ''}</figcaption>
+                <p className="outbound-receipt__image-filename">{page.fileName}</p>
                 <div className="outbound-receipt__image-actions">
-                  <button className="btn btn--secondary" type="button" onClick={() => setViewingImage(image)}>
+                  <button className="btn btn--secondary" type="button" onClick={() => setViewingImage(page)}>
                     View
                   </button>
-                  <a className="btn btn--secondary" href={image.downloadUrl}>
-                    Download image
+                  <a className="btn btn--secondary" href={page.downloadUrl}>
+                    Download
                   </a>
                 </div>
               </figure>
@@ -664,25 +748,28 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
         </section>
       )}
       {imageError && <p className="outbound-application__error" role="alert">{imageError}</p>}
+      {documentsLoading && <p role="status">Preparing uploaded documents…</p>}
       {viewingImage && (
         <div className="outbound-receipt__viewer-backdrop" onClick={() => setViewingImage(null)}>
           <section
             className="outbound-receipt__viewer"
             role="dialog"
             aria-modal="true"
-            aria-label={`Larger view: ${viewingImage.label}`}
+            aria-label={`View ${viewingImage.label}`}
             onClick={(event) => event.stopPropagation()}
           >
             <button className="outbound-receipt__viewer-close" type="button" onClick={() => setViewingImage(null)}>
               Close
             </button>
-            <img src={viewingImage.url} alt={viewingImage.label} />
-            <p>{viewingImage.label}: {viewingImage.fileName}</p>
+            <img src={viewingImage.previewUrl} alt={viewingImage.label} />
+            <p>{viewingImage.label}{viewingImage.pageNumber ? ` — page ${viewingImage.pageNumber} of ${viewingImage.pageCount}` : ''}: {viewingImage.fileName}</p>
           </section>
         </div>
       )}
       <div className="outbound-receipt__actions">
-        <button className="btn btn--primary" type="button" onClick={onDownload}>Download PDF</button>
+        <button className="btn btn--primary" type="button" onClick={handleDownload} disabled={documentsLoading || Boolean(imageError)}>
+          Download PDF
+        </button>
         <button className="btn btn--secondary" type="button" onClick={onBack}>Back to applications</button>
       </div>
     </section>
@@ -1059,7 +1146,9 @@ function OutboundApplication({ user }) {
     }
     if (stepToValidate === 2) {
       if (!form.university_id || !form.semester_applied_for) return 'Choose a partner university and an open exchange cycle.'
-      if (!form.passport_copy || !form.transcript) return 'Upload both your passport copy and academic transcript.'
+      if (!form.civil_id_copy || !form.passport_copy || !form.transcript) {
+        return 'Upload your Civil ID copy, passport copy, and academic transcript.'
+      }
     }
     return ''
   }
@@ -1075,6 +1164,7 @@ function OutboundApplication({ user }) {
     passport_expiry_date: form.passport_expiry_date || null,
     civil_id_number: String(form.civil_id_number ?? '').trim() ? Number(form.civil_id_number) : null,
     civil_id_expiry: form.civil_id_expiry || null,
+    civil_id_copy: form.civil_id_copy || null,
     passport_copy: form.passport_copy || null,
     gpa: form.gpa === null || form.gpa === undefined || form.gpa === '' ? null : Number(form.gpa),
     expected_graduation_semester: form.expected_graduation_semester
@@ -1258,6 +1348,7 @@ function OutboundApplication({ user }) {
     setSaving(true)
     setError('')
     const filePaths = [
+      form.civil_id_copy,
       form.passport_copy,
       form.transcript,
       form.profile_photo,

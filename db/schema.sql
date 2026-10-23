@@ -159,18 +159,7 @@ CREATE TABLE OutboundApplication (
     FOREIGN KEY (semester_applied_for) REFERENCES exchange_cycle(id) ON DELETE SET NULL,
     FOREIGN KEY (student_id) REFERENCES KUStudentAuth(Student_id) ON DELETE CASCADE
 );
-CREATE TABLE public.updates (
-    id INT PRIMARY KEY,
-    details TEXT
-);
 
-ALTER TABLE public.updates ENABLE ROW LEVEL SECURITY;
-
-CREATE TABLE public.feedback (
-    id INT PRIMARY KEY,
-    details TEXT,
-    application INT REFERENCES public.outboundapplication(application_id)
-);
 
 ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.outboundapplication ENABLE ROW LEVEL SECURITY;

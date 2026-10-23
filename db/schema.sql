@@ -164,6 +164,8 @@ CREATE TABLE OutboundApplication (
     FOREIGN KEY (student_id) REFERENCES KUStudentAuth(Student_id) ON DELETE CASCADE
 );
 
+
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.outboundapplication ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.outboundapplication

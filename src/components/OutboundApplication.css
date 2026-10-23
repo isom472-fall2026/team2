@@ -217,6 +217,28 @@
   font-weight: 600;
 }
 
+.inbound-phone {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.inbound-form__field-note {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inbound-form__explanation {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
 .outbound-form__field-group {
   display: grid;
   align-content: start;
@@ -483,6 +505,10 @@
 
   .outbound-application-list__item {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .inbound-phone {
+    grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
   }
 
   .outbound-application-list__item .btn {

@@ -4,6 +4,7 @@ import ErdPage from './ErdPage'
 import Blog from './Blog'
 import VisaChecker from './components/VisaChecker'
 import OutboundApplication from './components/OutboundApplication'
+import InboundApplication from './components/InboundApplication'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
@@ -2436,7 +2437,7 @@ function App() {
           <Route path="/portal" element={
             !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} onDeleted={handleDeleted} maintenanceMode={maintenanceMode} onToggleMaintenance={setMaintenanceMode} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
           } />
-          <Route path="/portal/inbound-application" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <section className="portal-page"><div className="portal-card"><h1>Inbound application</h1><p>This application area is ready for the next portal feature.</p></div></section> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal/inbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <InboundApplication user={session.user} /> : <Navigate to="/auth/signin" replace />} />
           <Route path="/portal/outbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <OutboundApplication user={session.user} /> : <Navigate to="/auth/signin" replace />} />
           <Route path="/partners" element={renderPublicPage(<PartnerUniversitiesRoute />)} />
           <Route path="/blog" element={renderPublicPage(<Blog />)} />

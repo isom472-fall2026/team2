@@ -14,8 +14,9 @@
 * **`PartnerUniversity`**: An overseas higher-education institution holding an active bilateral exchange agreement with the college.
 * **`Coordinator`**: An accredited partner university representative authorized to nominate exchange candidates and manage partner workflows.
 * **`studentnominations`**: A formal endorsement submitted by a partner coordinator sponsoring a foreign student for a designated cycle.
-* **`InboundApplication`**: A complete exchange admissions dossier submitted by an incoming international applicant.
+* **`InboundApplication`**: A complete exchange admissions dossier submitted by an incoming international applicant using an active nomination.
 * **`OutboundApplication`**: A study-abroad placement application submitted by a Kuwait University student.
+* **`OutboundApplication.civil_id_copy`**: Stores the private storage path for the student's uploaded Civil ID document.
 
 ---
 
@@ -25,10 +26,10 @@
 * **`Coordinator` -> `PartnerUniversity`**: Binds a partner coordinator to their home institution (`ON DELETE CASCADE`).
 * **`studentnominations` -> `Coordinator`**: Attributes each student nomination to the partner official who submitted it (`ON DELETE CASCADE`).
 * **`studentnominations` -> `exchange_cycle`**: Anchors a nomination to a specific intake semester and deadline calendar (`ON DELETE CASCADE`).
-* **`InboundApplication` -> `studentnominations`**: Validates that an incoming applicant holds an approved coordinator nomination (`FOREIGN KEY`).
-* **`InboundApplication` -> `incomingstudentAuth`**: Ties an inbound dossier to the authenticated international applicant account (`ON DELETE CASCADE`).
-* **`InboundApplication` -> `PartnerUniversity`**: Designates the sending home institution of the international applicant (`ON DELETE SET NULL`).
-* **`InboundApplication` -> `exchange_cycle`**: Places the inbound dossier into an active intake calendar and review period (`ON DELETE SET NULL`).
+* **`InboundApplication` -> `studentnominations`**: Validates that an incoming applicant holds an active coordinator nomination; a nomination can be used for at most one inbound application (`FOREIGN KEY`, `UNIQUE`).
+* **`InboundApplication` -> `incomingstudentAuth`**: Ties an inbound dossier to the authenticated international applicant account (`ON DELETE SET NULL`).
+* **`InboundApplication` -> `PartnerUniversity`**: Records the sending home institution from the coordinator who issued the linked nomination (`ON DELETE SET NULL`).
+* **`InboundApplication` -> `exchange_cycle`**: Places the inbound dossier into the nomination's intake calendar and review period (`ON DELETE RESTRICT`).
 * **`InboundApplication` -> `Country` (Nationality)**: Records the applicant’s legal citizenship for host-institution clearance (`ON DELETE SET NULL`).
 * **`InboundApplication` -> `Country` (Passport Issuing)**: Identifies the government authority that issued the travel passport (`ON DELETE SET NULL`).
 * **`InboundApplication` -> `emergency_contact`**: Connects the international applicant to a designated emergency contact (`ON DELETE SET NULL`).
@@ -55,7 +56,12 @@
 * **`kustudentauth` / `"Enable delete for Ku students"` (DELETE)**: Authenticated Kuwait University students may delete only their personal record during self-service account removal.
 * **`studentnominations` / `"Enable insert for coordinators"` (INSERT)**: A coordinator may create nominations only when `coordinator_id` matches the coordinator profile linked to their authenticated user.
 * **`studentnominations` / `"Enable read access for coordinators"` (SELECT)**: Partner coordinators may view nominations assigned to their own coordinator profile; KU coordinators may view all nominations.
+* **`studentnominations` / `"Nominated students can read their nominations"` (SELECT)**: An authenticated incoming student may read only nominations addressed to their profile email so they can validate their Nomination ID.
 * **`studentnominations.id`**: Each nomination uses a unique, randomly generated eight-digit identifier that coordinators share with the nominated student.
 * **`studentnominations.nomination_status`**: New nominations default to `Active`; the database expiration function changes them to `Expired` when their exchange cycle end time has passed.
+* **`inboundapplication` / incoming-student policies**: Authenticated students can read their own applications, create drafts only from their active nomination, update or submit their own drafts, and delete their own drafts. A unique student-and-cycle index prevents multiple applications in one exchange cycle, while coordinators cannot read drafts.
+* **`inboundapplication` drafts**: Drafts may omit names until the student completes them; submission requires first and last names. `submitted_at` records the submission time for the student receipt and PDF export.
+* **`inbound-application-files` / incoming-student policies**: Uploaded application files are private and accessible only to the student who owns the linked draft application.
 * **`exchange_cycle` / `"coordinators can update exchange cycles"` (UPDATE)**: Authenticated users with a coordinator profile may update exchange cycle details.
 * **`exchange_cycle` / `"coordinators can delete exchange cycles"` (DELETE)**: Authenticated users with a coordinator profile may permanently delete exchange cycles. Linked student nominations are removed by the foreign-key cascade.
+* **`exchange_cycle` / `"Users can read exchange cycles"` (SELECT)**: Authenticated KU students, incoming students, coordinators, and KU coordinators can read cycle dates so the portal can check the application window for a nomination.

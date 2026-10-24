@@ -61,6 +61,8 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 | Inbound Student Exchange Application [#34](https://github.com/isom472-fall2026/team2/issues/34) | Copilot SDK in VS Code | 110K tokens | Outbound application flow as a reference, inbound application fields, and `db/schemanew.sql` | Verify the nomination-to-submission flow with an authenticated incoming-student account. |
 | Incoming student can export their application as a PDF [#93](https://github.com/isom472-fall2026/team2/issues/93) | Copilot SDK in VS Code | 73K tokens because new pdf visualizing package was added | Inbound application summary and submitted documents; outbound PDF implementation as a reference | Test the generated PDF with real submitted attachments and an authenticated account. |
 | Incoming student applications are saved automatically [#92](https://github.com/isom472-fall2026/team2/issues/92) | Copilot SDK in VS Code | 14K tokens | Inbound application form, draft-saving flow, and `db/schemanew.sql` | Test draft save, reload, and coordinator visibility with authenticated accounts. |
+| KU student requests to withdraw their application [#109](https://github.com/isom472-fall2026/team2/issues/109) | GPT Luna and Mais-code agent | 72.2K Tokens | Outboundapplication and coordinator | None |
+| KU student requests to withdraw their application [#87](https://github.com/isom472-fall2026/team2/issues/87) | GPT Luna | 69.12K Tokens | inboundapplication and coordinator | None |
 |  |  |  |  |  |
 
 ## Phase 4

@@ -201,7 +201,7 @@ function FileField({ label, name, value, onUpload, uploading, required = false, 
   )
 }
 
-function InboundApplicationReceipt({ application, studentId, countries, cycles, universities, onBack }) {
+function InboundApplicationReceipt({ application, studentId, countries, cycles, universities, onBack, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal }) {
   const [uploadedPages, setUploadedPages] = useState([])
   const [documentsError, setDocumentsError] = useState('')
   const [documentsLoading, setDocumentsLoading] = useState(true)
@@ -403,6 +403,8 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
       )}
       {documentsLoading && <p role="status">Preparing uploaded documents…</p>}
       {documentsError && <p className="outbound-application__error" role="alert">{documentsError}</p>}
+      {withdrawalState.error && <p className="outbound-application__error" role="alert">{withdrawalState.error}</p>}
+      {withdrawalState.message && <p className="outbound-application__message" role="status">{withdrawalState.message}</p>}
       {viewingPage && (
         <div className="outbound-receipt__viewer-backdrop" onClick={() => setViewingPage(null)}>
           <section
@@ -421,6 +423,36 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
         </div>
       )}
       <div className="outbound-receipt__actions">
+        {['Submitted', 'Pending Interview'].includes(application.application_status) && (
+          <div className="outbound-receipt__withdrawal">
+            {!isConfirmingWithdrawal ? (
+              <button className="btn btn--danger" type="button" onClick={onRequestWithdrawal} disabled={withdrawalState.loading}>
+                Request withdrawal
+              </button>
+            ) : (
+              <>
+                <label className="outbound-receipt__withdrawal-label" htmlFor="inbound-withdrawal-reason">
+                  Reason for withdrawal <span>(optional)</span>
+                </label>
+                <textarea
+                  id="inbound-withdrawal-reason"
+                  value={withdrawalReason}
+                  onChange={onWithdrawalReasonChange}
+                  placeholder="Share a short reason for your request..."
+                  rows="3"
+                />
+                <div className="outbound-receipt__withdrawal-actions">
+                  <button className="btn btn--danger" type="button" onClick={onRequestWithdrawal} disabled={withdrawalState.loading}>
+                    {withdrawalState.loading ? 'Requesting withdrawal...' : 'Confirm withdrawal'}
+                  </button>
+                  <button className="btn btn--secondary" type="button" onClick={onCancelWithdrawal} disabled={withdrawalState.loading}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {application.application_status !== 'Draft' && (
           <button
             className="btn btn--primary"
@@ -448,6 +480,9 @@ function InboundApplication({ user }) {
   const [submittedApplication, setSubmittedApplication] = useState(null)
   const [receiptError, setReceiptError] = useState('')
   const [receiptLoading, setReceiptLoading] = useState(false)
+  const [withdrawalState, setWithdrawalState] = useState({ loading: false, error: '', message: '' })
+  const [withdrawalReason, setWithdrawalReason] = useState('')
+  const [isConfirmingWithdrawal, setIsConfirmingWithdrawal] = useState(false)
   const [nomination, setNomination] = useState(null)
   const [nominationInput, setNominationInput] = useState('')
   const [form, setForm] = useState(emptyForm)
@@ -474,6 +509,29 @@ function InboundApplication({ user }) {
   const canSubmit = acceptedTerms.every(Boolean)
   const openCycles = useMemo(() => cycles.filter(isCycleOpen), [cycles])
   const birthdateError = getBirthdateError(form.birthdate)
+
+  const requestWithdrawal = async () => {
+    if (!submittedApplication || !['Submitted', 'Pending Interview'].includes(submittedApplication.application_status)) return
+    if (!isConfirmingWithdrawal) {
+      setIsConfirmingWithdrawal(true)
+      return
+    }
+    setWithdrawalState({ loading: true, error: '', message: '' })
+    const { data, error: withdrawalError } = await supabase.rpc('request_inbound_withdrawal', {
+      requested_application_id: Number(submittedApplication.application_id),
+      requested_reason: withdrawalReason,
+    })
+    if (withdrawalError || !data) {
+      setWithdrawalState({ loading: false, error: getDatabaseErrorMessage(withdrawalError), message: '' })
+      return
+    }
+    setSubmittedApplication(data)
+    setApplications((current) => current.map((item) => item.application_id === data.application_id
+      ? { ...item, application_status: data.application_status }
+      : item))
+    setIsConfirmingWithdrawal(false)
+    setWithdrawalState({ loading: false, error: '', message: 'Withdrawal requested. The coordinator will review it.' })
+  }
 
   useEffect(() => {
     const pageContent = pageContentRef.current
@@ -1313,6 +1371,16 @@ function InboundApplication({ user }) {
       cycles={cycles}
       universities={universities}
       onBack={() => navigate('/portal/inbound-application')}
+      onRequestWithdrawal={requestWithdrawal}
+      withdrawalState={withdrawalState}
+      withdrawalReason={withdrawalReason}
+      isConfirmingWithdrawal={isConfirmingWithdrawal}
+      onWithdrawalReasonChange={(event) => setWithdrawalReason(event.target.value)}
+      onCancelWithdrawal={() => {
+        setIsConfirmingWithdrawal(false)
+        setWithdrawalReason('')
+        setWithdrawalState({ loading: false, error: '', message: '' })
+      }}
     />
   ) : (
     <section className="outbound-receipt">

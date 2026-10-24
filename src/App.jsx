@@ -454,6 +454,9 @@ function validateCycleForm(form) {
     ['applications', form.applicationOpen, form.applicationClose],
     ['exchange cycle', form.cycleStart, form.cycleEnd],
   ]
+  if (dates.some(([, open, close]) => !open || !close || Number.isNaN(new Date(open).getTime()) || Number.isNaN(new Date(close).getTime()))) {
+    return 'Enter valid opening and closing dates for every cycle stage.'
+  }
   return dates.some(([, open, close]) => new Date(open) >= new Date(close))
     ? 'Each opening or start date must be before its closing or end date.'
     : ''
@@ -555,6 +558,8 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
   const [cycleForm, setCycleForm] = useState(emptyCycleForm)
   const [cycles, setCycles] = useState([])
   const [coordinators, setCoordinators] = useState([])
+  const [withdrawalRequests, setWithdrawalRequests] = useState([])
+  const [isLoadingWithdrawals, setIsLoadingWithdrawals] = useState(isKuCoordinator)
   const [partnerUniversities, setPartnerUniversities] = useState([])
   const [isLoadingCoordinators, setIsLoadingCoordinators] = useState(isKuCoordinator)
   const [editingCycleId, setEditingCycleId] = useState(null)
@@ -665,6 +670,50 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       isCurrent = false
     }
   }, [profile.coordinator_id, isKuCoordinator])
+
+  useEffect(() => {
+    if (!isKuCoordinator) return undefined
+    let isCurrent = true
+    Promise.all([
+      supabase
+        .from('outboundapplication')
+        .select('application_id, application_status, withdrawal_reason, withdrawal_previous_status, status_updated_at, student:kustudentauth(name, student_email)')
+        .eq('application_status', 'Withdrawal Requested')
+        .order('status_updated_at', { ascending: false }),
+      supabase
+        .from('inboundapplication')
+        .select('application_id, application_status, withdrawal_reason, withdrawal_previous_status, status_updated_at, student:incomingstudentauth(name, student_email)')
+        .eq('application_status', 'Withdrawal Requested')
+        .order('status_updated_at', { ascending: false }),
+    ]).then(([outboundResult, inboundResult]) => {
+      if (!isCurrent) return
+      const requestError = outboundResult.error || inboundResult.error
+      if (requestError) setStatus({ error: getDatabaseErrorMessage(requestError), message: '' })
+      else setWithdrawalRequests([
+        ...(outboundResult.data || []).map((item) => ({ ...item, application_type: 'outbound' })),
+        ...(inboundResult.data || []).map((item) => ({ ...item, application_type: 'inbound' })),
+      ].sort((left, right) => new Date(right.status_updated_at) - new Date(left.status_updated_at)))
+      setIsLoadingWithdrawals(false)
+    })
+    return () => { isCurrent = false }
+  }, [isKuCoordinator])
+
+  const reviewWithdrawal = async (application, approveRequest) => {
+    setStatus({ error: '', message: '' })
+    const { data, error } = await supabase.rpc(application.application_type === 'inbound'
+      ? 'review_inbound_withdrawal'
+      : 'review_outbound_withdrawal', {
+      requested_application_id: Number(application.application_id),
+      approve_request: approveRequest,
+    })
+    if (error || !data) {
+      setStatus({ error: getDatabaseErrorMessage(error), message: '' })
+      return
+    }
+    setWithdrawalRequests((current) => current.filter((item) => item.application_id !== data.application_id))
+    setStatus({ error: '', message: approveRequest ? 'Withdrawal approved.' : 'Withdrawal rejected and the previous status was restored.' })
+    setToastId((currentId) => currentId + 1)
+  }
 
   const updateCoordinatorAccess = async (coordinator, isAccepted) => {
     setStatus({ error: '', message: '' })
@@ -1065,7 +1114,10 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
         <p className="portal-sidebar__welcome">Welcome, {profile.name}</p>
         <nav className="portal-sidebar__nav">
           {isKuCoordinator && (
-            <button className={activeView === 'start' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('start')}>
+            <button className={activeView === 'start' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => {
+              setStatus({ error: '', message: '' })
+              setActiveView('start')
+            }}>
               <span aria-hidden="true">＋</span> Start exchange cycle
             </button>
           )}
@@ -1075,6 +1127,11 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
           <button className={activeView === 'nominations' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('nominations')}>
             <span aria-hidden="true">◌</span> Student nominations
           </button>
+          {isKuCoordinator && (
+            <button className={activeView === 'withdrawals' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('withdrawals')}>
+              <span aria-hidden="true">↩</span> Withdrawal requests
+            </button>
+          )}
           {isKuCoordinator && (
             <button className={activeView === 'coordinators' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('coordinators')}>
               <span aria-hidden="true">♙</span> Coordinator access
@@ -1173,6 +1230,35 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
                 ))}
               </ul>
             )}
+          </>
+        )}
+        {isKuCoordinator && activeView === 'withdrawals' && (
+          <>
+            <span className="auth-card__eyebrow">Application review</span>
+            <h2 id="portal-heading">Withdrawal requests</h2>
+            <p>Review requests from KU students and decide whether to approve them.</p>
+            {isLoadingWithdrawals ? <p role="status">Loading withdrawal requests...</p>
+              : withdrawalRequests.length === 0 ? <div className="portal-empty-state">No withdrawal requests are waiting for review.</div> : (
+                <div className="cycle-list">
+                  {withdrawalRequests.map((application) => (
+                    <article className="cycle-list__item" key={application.application_id}>
+                      <div className="cycle-list__heading">
+                        <strong>Application #{application.application_id}</strong>
+                        <span>{application.application_type === 'inbound' ? 'Incoming' : 'Outbound'} · {application.student?.name || application.student?.student_email || 'Student'}</span>
+                      </div>
+                      <dl>
+                        <div><dt>Previous status</dt><dd>{application.withdrawal_previous_status}</dd></div>
+                        <div><dt>Reason</dt><dd>{application.withdrawal_reason || 'No reason provided'}</dd></div>
+                        <div><dt>Requested</dt><dd>{application.status_updated_at ? new Date(application.status_updated_at).toLocaleString() : 'Unknown'}</dd></div>
+                      </dl>
+                      <div className="cycle-list__actions">
+                        <button className="btn btn--primary" type="button" onClick={() => reviewWithdrawal(application, true)}>Approve withdrawal</button>
+                        <button className="btn btn--secondary" type="button" onClick={() => reviewWithdrawal(application, false)}>Reject withdrawal</button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
           </>
         )}
         {(activeView === 'nominations' || activeView === 'cycle-nominations') && (

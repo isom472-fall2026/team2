@@ -30,12 +30,10 @@ the story ID, the title, who built it, and what happened to it.
 
 
 ## Phase 3 — saved 21 October
-
 | Story | Title | Who | State at the tag |
 |---|---|---|---|
-| #32 | Start Student Exchange Application | Fatma | Done |
-| #74 | KU Student exports their submitted outgoing application as a PDF | Fatma | Done |
-| #77 | KU Student’s application changes are saved automatically | Fatma | Done |
+|  |  |  |  |
+
 
 ## Phase 4 — saved 4 November
 

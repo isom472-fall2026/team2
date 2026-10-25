@@ -1,7 +1,28 @@
 # Scope changes
 
-Requests that add work beyond proposal §6 are recorded here. A request remains
-pending until its decision, approver, and decision date are recorded.
+Requests that add work beyond proposal §6 follow this process:
+
+1. Ask the client first and get the answer in writing, such as a message, email, or
+   meeting notes the client confirms. Do not treat a request as approved without this
+   evidence.
+2. Add a **Scope change** section to the issue recording who asked or agreed and when,
+   which persona benefits and what problem the change solves, and a link to the client's
+   written answer.
+3. State what the change replaces by naming the story it pushes down or out. If nothing
+   moves, explain why the team still has capacity.
+4. Once the written evidence and replacement decision are recorded, add one row for the
+   story to the approved scope change log below.
+
+## Approved scope change log
+
+| Date | Issue | Client evidence (link) | Replaces |
+|---|---|---|---|
+
+## Pending requests
+
+These requests have no client evidence or replacement decision recorded here. They are
+not approved scope changes; complete the process above before adding them to the approved
+log.
 
 | Recorded | Issue | Proposed scope change | Status | Decision / approver / date |
 |---|---|---|---|---|

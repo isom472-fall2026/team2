@@ -591,6 +591,19 @@ FOR SELECT
 TO authenticated
 USING (user_id = auth.uid());
 
+CREATE POLICY "KU coordinators can read KU students with applications"
+ON public.kustudentauth
+FOR SELECT
+TO authenticated
+USING (
+    public.is_ku_coordinator()
+    AND EXISTS (
+        SELECT 1
+        FROM public.outboundapplication AS application
+        WHERE application.student_id = kustudentauth.student_id
+    )
+);
+
 CREATE POLICY "Users can register their KU student profile"
 ON public.kustudentauth
 FOR INSERT
@@ -611,6 +624,19 @@ ON public.incomingstudentauth
 FOR SELECT
 TO authenticated
 USING (user_id = auth.uid());
+
+CREATE POLICY "KU coordinators can read incoming students with applications"
+ON public.incomingstudentauth
+FOR SELECT
+TO authenticated
+USING (
+    public.is_ku_coordinator()
+    AND EXISTS (
+        SELECT 1
+        FROM public.inboundapplication AS application
+        WHERE application.student_id = incomingstudentauth.student_id
+    )
+);
 
 CREATE POLICY "Users can register their incoming student profile"
 ON public.incomingstudentauth
@@ -759,6 +785,12 @@ ON public.inboundapplication
 FOR SELECT
 TO authenticated
 USING (public.is_ku_coordinator() AND application_status <> 'Draft');
+
+CREATE POLICY "KU coordinators can read inbound application drafts"
+ON public.inboundapplication
+FOR SELECT
+TO authenticated
+USING (public.is_ku_coordinator() AND application_status = 'Draft');
 
 CREATE POLICY "Incoming students can read their inbound applications"
 ON public.inboundapplication

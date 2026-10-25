@@ -5,8 +5,7 @@ whoever is free at the end.*
 
 ## What was delivered
 
-<!-- What works now that did not work at the start of the phase. Plain language, what a
-     user can do. Not a list of commits. -->
+KU students can now start an outbound exchange application, edit it over time, and have their work saved automatically without a separate Save button. Once the application is submitted, the student can download a PDF of the completed form, and the application is gated so only that student can open their own file.
 
 ## Who did what
 
@@ -14,7 +13,12 @@ whoever is free at the end.*
 
 | Name | Stories |
 |---|---|
-|  Fatma Alsammari  | #77 #74 #32 |
+| Almaha Alajmi | — |
+| Aysha Jan | — |
+| Rawan Abdrabou | — |
+| Hadi Haidar | — |
+| Yousef Almohammed | — |
+| Fatma Alsammari | #77 #74 #32 |
 
 ## Links to the stories
 
@@ -22,7 +26,9 @@ whoever is free at the end.*
 
 <!-- Link each story listed above to its issue. -->
 
-- #__ —
+- [#32](https://github.com/isom472-fall2026/team2/issues/32) — Start Student Exchange Application
+- [#74](https://github.com/isom472-fall2026/team2/issues/74) — KU Student exports their submitted outgoing application as a PDF
+- [#77](https://github.com/isom472-fall2026/team2/issues/77) — KU Student’s application changes are saved automatically
 
 ## The tag cut for this phase
 
@@ -33,5 +39,4 @@ whoever is free at the end.*
 
 ## Anything not finished, and where it went
 
-<!-- What was planned and was not finished, and what happened to it: moved to the next phase,
-     dropped, or replaced. Say which. -->
+Nothing was left unfinished in this phase. The three stories planned for the first working increment were delivered and included in the `phase-3` tag.

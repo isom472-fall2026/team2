@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-r
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
+import { useAppStore } from '../stores/appStore'
 import './OutboundApplication.css'
 
 const storageBucket = 'outbound-application-files'
@@ -808,7 +809,8 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
   )
 }
 
-function OutboundApplication({ user }) {
+function OutboundApplication() {
+  const user = useAppStore((state) => state.session?.user)
   const location = useLocation()
   const navigate = useNavigate()
   const [student, setStudent] = useState(null)

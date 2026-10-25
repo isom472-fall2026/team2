@@ -5,11 +5,13 @@ import Blog from './Blog'
 import VisaChecker from './components/VisaChecker'
 import OutboundApplication from './components/OutboundApplication'
 import InboundApplication from './components/InboundApplication'
+import CoordinatorApplications from './components/CoordinatorApplications'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
 import { supabase } from './supabase'
 import { getDatabaseErrorMessage } from './databaseErrors'
+import { useAppStore } from './stores/appStore'
 import './App.css'
 
 const authOptions = {
@@ -533,7 +535,11 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel,
   )
 }
 
-function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenanceMode, onToggleMaintenance, onRetryMaintenanceStatus }) {
+function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
+  const profile = useAppStore((state) => state.profile)
+  const userEmail = useAppStore((state) => state.session?.user.email)
+  const maintenanceMode = useAppStore((state) => state.maintenanceMode)
+  const setMaintenanceMode = useAppStore((state) => state.setMaintenanceMode)
   const profileEmailIsKu = profile.email?.trim().toLowerCase().endsWith('@ku.edu.kw')
   const authenticatedEmailIsKu = userEmail?.trim().toLowerCase().endsWith('@ku.edu.kw')
   const universityId = profile.university ?? profile.university_id
@@ -596,7 +602,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       setStatus({ error: '', message: '' })
       return
     }
-    onToggleMaintenance(data)
+    setMaintenanceMode(data)
     setStatus({
       error: '',
       message: nextMode ? 'Maintenance mode enabled. Visitors will see the maintenance page.' : 'Maintenance mode disabled. The website is live again.',
@@ -1128,6 +1134,11 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
             <span aria-hidden="true">◌</span> Student nominations
           </button>
           {isKuCoordinator && (
+            <button className={activeView === 'applications' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('applications')}>
+              <span aria-hidden="true">▤</span> Applications
+            </button>
+          )}
+          {isKuCoordinator && (
             <button className={activeView === 'withdrawals' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('withdrawals')}>
               <span aria-hidden="true">↩</span> Withdrawal requests
             </button>
@@ -1261,6 +1272,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
               )}
           </>
         )}
+        {isKuCoordinator && activeView === 'applications' && <CoordinatorApplications />}
         {(activeView === 'nominations' || activeView === 'cycle-nominations') && (
           <>
             <span className="auth-card__eyebrow">Student nominations</span>
@@ -1522,13 +1534,18 @@ function isKuCoordinatorProfile(profile, userEmail) {
   return Number(universityId) === 4 || profileEmailIsKu || authenticatedEmailIsKu
 }
 
-function ProtectedPortal({ user, profile, onSignOut, onDeleted, maintenanceMode, onToggleMaintenance, onRetryMaintenanceStatus }) {
+function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus }) {
+  const user = useAppStore((state) => state.session?.user)
+  const profile = useAppStore((state) => state.profile)
+
+  if (!user) return <Navigate to="/auth/signin" replace />
+
   if (profile?.role === 'coordinator') {
     const isKuCoordinator = isKuCoordinatorProfile(profile, user.email)
     if (!isKuCoordinator && profile.email_accepted !== true) {
       return <CoordinatorAccessPending user={user} onSignOut={onSignOut} onDeleted={onDeleted} />
     }
-    return <CoordinatorPortal profile={profile} userEmail={user.email} onDeleted={onDeleted} onSignOut={onSignOut} maintenanceMode={maintenanceMode} onToggleMaintenance={onToggleMaintenance} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
+    return <CoordinatorPortal onDeleted={onDeleted} onSignOut={onSignOut} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
   }
 
   return (
@@ -2408,18 +2425,23 @@ function TestStatusPage() {
 }
 
 function App() {
-  const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [theme, setTheme] = useState(() => localStorage.getItem('team2-theme') || 'light')
-  const [maintenanceMode, setMaintenanceMode] = useState(null)
-  const [maintenanceStatusError, setMaintenanceStatusError] = useState('')
+  const session = useAppStore((state) => state.session)
+  const profile = useAppStore((state) => state.profile)
+  const theme = useAppStore((state) => state.theme)
+  const maintenanceMode = useAppStore((state) => state.maintenanceMode)
+  const maintenanceStatusError = useAppStore((state) => state.maintenanceStatusError)
+  const setSession = useAppStore((state) => state.setSession)
+  const setProfile = useAppStore((state) => state.setProfile)
+  const setTheme = useAppStore((state) => state.setTheme)
+  const setMaintenanceMode = useAppStore((state) => state.setMaintenanceMode)
+  const setMaintenanceStatusError = useAppStore((state) => state.setMaintenanceStatusError)
 
   const refreshMaintenanceStatus = useCallback(async () => {
     setMaintenanceStatusError('')
     const result = await readMaintenanceMode()
     setMaintenanceMode(result.mode)
     setMaintenanceStatusError(result.error)
-  }, [])
+  }, [setMaintenanceMode, setMaintenanceStatusError])
 
   useEffect(() => {
     let isCurrent = true
@@ -2431,7 +2453,7 @@ function App() {
     return () => {
       isCurrent = false
     }
-  }, [])
+  }, [setMaintenanceMode, setMaintenanceStatusError])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -2471,7 +2493,7 @@ function App() {
     return () => {
       authListener.subscription.unsubscribe()
     }
-  }, [])
+  }, [setProfile, setSession])
 
   const signedInKuCoordinator = Boolean(
     session && profile && isKuCoordinatorProfile(profile, session.user.email),
@@ -2521,10 +2543,10 @@ function App() {
           <Route path="/auth/signup" element={maintenanceMode !== false ? <Navigate to="/auth/signin" replace /> : <AuthRoute mode="signup" />} />
           <Route path="/auth/signin" element={<AuthRoute mode="signin" coordinatorOnly={maintenanceMode !== false} />} />
           <Route path="/portal" element={
-            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} onDeleted={handleDeleted} maintenanceMode={maintenanceMode} onToggleMaintenance={setMaintenanceMode} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
+            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
           } />
-          <Route path="/portal/inbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <InboundApplication user={session.user} /> : <Navigate to="/auth/signin" replace />} />
-          <Route path="/portal/outbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <OutboundApplication user={session.user} /> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal/inbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <InboundApplication /> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal/outbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <OutboundApplication /> : <Navigate to="/auth/signin" replace />} />
           <Route path="/partners" element={renderPublicPage(<PartnerUniversitiesRoute />)} />
           <Route path="/blog" element={renderPublicPage(<Blog />)} />
           <Route path="/erd" element={renderPublicPage(<ErdPage />)} />
@@ -2538,13 +2560,14 @@ function App() {
 
 function AuthRoute({ mode, coordinatorOnly = false }) {
   const navigate = useNavigate()
-  const [type, setType] = useState('ku')
+  const type = useAppStore((state) => state.authType)
+  const setAuthType = useAppStore((state) => state.setAuthType)
 
   return (
     <AuthPage
       type={coordinatorOnly ? 'coordinator' : type}
       mode={mode}
-      onTypeChange={setType}
+      onTypeChange={setAuthType}
       onModeChange={(nextMode) => navigate(`/auth/${nextMode}`)}
       onAuthenticated={() => navigate('/portal')}
       coordinatorOnly={coordinatorOnly}

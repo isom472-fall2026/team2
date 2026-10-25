@@ -548,7 +548,7 @@ function TermsPage({ accepted, onChange }) {
   )
 }
 
-function ApplicationReceipt({ application, studentId, countries, cycles, universities, onDownload, onBack }) {
+function ApplicationReceipt({ application, studentId, countries, cycles, universities, onDownload, onBack, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal }) {
   const [uploadedPages, setUploadedPages] = useState([])
   const [imageError, setImageError] = useState('')
   const [documentsLoading, setDocumentsLoading] = useState(true)
@@ -749,6 +749,8 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
       )}
       {imageError && <p className="outbound-application__error" role="alert">{imageError}</p>}
       {documentsLoading && <p role="status">Preparing uploaded documents…</p>}
+      {withdrawalState.error && <p className="outbound-application__error" role="alert">{withdrawalState.error}</p>}
+      {withdrawalState.message && <p className="outbound-application__message" role="status">{withdrawalState.message}</p>}
       {viewingImage && (
         <div className="outbound-receipt__viewer-backdrop" onClick={() => setViewingImage(null)}>
           <section
@@ -767,6 +769,36 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
         </div>
       )}
       <div className="outbound-receipt__actions">
+        {['Submitted', 'Pending Interview'].includes(application.application_status) && (
+          <div className="outbound-receipt__withdrawal">
+            {!isConfirmingWithdrawal ? (
+              <button className="btn btn--danger" type="button" onClick={onRequestWithdrawal} disabled={withdrawalState.loading}>
+                Request withdrawal
+              </button>
+            ) : (
+              <>
+                <label className="outbound-receipt__withdrawal-label" htmlFor="withdrawal-reason">
+                  Reason for withdrawal <span>(optional)</span>
+                </label>
+                <textarea
+                  id="withdrawal-reason"
+                  value={withdrawalReason}
+                  onChange={onWithdrawalReasonChange}
+                  placeholder="Share a short reason for your request..."
+                  rows="3"
+                />
+                <div className="outbound-receipt__withdrawal-actions">
+                  <button className="btn btn--danger" type="button" onClick={onRequestWithdrawal} disabled={withdrawalState.loading}>
+                    {withdrawalState.loading ? 'Requesting withdrawal...' : 'Confirm withdrawal'}
+                  </button>
+                  <button className="btn btn--secondary" type="button" onClick={onCancelWithdrawal} disabled={withdrawalState.loading}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <button className="btn btn--primary" type="button" onClick={handleDownload} disabled={documentsLoading || Boolean(imageError)}>
           Download PDF
         </button>
@@ -786,6 +818,9 @@ function OutboundApplication({ user }) {
   const [applications, setApplications] = useState([])
   const [submittedApplication, setSubmittedApplication] = useState(null)
   const [receiptError, setReceiptError] = useState('')
+  const [withdrawalState, setWithdrawalState] = useState({ loading: false, error: '', message: '' })
+  const [withdrawalReason, setWithdrawalReason] = useState('')
+  const [isConfirmingWithdrawal, setIsConfirmingWithdrawal] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [editedPersonalFields, setEditedPersonalFields] = useState({})
   const [personalFieldErrors, setPersonalFieldErrors] = useState({})
@@ -812,6 +847,29 @@ function OutboundApplication({ user }) {
     ? wizardSegments[0]
     : null
   const activeStep = routeStep >= 0 ? routeStep : step
+
+  const requestWithdrawal = async () => {
+    if (!submittedApplication || !['Submitted', 'Pending Interview'].includes(submittedApplication.application_status)) return
+    if (!isConfirmingWithdrawal) {
+      setIsConfirmingWithdrawal(true)
+      return
+    }
+    setWithdrawalState({ loading: true, error: '', message: '' })
+    const { data, error: withdrawalError } = await supabase.rpc('request_outbound_withdrawal', {
+      requested_application_id: Number(submittedApplication.application_id),
+      requested_reason: withdrawalReason,
+    })
+    if (withdrawalError || !data) {
+      setWithdrawalState({ loading: false, error: getDatabaseErrorMessage(withdrawalError), message: '' })
+      return
+    }
+    setSubmittedApplication(data)
+    setApplications((current) => current.map((item) => item.application_id === data.application_id
+      ? { ...item, application_status: data.application_status }
+      : item))
+    setIsConfirmingWithdrawal(false)
+    setWithdrawalState({ loading: false, error: '', message: 'Withdrawal requested. The coordinator will review it.' })
+  }
 
   useEffect(() => {
     const pageContent = pageContentRef.current
@@ -1668,6 +1726,16 @@ function OutboundApplication({ user }) {
       universities={universities}
       onDownload={() => window.print()}
       onBack={() => navigate('/portal/outbound-application')}
+      onRequestWithdrawal={requestWithdrawal}
+      withdrawalState={withdrawalState}
+      withdrawalReason={withdrawalReason}
+      isConfirmingWithdrawal={isConfirmingWithdrawal}
+      onWithdrawalReasonChange={(event) => setWithdrawalReason(event.target.value)}
+      onCancelWithdrawal={() => {
+        setIsConfirmingWithdrawal(false)
+        setWithdrawalReason('')
+        setWithdrawalState({ loading: false, error: '', message: '' })
+      }}
     />
   ) : (
     <section className="outbound-receipt" aria-live="polite">

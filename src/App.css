@@ -720,6 +720,53 @@ svg { display: block; flex-shrink: 0; }
 .auth-form button:disabled { cursor: wait; opacity: 0.65; }
 .auth-form__error { color: #ff8f9d; font-size: 0.85rem; }
 
+.session-ended-message {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg-card-alt);
+  font-size: 0.9rem;
+}
+
+.inactivity-warning__backdrop {
+  position: fixed;
+  z-index: 500;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.inactivity-warning {
+  width: min(100%, 460px);
+  padding: 28px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+  background: var(--bg-card-alt);
+  box-shadow: var(--glow-card);
+}
+
+.inactivity-warning h2 {
+  margin: 8px 0 12px;
+  color: var(--text-strong);
+  font-size: 1.45rem;
+}
+
+.inactivity-warning p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.inactivity-warning__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 22px;
+}
+
 .success-toast {
   position: fixed;
   z-index: 200;
@@ -1111,6 +1158,18 @@ svg { display: block; flex-shrink: 0; }
   font-size: 0.78rem;
 }
 
+.withdrawal-review-details summary {
+  width: fit-content;
+  color: var(--neon);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.withdrawal-review-details[open] summary {
+  margin-bottom: 14px;
+}
+
 .cycle-list dl {
   display: grid;
   gap: 8px;
@@ -1368,6 +1427,29 @@ svg { display: block; flex-shrink: 0; }
   color: var(--text-strong);
   font-size: 0.86rem;
   font-weight: 600;
+}
+
+.progress-filter {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 360px);
+  margin: 24px 0 16px;
+}
+
+.progress-filter label {
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.progress-filter select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: rgba(3, 8, 15, 0.7);
+  font: inherit;
 }
 
 .nomination-table-wrap {

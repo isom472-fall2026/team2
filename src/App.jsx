@@ -5,11 +5,14 @@ import Blog from './Blog'
 import VisaChecker from './components/VisaChecker'
 import OutboundApplication from './components/OutboundApplication'
 import InboundApplication from './components/InboundApplication'
+import CoordinatorApplications from './components/CoordinatorApplications'
+import CoordinatorAccountSettings, { CoordinatorPasswordPage } from './components/CoordinatorAccount'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
 import { supabase } from './supabase'
 import { getDatabaseErrorMessage } from './databaseErrors'
+import { useAppStore } from './stores/appStore'
 import './App.css'
 
 const authOptions = {
@@ -129,7 +132,7 @@ function MaintenanceStatusUnavailable({ error, onRetry }) {
   )
 }
 
-function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coordinatorOnly = false }) {
+function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coordinatorOnly = false, sessionEndedMessage = '' }) {
   const options = authOptions[type]
   const isSignUp = mode === 'signup'
   const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '', university: '' })
@@ -306,6 +309,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
         <p className="auth-card__description">
           {coordinatorOnly ? 'Sign in to disable maintenance mode and restore public access.' : options.description}
         </p>
+        {sessionEndedMessage && <p className="session-ended-message" role="status">{sessionEndedMessage}</p>}
         {!coordinatorOnly && (
           <fieldset className="auth-type-choice">
             <legend>User type</legend>
@@ -533,7 +537,11 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel,
   )
 }
 
-function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenanceMode, onToggleMaintenance, onRetryMaintenanceStatus }) {
+function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
+  const profile = useAppStore((state) => state.profile)
+  const userEmail = useAppStore((state) => state.session?.user.email)
+  const maintenanceMode = useAppStore((state) => state.maintenanceMode)
+  const setMaintenanceMode = useAppStore((state) => state.setMaintenanceMode)
   const profileEmailIsKu = profile.email?.trim().toLowerCase().endsWith('@ku.edu.kw')
   const authenticatedEmailIsKu = userEmail?.trim().toLowerCase().endsWith('@ku.edu.kw')
   const universityId = profile.university ?? profile.university_id
@@ -542,6 +550,10 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
     || authenticatedEmailIsKu
   const [nominations, setNominations] = useState([])
   const [isLoadingNominations, setIsLoadingNominations] = useState(true)
+  const [applicationStatuses, setApplicationStatuses] = useState({})
+  const [isLoadingProgress, setIsLoadingProgress] = useState(!isKuCoordinator)
+  const [progressError, setProgressError] = useState('')
+  const [progressCycle, setProgressCycle] = useState('all')
   const [editingNominationId, setEditingNominationId] = useState(null)
   const [nominationEditForm, setNominationEditForm] = useState({
     studentName: '',
@@ -560,6 +572,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
   const [coordinators, setCoordinators] = useState([])
   const [withdrawalRequests, setWithdrawalRequests] = useState([])
   const [isLoadingWithdrawals, setIsLoadingWithdrawals] = useState(isKuCoordinator)
+  const [reviewingWithdrawalKey, setReviewingWithdrawalKey] = useState(null)
   const [partnerUniversities, setPartnerUniversities] = useState([])
   const [isLoadingCoordinators, setIsLoadingCoordinators] = useState(isKuCoordinator)
   const [editingCycleId, setEditingCycleId] = useState(null)
@@ -596,7 +609,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       setStatus({ error: '', message: '' })
       return
     }
-    onToggleMaintenance(data)
+    setMaintenanceMode(data)
     setStatus({
       error: '',
       message: nextMode ? 'Maintenance mode enabled. Visitors will see the maintenance page.' : 'Maintenance mode disabled. The website is live again.',
@@ -627,9 +640,45 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
       if (!isKuCoordinator) nominationsQuery = nominationsQuery.eq('coordinator_id', profile.coordinator_id)
       const { data, error } = await nominationsQuery.order('created_at', { ascending: false })
       if (!isCurrent) return
-      if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
-      else setNominations(data || [])
+      if (error) {
+        const errorMessage = getDatabaseErrorMessage(error)
+        setStatus({ error: errorMessage, message: '' })
+        if (!isKuCoordinator) setProgressError(errorMessage)
+        setIsLoadingProgress(false)
+        setIsLoadingNominations(false)
+        return
+      }
+
+      const loadedNominations = data || []
+      setNominations(loadedNominations)
       setIsLoadingNominations(false)
+
+      if (isKuCoordinator || loadedNominations.length === 0) {
+        setApplicationStatuses({})
+        setProgressError('')
+        setIsLoadingProgress(false)
+        return
+      }
+
+      const { data: applications, error: applicationError } = await supabase
+        .from('inboundapplication')
+        .select('nomination_id, application_status')
+        .in('nomination_id', loadedNominations.map(({ id }) => id))
+      if (!isCurrent) return
+
+      if (applicationError) {
+        setProgressError(getDatabaseErrorMessage(applicationError))
+        setApplicationStatuses({})
+      } else {
+        setProgressError('')
+        setApplicationStatuses(Object.fromEntries(
+          (applications || []).map(({ nomination_id, application_status }) => [
+            nomination_id,
+            application_status,
+          ]),
+        ))
+      }
+      setIsLoadingProgress(false)
     }
     loadNominations()
 
@@ -677,12 +726,12 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
     Promise.all([
       supabase
         .from('outboundapplication')
-        .select('application_id, application_status, withdrawal_reason, withdrawal_previous_status, status_updated_at, student:kustudentauth(name, student_email)')
+        .select('application_id, student_id, semester_applied_for, university_id, submitted_at, application_status, withdrawal_reason, withdrawal_previous_status, status_updated_at, student:kustudentauth(name, student_email)')
         .eq('application_status', 'Withdrawal Requested')
         .order('status_updated_at', { ascending: false }),
       supabase
         .from('inboundapplication')
-        .select('application_id, application_status, withdrawal_reason, withdrawal_previous_status, status_updated_at, student:incomingstudentauth(name, student_email)')
+        .select('application_id, student_id, semester_applied_for, university_id, submitted_at, application_status, withdrawal_reason, withdrawal_previous_status, status_updated_at, student:incomingstudentauth(name, student_email)')
         .eq('application_status', 'Withdrawal Requested')
         .order('status_updated_at', { ascending: false }),
     ]).then(([outboundResult, inboundResult]) => {
@@ -699,18 +748,29 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
   }, [isKuCoordinator])
 
   const reviewWithdrawal = async (application, approveRequest) => {
+    const withdrawalKey = `${application.application_type}-${application.application_id}`
+    if (reviewingWithdrawalKey) return
+
     setStatus({ error: '', message: '' })
+    setReviewingWithdrawalKey(withdrawalKey)
     const { data, error } = await supabase.rpc(application.application_type === 'inbound'
       ? 'review_inbound_withdrawal'
       : 'review_outbound_withdrawal', {
       requested_application_id: Number(application.application_id),
       approve_request: approveRequest,
     })
+    setReviewingWithdrawalKey(null)
     if (error || !data) {
-      setStatus({ error: getDatabaseErrorMessage(error), message: '' })
+      setStatus({
+        error: error ? getDatabaseErrorMessage(error) : 'The withdrawal request was not updated. It may already have been reviewed.',
+        message: '',
+      })
       return
     }
-    setWithdrawalRequests((current) => current.filter((item) => item.application_id !== data.application_id))
+    setWithdrawalRequests((current) => current.filter((item) => (
+      item.application_type !== application.application_type
+      || Number(item.application_id) !== Number(data.application_id)
+    )))
     setStatus({ error: '', message: approveRequest ? 'Withdrawal approved.' : 'Withdrawal rejected and the previous status was restored.' })
     setToastId((currentId) => currentId + 1)
   }
@@ -1015,6 +1075,9 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
   const visibleNominations = activeView === 'cycle-nominations' && selectedNominationCycle
     ? nominations.filter(({ semester }) => Number(semester) === Number(selectedNominationCycle.id))
     : nominations
+  const visibleProgressNominations = progressCycle === 'all'
+    ? nominations
+    : nominations.filter(({ semester }) => Number(semester) === Number(progressCycle))
 
   return (
     <div className="portal-dashboard portal-dashboard--coordinator">
@@ -1127,6 +1190,19 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
           <button className={activeView === 'nominations' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('nominations')}>
             <span aria-hidden="true">◌</span> Student nominations
           </button>
+          <button className={activeView === 'account' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('account')}>
+            <span aria-hidden="true">♙</span> My account
+          </button>
+          {!isKuCoordinator && (
+            <button className={activeView === 'progress' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('progress')}>
+              <span aria-hidden="true">▤</span> Nominee progress
+            </button>
+          )}
+          {isKuCoordinator && (
+            <button className={activeView === 'applications' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('applications')}>
+              <span aria-hidden="true">▤</span> Applications
+            </button>
+          )}
           {isKuCoordinator && (
             <button className={activeView === 'withdrawals' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('withdrawals')}>
               <span aria-hidden="true">↩</span> Withdrawal requests
@@ -1151,6 +1227,7 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
         </div>
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
+        {activeView === 'account' && <CoordinatorAccountSettings profile={profile} />}
         {isKuCoordinator && activeView === 'start' && (
           <>
             <span className="auth-card__eyebrow">New cycle</span>
@@ -1236,30 +1313,120 @@ function CoordinatorPortal({ profile, userEmail, onDeleted, onSignOut, maintenan
           <>
             <span className="auth-card__eyebrow">Application review</span>
             <h2 id="portal-heading">Withdrawal requests</h2>
-            <p>Review requests from KU students and decide whether to approve them.</p>
+            <p>Review withdrawal requests from students and decide whether to approve them.</p>
+            {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
             {isLoadingWithdrawals ? <p role="status">Loading withdrawal requests...</p>
               : withdrawalRequests.length === 0 ? <div className="portal-empty-state">No withdrawal requests are waiting for review.</div> : (
                 <div className="cycle-list">
-                  {withdrawalRequests.map((application) => (
-                    <article className="cycle-list__item" key={application.application_id}>
-                      <div className="cycle-list__heading">
-                        <strong>Application #{application.application_id}</strong>
-                        <span>{application.application_type === 'inbound' ? 'Incoming' : 'Outbound'} · {application.student?.name || application.student?.student_email || 'Student'}</span>
-                      </div>
-                      <dl>
-                        <div><dt>Previous status</dt><dd>{application.withdrawal_previous_status}</dd></div>
-                        <div><dt>Reason</dt><dd>{application.withdrawal_reason || 'No reason provided'}</dd></div>
-                        <div><dt>Requested</dt><dd>{application.status_updated_at ? new Date(application.status_updated_at).toLocaleString() : 'Unknown'}</dd></div>
-                      </dl>
-                      <div className="cycle-list__actions">
-                        <button className="btn btn--primary" type="button" onClick={() => reviewWithdrawal(application, true)}>Approve withdrawal</button>
-                        <button className="btn btn--secondary" type="button" onClick={() => reviewWithdrawal(application, false)}>Reject withdrawal</button>
-                      </div>
-                    </article>
-                  ))}
+                  {withdrawalRequests.map((application) => {
+                    const withdrawalKey = `${application.application_type}-${application.application_id}`
+                    const cycle = semesters.find(({ id }) => Number(id) === Number(application.semester_applied_for))
+                    const university = partnerUniversities.find(
+                      ({ university_id }) => Number(university_id) === Number(application.university_id),
+                    )
+                    return (
+                      <article className="cycle-list__item" key={withdrawalKey}>
+                        <div className="cycle-list__heading">
+                          <strong>{application.application_type === 'inbound' ? 'Inbound' : 'Outbound'} application #{application.application_id}</strong>
+                          <span>{application.student?.name || 'Student name unavailable'}</span>
+                        </div>
+                        <details className="withdrawal-review-details">
+                          <summary>Review request details</summary>
+                          <dl>
+                            <div><dt>Student email</dt><dd>{application.student?.student_email || 'Unavailable'}</dd></div>
+                            <div><dt>Student ID</dt><dd>{application.student_id || 'Unavailable'}</dd></div>
+                            <div><dt>Application status</dt><dd>{application.application_status}</dd></div>
+                            <div><dt>Previous status</dt><dd>{application.withdrawal_previous_status || 'Unavailable'}</dd></div>
+                            <div><dt>Exchange cycle</dt><dd>{cycle ? `${cycle.semester} ${cycle.academic_year}` : `Cycle #${application.semester_applied_for || 'Unavailable'}`}</dd></div>
+                            <div><dt>Destination university</dt><dd>{university?.name || 'Unavailable'}</dd></div>
+                            <div><dt>Submitted</dt><dd>{formatCycleDate(application.submitted_at)}</dd></div>
+                            <div><dt>Withdrawal reason</dt><dd>{application.withdrawal_reason || 'No reason provided'}</dd></div>
+                            <div><dt>Requested</dt><dd>{formatCycleDate(application.status_updated_at)}</dd></div>
+                          </dl>
+                          <div className="cycle-list__actions">
+                            <button
+                              className="btn btn--primary"
+                              type="button"
+                              onClick={() => reviewWithdrawal(application, true)}
+                              disabled={reviewingWithdrawalKey !== null}
+                            >
+                              {reviewingWithdrawalKey === withdrawalKey ? 'Processing...' : 'Approve withdrawal'}
+                            </button>
+                            <button
+                              className="btn btn--secondary"
+                              type="button"
+                              onClick={() => reviewWithdrawal(application, false)}
+                              disabled={reviewingWithdrawalKey !== null}
+                            >
+                              Reject withdrawal
+                            </button>
+                          </div>
+                        </details>
+                      </article>
+                    )
+                  })}
                 </div>
               )}
           </>
+        )}
+        {isKuCoordinator && activeView === 'applications' && <CoordinatorApplications />}
+        {!isKuCoordinator && activeView === 'progress' && (
+          <section aria-labelledby="progress-heading">
+            <span className="auth-card__eyebrow">Nomination tracking</span>
+            <h2 id="progress-heading">Nominee application progress</h2>
+            <p>Track application status for students you nominated.</p>
+            <div className="progress-filter">
+              <label htmlFor="progress-cycle">Exchange cycle</label>
+              <select
+                id="progress-cycle"
+                value={progressCycle}
+                onChange={(event) => setProgressCycle(event.target.value)}
+              >
+                <option value="all">All cycles</option>
+                {cycles.map((cycle) => (
+                  <option key={cycle.id} value={cycle.id}>
+                    {cycle.semester} {cycle.academic_year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(progressError || status.error) && (
+              <p className="auth-form__error" role="alert">{progressError || status.error}</p>
+            )}
+            {isLoadingNominations || isLoadingProgress ? <p role="status">Loading nominee progress...</p>
+              : visibleProgressNominations.length === 0 ? <p>No nominations found for this exchange cycle.</p> : (
+                <div className="nomination-table-wrap">
+                  <table className="nomination-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Student</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">Cycle</th>
+                        <th scope="col">Nomination status</th>
+                        <th scope="col">Application progress</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleProgressNominations.map((nomination) => {
+                        const cycle = cycles.find(({ id }) => Number(id) === Number(nomination.semester))
+                        const applicationStatus = progressError
+                          ? 'Unavailable'
+                          : applicationStatuses[nomination.id] || 'Not started'
+                        return (
+                          <tr key={nomination.id}>
+                            <th scope="row">{nomination.student_name}</th>
+                            <td>{nomination.student_email}</td>
+                            <td>{cycle ? `${cycle.semester} ${cycle.academic_year}` : `Cycle #${nomination.semester}`}</td>
+                            <td>{nomination.nomination_status}</td>
+                            <td>{applicationStatus}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+          </section>
         )}
         {(activeView === 'nominations' || activeView === 'cycle-nominations') && (
           <>
@@ -1522,13 +1689,21 @@ function isKuCoordinatorProfile(profile, userEmail) {
   return Number(universityId) === 4 || profileEmailIsKu || authenticatedEmailIsKu
 }
 
-function ProtectedPortal({ user, profile, onSignOut, onDeleted, maintenanceMode, onToggleMaintenance, onRetryMaintenanceStatus }) {
+function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus, passwordOnly = false }) {
+  const user = useAppStore((state) => state.session?.user)
+  const profile = useAppStore((state) => state.profile)
+
+  if (!user) return <Navigate to="/auth/signin" replace />
+  if (passwordOnly && !profile) return <section className="portal-page"><div className="portal-card"><p role="status">Loading coordinator account...</p></div></section>
+  if (passwordOnly && profile?.role !== 'coordinator') return <Navigate to="/portal" replace />
+
   if (profile?.role === 'coordinator') {
     const isKuCoordinator = isKuCoordinatorProfile(profile, user.email)
     if (!isKuCoordinator && profile.email_accepted !== true) {
       return <CoordinatorAccessPending user={user} onSignOut={onSignOut} onDeleted={onDeleted} />
     }
-    return <CoordinatorPortal profile={profile} userEmail={user.email} onDeleted={onDeleted} onSignOut={onSignOut} maintenanceMode={maintenanceMode} onToggleMaintenance={onToggleMaintenance} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
+    if (passwordOnly) return <CoordinatorPasswordPage />
+    return <CoordinatorPortal onDeleted={onDeleted} onSignOut={onSignOut} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
   }
 
   return (
@@ -2408,18 +2583,27 @@ function TestStatusPage() {
 }
 
 function App() {
-  const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [theme, setTheme] = useState(() => localStorage.getItem('team2-theme') || 'light')
-  const [maintenanceMode, setMaintenanceMode] = useState(null)
-  const [maintenanceStatusError, setMaintenanceStatusError] = useState('')
+  const session = useAppStore((state) => state.session)
+  const profile = useAppStore((state) => state.profile)
+  const theme = useAppStore((state) => state.theme)
+  const maintenanceMode = useAppStore((state) => state.maintenanceMode)
+  const maintenanceStatusError = useAppStore((state) => state.maintenanceStatusError)
+  const setSession = useAppStore((state) => state.setSession)
+  const setProfile = useAppStore((state) => state.setProfile)
+  const setTheme = useAppStore((state) => state.setTheme)
+  const setMaintenanceMode = useAppStore((state) => state.setMaintenanceMode)
+  const setMaintenanceStatusError = useAppStore((state) => state.setMaintenanceStatusError)
+  const [sessionWarningSeconds, setSessionWarningSeconds] = useState(null)
+  const [sessionTimeoutError, setSessionTimeoutError] = useState('')
+  const [sessionEndedMessage, setSessionEndedMessage] = useState('')
+  const resetInactivityTimer = useRef(null)
 
   const refreshMaintenanceStatus = useCallback(async () => {
     setMaintenanceStatusError('')
     const result = await readMaintenanceMode()
     setMaintenanceMode(result.mode)
     setMaintenanceStatusError(result.error)
-  }, [])
+  }, [setMaintenanceMode, setMaintenanceStatusError])
 
   useEffect(() => {
     let isCurrent = true
@@ -2431,7 +2615,7 @@ function App() {
     return () => {
       isCurrent = false
     }
-  }, [])
+  }, [setMaintenanceMode, setMaintenanceStatusError])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -2471,11 +2655,78 @@ function App() {
     return () => {
       authListener.subscription.unsubscribe()
     }
-  }, [])
+  }, [setProfile, setSession])
 
   const signedInKuCoordinator = Boolean(
     session && profile && isKuCoordinatorProfile(profile, session.user.email),
   )
+
+  useEffect(() => {
+    if (!signedInKuCoordinator) return undefined
+
+    const inactivityTimeout = 15 * 60 * 1000
+    const warningDelay = inactivityTimeout - 2 * 60 * 1000
+    let warningTimer
+    let signOutTimer
+    let countdownTimer
+    let lastActivityAt = 0
+    let isSigningOut = false
+
+    const clearTimers = () => {
+      window.clearTimeout(warningTimer)
+      window.clearTimeout(signOutTimer)
+      window.clearInterval(countdownTimer)
+    }
+
+    const signOutAfterInactivity = async () => {
+      if (isSigningOut) return
+      isSigningOut = true
+      const { error } = await supabase.auth.signOut()
+      isSigningOut = false
+      if (error) {
+        setSessionTimeoutError(getDatabaseErrorMessage(error))
+        setSessionWarningSeconds(0)
+        return
+      }
+      setSessionWarningSeconds(null)
+      setSessionTimeoutError('')
+      setSessionEndedMessage('Your session ended after 15 minutes of inactivity. Please sign in again.')
+    }
+
+    const startTimers = () => {
+      clearTimers()
+      setSessionTimeoutError('')
+      setSessionWarningSeconds(null)
+      warningTimer = window.setTimeout(() => {
+        setSessionWarningSeconds(120)
+        countdownTimer = window.setInterval(() => {
+          setSessionWarningSeconds((seconds) => (
+            seconds === null ? null : Math.max(0, seconds - 1)
+          ))
+        }, 1000)
+      }, warningDelay)
+      signOutTimer = window.setTimeout(signOutAfterInactivity, inactivityTimeout)
+    }
+
+    const handleActivity = () => {
+      const now = Date.now()
+      if (now - lastActivityAt < 1000) return
+      lastActivityAt = now
+      startTimers()
+    }
+
+    resetInactivityTimer.current = startTimers
+    const activityEvents = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart', 'wheel']
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, handleActivity, { passive: true }))
+    startTimers()
+
+    return () => {
+      clearTimers()
+      resetInactivityTimer.current = null
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, handleActivity))
+    }
+  }, [session?.user?.id, signedInKuCoordinator])
+
   const showMaintenancePage = maintenanceMode !== false && !signedInKuCoordinator
   const renderPublicPage = (page) => {
     if (maintenanceMode === null) {
@@ -2519,35 +2770,74 @@ function App() {
             )
           } />
           <Route path="/auth/signup" element={maintenanceMode !== false ? <Navigate to="/auth/signin" replace /> : <AuthRoute mode="signup" />} />
-          <Route path="/auth/signin" element={<AuthRoute mode="signin" coordinatorOnly={maintenanceMode !== false} />} />
-          <Route path="/portal" element={
-            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal user={session.user} profile={profile} onSignOut={handleSignOut} onDeleted={handleDeleted} maintenanceMode={maintenanceMode} onToggleMaintenance={setMaintenanceMode} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
+          <Route path="/auth/signin" element={<AuthRoute mode="signin" coordinatorOnly={maintenanceMode !== false} sessionEndedMessage={sessionEndedMessage} onSessionNoticeDismiss={() => setSessionEndedMessage('')} />} />
+          <Route path="/portal/password" element={
+            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal passwordOnly onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
           } />
-          <Route path="/portal/inbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <InboundApplication user={session.user} /> : <Navigate to="/auth/signin" replace />} />
-          <Route path="/portal/outbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <OutboundApplication user={session.user} /> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal" element={
+            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
+          } />
+          <Route path="/portal/inbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <InboundApplication /> : <Navigate to="/auth/signin" replace />} />
+          <Route path="/portal/outbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <OutboundApplication /> : <Navigate to="/auth/signin" replace />} />
           <Route path="/partners" element={renderPublicPage(<PartnerUniversitiesRoute />)} />
           <Route path="/blog" element={renderPublicPage(<Blog />)} />
           <Route path="/erd" element={renderPublicPage(<ErdPage />)} />
           <Route path="/test-status" element={renderPublicPage(<TestStatusPage />)} />
         </Routes>
       </main>
+      {signedInKuCoordinator && sessionWarningSeconds !== null && (
+        <div className="inactivity-warning__backdrop">
+          <section
+            className="inactivity-warning"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="inactivity-warning-heading"
+            aria-describedby="inactivity-warning-description"
+          >
+            <span className="auth-card__eyebrow">Session security</span>
+            <h2 id="inactivity-warning-heading">Are you still there?</h2>
+            <p id="inactivity-warning-description">
+              You will be signed out in {Math.floor(sessionWarningSeconds / 60)}:
+              {String(sessionWarningSeconds % 60).padStart(2, '0')} because of inactivity.
+            </p>
+            {sessionTimeoutError && <p className="auth-form__error" role="alert">{sessionTimeoutError}</p>}
+            <div className="inactivity-warning__actions">
+              <button
+                className="btn btn--primary"
+                type="button"
+                autoFocus
+                onClick={() => {
+                  resetInactivityTimer.current?.()
+                }}
+              >
+                Stay signed in
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {maintenanceMode !== null && !showMaintenancePage && <Footer />}
     </>
   )
 }
 
-function AuthRoute({ mode, coordinatorOnly = false }) {
+function AuthRoute({ mode, coordinatorOnly = false, sessionEndedMessage, onSessionNoticeDismiss }) {
   const navigate = useNavigate()
-  const [type, setType] = useState('ku')
+  const type = useAppStore((state) => state.authType)
+  const setAuthType = useAppStore((state) => state.setAuthType)
 
   return (
     <AuthPage
       type={coordinatorOnly ? 'coordinator' : type}
       mode={mode}
-      onTypeChange={setType}
+      onTypeChange={setAuthType}
       onModeChange={(nextMode) => navigate(`/auth/${nextMode}`)}
-      onAuthenticated={() => navigate('/portal')}
+      onAuthenticated={() => {
+        onSessionNoticeDismiss()
+        navigate('/portal')
+      }}
       coordinatorOnly={coordinatorOnly}
+      sessionEndedMessage={sessionEndedMessage}
     />
   )
 }

@@ -29,12 +29,27 @@ the story ID, the title, who built it, and what happened to it.
 
 
 
-## Phase 3 — saved 21 October
+## Phase 3 — saved 25 October
 
 | Story | Title | Who | State at the tag |
 |---|---|---|---|
-|  |  |  |  |
-
+| #34 | Inbound Student Exchange Application | Almaha Alajmi | Done |
+| #92 | Incoming student applications are saved automatically | Almaha Alajmi | Done |
+| #93 | Incoming student can export their application as a pdf | Almaha Alajmi | Done |
+| #94 | KU student can View Submitted Student Exchange Application and Status | Almaha Alajmi | Done |
+| #95 | Incoming student can view submitted application and status | Almaha Alajmi | Done |
+| #39 | KU Coordinator Views Historical Application Log | Aysha Jan | Done |
+| #73 | Coordinator exports a student’s application as a PDF | Aysha Jan | Done |
+|#106 | Coordinator is signed out after inactivity | Rawan Abdrabou | Done |
+|#107 | Partner coordinator sees whether each nominee has applied | Rawan Abdrabou | Done |
+|#110 | KU coordinator can review application withdrawals and accept or reject them | Rawan Abdrabou | Done |
+| #87 | Incoming student requests to withdraw their application | Hadi Haidar | Done |
+|#109 | KU student requests to withdraw their application | Hadi Haidar | Done |
+|#116 | drafts rejected when application closed | Yousef Almohammed | Done |
+|#118 | coordinator edits their own account details | Yousef Almohammed | Done |
+| #32 | Start Student Exchange Application | Fatma | Done |
+| #74 | KU Student exports their submitted outgoing application as a PDF | Fatma | Done |
+| #77 | KU Student’s application changes are saved automatically | Fatma | Done |
 ## Phase 4 — saved 4 November
 
 | Story | Title | Who | State at the tag |

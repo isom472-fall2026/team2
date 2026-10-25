@@ -60,6 +60,7 @@
 * **`studentnominations.id`**: Each nomination uses a unique, randomly generated eight-digit identifier that coordinators share with the nominated student.
 * **`studentnominations.nomination_status`**: New nominations default to `Active`; the database expiration function changes them to `Expired` when their exchange cycle end time has passed.
 * **`inboundapplication` / incoming-student policies**: Authenticated students can read their own applications, create drafts only from their active nomination, update or submit their own drafts, and delete their own drafts. A unique student-and-cycle index prevents multiple applications in one exchange cycle, while coordinators cannot read drafts.
+* **`inboundapplication` / partner coordinator progress (SELECT)**: Approved partner coordinators can read applications linked to their own nominations. This is row-level access, not column-level masking; progress clients should request only `nomination_id` and `application_status`.
 * **`inboundapplication` drafts**: Drafts may omit names until the student completes them; submission requires first and last names. `submitted_at` records the submission time for the student receipt and PDF export.
 * **`inbound-application-files` / incoming-student policies**: Uploaded application files are private and accessible only to the student who owns the linked draft application.
 * **`exchange_cycle` / `"coordinators can update exchange cycles"` (UPDATE)**: Authenticated users with a coordinator profile may update exchange cycle details.

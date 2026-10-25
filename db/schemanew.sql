@@ -330,8 +330,63 @@ AS $$
     );
 $$;
 
+ALTER FUNCTION public.is_ku_coordinator() OWNER TO postgres;
+
 REVOKE ALL ON FUNCTION public.is_ku_coordinator() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_ku_coordinator() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.has_inbound_application_for_student(
+    requested_student_id INT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF NOT public.is_ku_coordinator() THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN EXISTS (
+        SELECT 1
+        FROM public.inboundapplication AS application
+        WHERE application.student_id = requested_student_id
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.has_outbound_application_for_student(
+    requested_student_id BIGINT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF NOT public.is_ku_coordinator() THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN EXISTS (
+        SELECT 1
+        FROM public.outboundapplication AS application
+        WHERE application.student_id = requested_student_id
+          AND application.application_status <> 'Draft'
+    );
+END;
+$$;
+
+ALTER FUNCTION public.has_inbound_application_for_student(INT) OWNER TO postgres;
+ALTER FUNCTION public.has_outbound_application_for_student(BIGINT) OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.has_inbound_application_for_student(INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.has_inbound_application_for_student(INT) TO authenticated;
+REVOKE ALL ON FUNCTION public.has_outbound_application_for_student(BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.has_outbound_application_for_student(BIGINT) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.request_outbound_withdrawal(
     requested_application_id BIGINT,
@@ -596,12 +651,7 @@ ON public.kustudentauth
 FOR SELECT
 TO authenticated
 USING (
-    public.is_ku_coordinator()
-    AND EXISTS (
-        SELECT 1
-        FROM public.outboundapplication AS application
-        WHERE application.student_id = kustudentauth.student_id
-    )
+    public.has_outbound_application_for_student(kustudentauth.student_id)
 );
 
 CREATE POLICY "Users can register their KU student profile"
@@ -630,12 +680,7 @@ ON public.incomingstudentauth
 FOR SELECT
 TO authenticated
 USING (
-    public.is_ku_coordinator()
-    AND EXISTS (
-        SELECT 1
-        FROM public.inboundapplication AS application
-        WHERE application.student_id = incomingstudentauth.student_id
-    )
+    public.has_inbound_application_for_student(incomingstudentauth.student_id)
 );
 
 CREATE POLICY "Users can register their incoming student profile"
@@ -791,6 +836,22 @@ ON public.inboundapplication
 FOR SELECT
 TO authenticated
 USING (public.is_ku_coordinator() AND application_status = 'Draft');
+
+CREATE POLICY "Partner coordinators can read applications for own nominations"
+ON public.inboundapplication
+FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.studentnominations AS nomination
+        JOIN public.coordinator AS coordinator
+          ON coordinator.coordinator_id = nomination.coordinator_id
+        WHERE nomination.id = inboundapplication.nomination_id
+          AND coordinator.user_id = auth.uid()
+          AND coordinator.email_accepted IS TRUE
+    )
+);
 
 CREATE POLICY "Incoming students can read their inbound applications"
 ON public.inboundapplication

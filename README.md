@@ -5,8 +5,7 @@ Client: Student Exchange Office under the Vice President for Academic Affairs (V
 
 A web-based portal that automates student exchange application intake, evaluates academic eligibility criteria, and streamlines coordinator review.
 
-Where we are: Phase 2, the design sprint
- is being delivered. Phase 3, our first working increment, is due on Wednesday 21 October.
+Where we are: Phase 3, our first working increment, is due Monday 26 October. All 17 stories on our delivery note are Done.
  The rules and phase requirements are in `docs/how-we-work.md`. 
 This line gets updated at the start of every phase, because it is the first thing the team reads.
  

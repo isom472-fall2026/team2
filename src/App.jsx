@@ -6,6 +6,7 @@ import VisaChecker from './components/VisaChecker'
 import OutboundApplication from './components/OutboundApplication'
 import InboundApplication from './components/InboundApplication'
 import CoordinatorApplications from './components/CoordinatorApplications'
+import CoordinatorAccountSettings, { CoordinatorPasswordPage } from './components/CoordinatorAccount'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
@@ -1189,6 +1190,9 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           <button className={activeView === 'nominations' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('nominations')}>
             <span aria-hidden="true">◌</span> Student nominations
           </button>
+          <button className={activeView === 'account' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('account')}>
+            <span aria-hidden="true">♙</span> My account
+          </button>
           {!isKuCoordinator && (
             <button className={activeView === 'progress' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('progress')}>
               <span aria-hidden="true">▤</span> Nominee progress
@@ -1223,6 +1227,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         </div>
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
+        {activeView === 'account' && <CoordinatorAccountSettings profile={profile} />}
         {isKuCoordinator && activeView === 'start' && (
           <>
             <span className="auth-card__eyebrow">New cycle</span>
@@ -1684,17 +1689,20 @@ function isKuCoordinatorProfile(profile, userEmail) {
   return Number(universityId) === 4 || profileEmailIsKu || authenticatedEmailIsKu
 }
 
-function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus }) {
+function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus, passwordOnly = false }) {
   const user = useAppStore((state) => state.session?.user)
   const profile = useAppStore((state) => state.profile)
 
   if (!user) return <Navigate to="/auth/signin" replace />
+  if (passwordOnly && !profile) return <section className="portal-page"><div className="portal-card"><p role="status">Loading coordinator account...</p></div></section>
+  if (passwordOnly && profile?.role !== 'coordinator') return <Navigate to="/portal" replace />
 
   if (profile?.role === 'coordinator') {
     const isKuCoordinator = isKuCoordinatorProfile(profile, user.email)
     if (!isKuCoordinator && profile.email_accepted !== true) {
       return <CoordinatorAccessPending user={user} onSignOut={onSignOut} onDeleted={onDeleted} />
     }
+    if (passwordOnly) return <CoordinatorPasswordPage />
     return <CoordinatorPortal onDeleted={onDeleted} onSignOut={onSignOut} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
   }
 
@@ -2763,6 +2771,9 @@ function App() {
           } />
           <Route path="/auth/signup" element={maintenanceMode !== false ? <Navigate to="/auth/signin" replace /> : <AuthRoute mode="signup" />} />
           <Route path="/auth/signin" element={<AuthRoute mode="signin" coordinatorOnly={maintenanceMode !== false} sessionEndedMessage={sessionEndedMessage} onSessionNoticeDismiss={() => setSessionEndedMessage('')} />} />
+          <Route path="/portal/password" element={
+            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal passwordOnly onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
+          } />
           <Route path="/portal" element={
             !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
           } />

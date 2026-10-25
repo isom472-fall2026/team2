@@ -70,6 +70,8 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
  | Partner coordinator sees whether each nominee has applied [#107](https://github.com/isom472-fall2026/team2/issues/107) | GPT Luna agent | 20.8K Tokens | inbound application only | None |
   | KU coordinator can review application withdrawals and accept or reject them [#110](https://github.com/isom472-fall2026/team2/issues/110) | GPT Luna agent | 33.53K Tokens | inbound application and outbound application | None |
   | Coordinator is signed out after inactivity [#106](https://github.com/isom472-fall2026/team2/issues/106) | GPT Luna agent | 10.22K Tokens | coordinator table | None |
+| Drafts rejected when applications close [#116](https://github.com/isom472-fall2026/team2/issues/116) | GPT Luna agent | 4.1K Tokens | application tables | None | 
+| Coordinator edits their own account details [#118](https://github.com/isom472-fall2026/team2/issues/118) | GPT Luna agent | 91.4K Tokens | application tables | None | 
 |  |  |  |  |  |
 
 ## Phase 4

@@ -48,7 +48,7 @@ By the end of Phase 3, the portal had a working student exchange application flo
 
 ## The tag cut for this phase
 
-`phase-3` created by Aysha after pull request #123 merged.
+`phase-3` created by Aysha after pull request #124 merged.
 
 <!-- Created by the Phase Lead — steps in ../how-we-work.md#how-to-create-the-tag. The tag is what gets graded — anything pushed after it does not
      count for this phase. -->

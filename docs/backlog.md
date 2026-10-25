@@ -45,8 +45,8 @@ the story ID, the title, who built it, and what happened to it.
 |#110 | KU coordinator can review application withdrawals and accept or reject them | Rawan Abdrabou | Done |
 | #87 | Incoming student requests to withdraw their application | Hadi Haidar | Done |
 |#109 | KU student requests to withdraw their application | Hadi Haidar | Done |
-|#116 | KU Student can view their submitted application and status | Yousef Almohammed | Done |
-|#118 | KU Student can export their submitted application as a PDF | Yousef Almohammed | Done |
+|#116 | Drafts rejected when applications close | Yousef Almohammed | Done |
+|#118 | Coordinator edits their own account details | Yousef Almohammed | Done |
 | #32 | Start Student Exchange Application | Fatma | Done |
 | #74 | KU Student exports their submitted outgoing application as a PDF | Fatma | Done |
 | #77 | KU Student’s application changes are saved automatically | Fatma | Done |

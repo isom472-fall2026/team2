@@ -56,7 +56,7 @@ cuts the tag.
 |:---|:---|:---|
 | 1 — team, environment, proposal | Rawan Abdrabou | Wed 23 Sep |
 | 2 — design sprint | Almaha Alajmi | Wed 7 Oct |
-| 3 — sprint 1 | Aysha Jan | Wed 21 Oct |
+| 3 — sprint 1 | Aysha Jan | Mon 26 Oct |
 | 4 — sprint 2 | TODO | Wed 4 Nov |
 | 5 — sprint 3 | TODO | Wed 18 Nov |
 | 6 — final sprint | TODO | Wed 9 Dec |

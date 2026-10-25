@@ -357,9 +357,9 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
         <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="Kuwait University" />
         <img src={`${import.meta.env.BASE_URL}images/exchangelogoeng.png`} alt="Kuwait University Exchange Program" />
       </header>
-      <span className="auth-card__eyebrow">Application submitted</span>
-      <h1 id="inbound-receipt-heading">Your application was submitted successfully</h1>
-      <p>Keep this summary for your records.</p>
+      <span className="auth-card__eyebrow">{application.application_status === 'Rejected' ? 'Application not submitted' : 'Application submitted'}</span>
+      <h1 id="inbound-receipt-heading">{application.application_status === 'Rejected' ? 'Your application was not submitted' : 'Your application was submitted successfully'}</h1>
+      <p>{application.application_status === 'Rejected' ? 'This application was not submitted before the deadline.' : 'Keep this summary for your records.'}</p>
       <dl className="outbound-receipt__metadata">
         <div><dt>Application ID</dt><dd>{application.application_id}</dd></div>
         <div><dt>Submission date</dt><dd>{displayDate(application.submitted_at || application.created_at)}</dd></div>
@@ -741,6 +741,33 @@ function InboundApplication() {
     loadDraft()
     return () => { current = false }
   }, [applicationId, cycles, navigate, routeApplicationId, student])
+
+  useEffect(() => {
+    if (!student || !routeApplicationId) return undefined
+    let current = true
+    const checkDraftStatus = async () => {
+      const { data, error: statusError } = await supabase
+        .from('inboundapplication')
+        .select('application_status')
+        .eq('application_id', routeApplicationId)
+        .eq('student_id', student.student_id)
+        .maybeSingle()
+      if (!current || statusError || !data || data.application_status === 'Draft') return
+
+      setApplications((items) => items.map((item) => (
+        String(item.application_id) === String(routeApplicationId)
+          ? { ...item, application_status: data.application_status }
+          : item
+      )))
+      navigate(`/portal/inbound-application/${routeApplicationId}/submitted`, { replace: true })
+    }
+    checkDraftStatus()
+    const intervalId = window.setInterval(checkDraftStatus, 15000)
+    return () => {
+      current = false
+      window.clearInterval(intervalId)
+    }
+  }, [navigate, routeApplicationId, student])
 
   useEffect(() => {
     if (!student || !submittedRouteId) return undefined

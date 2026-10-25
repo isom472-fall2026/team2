@@ -1,0 +1,58 @@
+.account-settings {
+  width: 100%;
+  max-width: 680px;
+}
+
+.account-settings__form {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.account-settings__form label {
+  display: grid;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.account-settings__form input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg);
+  font: inherit;
+}
+
+.account-settings__form input:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.account-settings__form input[readonly] {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.account-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.account-settings__message {
+  margin: 0;
+  color: var(--success, #168257);
+}
+
+@media (max-width: 520px) {
+  .account-settings__actions > * {
+    width: 100%;
+    justify-content: center;
+  }
+}

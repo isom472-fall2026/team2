@@ -10,6 +10,7 @@ export const useAppStore = create((set) => ({
   theme: localStorage.getItem('team2-theme') || 'light',
   maintenanceMode: null,
   maintenanceStatusError: '',
+  testingMode: null,
   setSession: (session) => set({ session }),
   setProfile: (profile) => set({ profile }),
   setAuthType: (authType) => set({ authType }),
@@ -28,4 +29,5 @@ export const useAppStore = create((set) => ({
   })),
   setMaintenanceMode: (maintenanceMode) => set({ maintenanceMode }),
   setMaintenanceStatusError: (maintenanceStatusError) => set({ maintenanceStatusError }),
+  setTestingMode: (testingMode) => set({ testingMode }),
 }))

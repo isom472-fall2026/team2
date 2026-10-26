@@ -1125,12 +1125,12 @@ WITH CHECK (
         WHERE student.user_id = auth.uid()
           AND student.student_id = outboundapplication.student_id
     )
-    AND EXISTS (
-        SELECT 1
-        FROM public.exchange_cycle AS cycle
-        WHERE cycle.id = outboundapplication.semester_applied_for
-          AND cycle.application_c >= now()
-    )
+        AND EXISTS (
+                SELECT 1
+                FROM public.exchange_cycle AS cycle
+                WHERE cycle.id = outboundapplication.semester_applied_for
+                    AND cycle.application_c >= now()
+        )
 );
 
 CREATE POLICY "KU students can delete their outbound application drafts"

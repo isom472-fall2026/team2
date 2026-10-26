@@ -276,34 +276,38 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
           if (fileError) throw fileError
           const pdfjsLib = await import('pdfjs-dist')
           pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
-          const pdf = await pdfjsLib.getDocument({
+          const loadingTask = pdfjsLib.getDocument({
             data: new Uint8Array(await fileData.arrayBuffer()),
-          }).promise
-          const pdfPages = []
-          for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-            const page = await pdf.getPage(pageNumber)
-            const originalViewport = page.getViewport({ scale: 1 })
-            const scale = Math.min(2, 1400 / originalViewport.width)
-            const viewport = page.getViewport({ scale })
-            const canvas = document.createElement('canvas')
-            canvas.width = Math.ceil(viewport.width)
-            canvas.height = Math.ceil(viewport.height)
-            const context = canvas.getContext('2d')
-            if (!context) throw new Error('A canvas context could not be created to display a PDF page.')
-            await page.render({ canvas, canvasContext: context, viewport }).promise
-            pdfPages.push({
-              key: `${path}-${pageNumber}`,
-              label,
-              fileName,
-              previewUrl: canvas.toDataURL('image/png'),
-              downloadUrl: downloadResult.data.signedUrl,
-              pageNumber,
-              pageCount: pdf.numPages,
-            })
-            page.cleanup()
+          })
+          try {
+            const pdf = await loadingTask.promise
+            const pdfPages = []
+            for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+              const page = await pdf.getPage(pageNumber)
+              const originalViewport = page.getViewport({ scale: 1 })
+              const scale = Math.min(2, 1400 / originalViewport.width)
+              const viewport = page.getViewport({ scale })
+              const canvas = document.createElement('canvas')
+              canvas.width = Math.ceil(viewport.width)
+              canvas.height = Math.ceil(viewport.height)
+              const context = canvas.getContext('2d')
+              if (!context) throw new Error('A canvas context could not be created to display a PDF page.')
+              await page.render({ canvas, canvasContext: context, viewport }).promise
+              pdfPages.push({
+                key: `${path}-${pageNumber}`,
+                label,
+                fileName,
+                previewUrl: canvas.toDataURL('image/png'),
+                downloadUrl: downloadResult.data.signedUrl,
+                pageNumber,
+                pageCount: pdf.numPages,
+              })
+              page.cleanup()
+            }
+            return pdfPages
+          } finally {
+            await loadingTask.destroy()
           }
-          await pdf.destroy()
-          return pdfPages
         }
 
         return [{
@@ -340,15 +344,9 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [viewingPage])
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!receiptRef.current) return
-    try {
-      const images = [...receiptRef.current.querySelectorAll('.outbound-receipt__image-grid img')]
-      await Promise.all(images.map((image) => image.decode()))
-      window.print()
-    } catch (printError) {
-      setDocumentsError(`The application PDF could not be prepared: ${getDatabaseErrorMessage(printError)}`)
-    }
+    window.print()
   }
 
   return (

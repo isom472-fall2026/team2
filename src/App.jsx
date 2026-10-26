@@ -2833,7 +2833,7 @@ function AuthRoute({ mode, coordinatorOnly = false, sessionEndedMessage, onSessi
       onTypeChange={setAuthType}
       onModeChange={(nextMode) => navigate(`/auth/${nextMode}`)}
       onAuthenticated={() => {
-        onSessionNoticeDismiss()
+        onSessionNoticeDismiss?.()
         navigate('/portal')
       }}
       coordinatorOnly={coordinatorOnly}

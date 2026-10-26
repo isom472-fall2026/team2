@@ -1,5 +1,5 @@
--- Snapshot of the publicly readable lookup tables from the Supabase project.
--- Countries are inserted first to satisfy partneruniversity.location references.
+-- Lookup records and invented fixtures for every public application table.
+-- Run as database owner in Supabase SQL Editor; Auth fixtures have no passwords.
 
 BEGIN;
 
@@ -198,7 +198,8 @@ VALUES
     (191, 'Yemen', 'Sanaa'),
     (192, 'Zambia', 'Lusaka'),
     (193, 'Zimbabwe', 'Harare'),
-    (194, 'Taiwan', 'Taipei');
+    (194, 'Taiwan', 'Taipei')
+ON CONFLICT (id) DO NOTHING;
 
 
 INSERT INTO public.partneruniversity (university_id, name, logo_url, latitude, longitude, available, location, details)
@@ -230,7 +231,322 @@ VALUES
     (25, 'Kogod School of Business', 'https://i.imgur.com/Gaftgr9.png', 38.937, -77.087, TRUE, 184, 'Founded in 1955, the Kogod School of Business is the business school of American University in Washington, DC.'),
     (26, 'University of Maryland', 'https://i.imgur.com/imBaZNV.png', 38.986, -76.944, TRUE, 184, 'Founded in 1856, the University of Maryland, College Park is a major public research university in the United States.'),
     (27, 'University of San Diego', 'https://i.imgur.com/ZhBEUKD.png', 32.771, -117.188, TRUE, 184, 'Founded in 1949, the University of San Diego is a private university in California known for its liberal arts and professional programs.'),
-    (28, 'University of Rhode Island', 'https://i.imgur.com/SJC1Q6R.png', 41.484, -71.53, TRUE, 184, 'Founded in 1892 as an agricultural school, the University of Rhode Island is the state''s principal public research university.');
+    (28, 'University of Rhode Island', 'https://i.imgur.com/SJC1Q6R.png', 41.484, -71.53, TRUE, 184, 'Founded in 1892 as an agricultural school, the University of Rhode Island is the state''s principal public research university.')
+ON CONFLICT (university_id) DO NOTHING;
 
+INSERT INTO auth.users (
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+)
+VALUES
+    (
+        '00000000-0000-4000-8000-000000000001',
+        'authenticated',
+        'authenticated',
+        'seed-ku-student@ku.edu.kw',
+        '',
+        now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        '{"name":"Seed KU Student","user_type":"ku","student_id":990001}'::jsonb,
+        now(),
+        now()
+    ),
+    (
+        '00000000-0000-4000-8000-000000000002',
+        'authenticated',
+        'authenticated',
+        'seed-incoming-student@example.com',
+        '',
+        now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        '{"name":"Seed Incoming Student","user_type":"incoming","student_id":990002}'::jsonb,
+        now(),
+        now()
+    ),
+    (
+        '00000000-0000-4000-8000-000000000003',
+        'authenticated',
+        'authenticated',
+        'seed-ku-coordinator@ku.edu.kw',
+        '',
+        now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        '{"name":"Seed KU Coordinator","user_type":"coordinator","coordinator_id":990002}'::jsonb,
+        now(),
+        now()
+    ),
+    (
+        '00000000-0000-4000-8000-000000000004',
+        'authenticated',
+        'authenticated',
+        'seed-partner-coordinator@example.com',
+        '',
+        now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        '{"name":"Seed Partner Coordinator","user_type":"coordinator","coordinator_id":990001}'::jsonb,
+        now(),
+        now()
+    )
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.exchange_cycle (
+    id, semester, academic_year, nominations_o, nominations_c,
+    application_o, application_c, cycle_start, cycle_end
+)
+VALUES
+    (
+        990001, 'Fall', '2026/2027',
+        now() - interval '90 days', now() + interval '30 days',
+        now() - interval '60 days', now() + interval '60 days',
+        now() + interval '90 days', now() + interval '180 days'
+    ),
+    (
+        990002, 'Spring', '2027/2028',
+        now() + interval '60 days', now() + interval '120 days',
+        now() + interval '90 days', now() + interval '150 days',
+        now() + interval '180 days', now() + interval '270 days'
+    )
+ON CONFLICT (id) DO UPDATE SET
+    semester = EXCLUDED.semester,
+    academic_year = EXCLUDED.academic_year,
+    nominations_o = EXCLUDED.nominations_o,
+    nominations_c = EXCLUDED.nominations_c,
+    application_o = EXCLUDED.application_o,
+    application_c = EXCLUDED.application_c,
+    cycle_start = EXCLUDED.cycle_start,
+    cycle_end = EXCLUDED.cycle_end;
+
+INSERT INTO public.kustudentauth (student_id, student_email, name, user_id)
+VALUES (
+    990001,
+    'seed-ku-student@ku.edu.kw',
+    'Seed KU Student',
+    '00000000-0000-4000-8000-000000000001'
+)
+ON CONFLICT (student_id) DO UPDATE SET
+    student_email = EXCLUDED.student_email,
+    name = EXCLUDED.name,
+    user_id = EXCLUDED.user_id;
+
+INSERT INTO public.incomingstudentauth (student_id, student_email, name, user_id)
+VALUES (
+    990002,
+    'seed-incoming-student@example.com',
+    'Seed Incoming Student',
+    '00000000-0000-4000-8000-000000000002'
+)
+ON CONFLICT (student_id) DO UPDATE SET
+    student_email = EXCLUDED.student_email,
+    name = EXCLUDED.name,
+    user_id = EXCLUDED.user_id;
+
+INSERT INTO public.emergency_contact (contact_id, name, phone_number, email)
+VALUES (990001, 'Seed Emergency Contact', '+965 5555 0101', 'seed-emergency@example.com')
+ON CONFLICT (contact_id) DO UPDATE SET
+    name = EXCLUDED.name,
+    phone_number = EXCLUDED.phone_number,
+    email = EXCLUDED.email;
+
+INSERT INTO public.coordinator (
+    coordinator_id, name, email, university, user_id, email_accepted, maintenance_mode
+)
+VALUES
+    (
+        990001, 'Seed Partner Coordinator', 'seed-partner-coordinator@example.com',
+        1, '00000000-0000-4000-8000-000000000004', TRUE, FALSE
+    ),
+    (
+        990002, 'Seed KU Coordinator', 'seed-ku-coordinator@ku.edu.kw',
+        4, '00000000-0000-4000-8000-000000000003', TRUE, FALSE
+    )
+ON CONFLICT (coordinator_id) DO UPDATE SET
+    name = EXCLUDED.name,
+    email = EXCLUDED.email,
+    university = EXCLUDED.university,
+    user_id = EXCLUDED.user_id,
+    email_accepted = EXCLUDED.email_accepted,
+    maintenance_mode = EXCLUDED.maintenance_mode;
+
+INSERT INTO public.studentnominations (
+    id, coordinator_id, student_name, student_email, student_nationality,
+    semester, nomination_status
+)
+VALUES (
+    990001, 990001, 'Seed Incoming Student', 'seed-incoming-student@example.com',
+    'India', 990001, 'Active'
+)
+ON CONFLICT (id) DO UPDATE SET
+    coordinator_id = EXCLUDED.coordinator_id,
+    student_name = EXCLUDED.student_name,
+    student_email = EXCLUDED.student_email,
+    student_nationality = EXCLUDED.student_nationality,
+    semester = EXCLUDED.semester,
+    nomination_status = EXCLUDED.nomination_status;
+
+INSERT INTO public.updates (id, details)
+VALUES (990001, 'Seed fixture: application documents verified for review.')
+ON CONFLICT (id) DO UPDATE SET details = EXCLUDED.details;
+
+SELECT setval(
+    pg_get_serial_sequence('public.updates', 'id'),
+    GREATEST((SELECT max(id) FROM public.updates), 1),
+    TRUE
+);
+
+INSERT INTO public.inboundapplication (
+    application_id, update_id, first_name, last_name, gender, birthdate,
+    country_of_residence, passport_number, passport_expiry_date, max_gpa, gpa,
+    expected_graduation_date, credits_passed, max_credits, email, phone_number,
+    is_whatsapp_available, major, current_year_of_study, tos, passport_issuing_country,
+    nationality, semester_applied_for, student_id, emergency_contact, submitted_at,
+    application_status, nomination_id
+)
+VALUES (
+    990001, 990001, 'Seed', 'Incoming Student', 'Female',
+    (CURRENT_DATE - interval '20 years')::date, 'India', 'TEST-IN-990001',
+    (CURRENT_DATE + interval '5 years')::date, 4.0, 3.6,
+    (CURRENT_DATE + interval '2 years')::date, 60, 120,
+    'seed-incoming-student@example.com', '+91 98765 43210', TRUE,
+    'Business Administration', 'Third year', TRUE, 77, 77, 990001,
+    990002, 990001, now() - interval '7 days', 'Submitted', 990001
+)
+ON CONFLICT (application_id) DO UPDATE SET
+    update_id = EXCLUDED.update_id,
+    first_name = EXCLUDED.first_name,
+    last_name = EXCLUDED.last_name,
+    gender = EXCLUDED.gender,
+    birthdate = EXCLUDED.birthdate,
+    country_of_residence = EXCLUDED.country_of_residence,
+    passport_number = EXCLUDED.passport_number,
+    passport_expiry_date = EXCLUDED.passport_expiry_date,
+    max_gpa = EXCLUDED.max_gpa,
+    gpa = EXCLUDED.gpa,
+    expected_graduation_date = EXCLUDED.expected_graduation_date,
+    credits_passed = EXCLUDED.credits_passed,
+    max_credits = EXCLUDED.max_credits,
+    email = EXCLUDED.email,
+    phone_number = EXCLUDED.phone_number,
+    is_whatsapp_available = EXCLUDED.is_whatsapp_available,
+    major = EXCLUDED.major,
+    current_year_of_study = EXCLUDED.current_year_of_study,
+    tos = EXCLUDED.tos,
+    passport_issuing_country = EXCLUDED.passport_issuing_country,
+    nationality = EXCLUDED.nationality,
+    semester_applied_for = EXCLUDED.semester_applied_for,
+    student_id = EXCLUDED.student_id,
+    emergency_contact = EXCLUDED.emergency_contact,
+    submitted_at = EXCLUDED.submitted_at,
+    application_status = EXCLUDED.application_status,
+    nomination_id = EXCLUDED.nomination_id;
+
+INSERT INTO public.outboundapplication (
+    application_id, update_id, first_name, last_name, gender, birthdate,
+    passport_number, passport_expiry_date, civil_id_number, civil_id_expiry,
+    gpa, expected_graduation_semester, credits_passed, phone_number,
+    is_whatsapp_available, major, english_test_type, english_test_meets_requirement,
+    english_106_completed, current_year_of_study, tos, university_id, nationality,
+    passport_issuing_country, semester_applied_for, student_id, submitted_at,
+    application_status
+)
+VALUES
+    (
+        990001, 990001, 'Seed', 'KU Student', 'Male',
+        (CURRENT_DATE - interval '21 years')::date, 'TEST-OUT-990001',
+        (CURRENT_DATE + interval '5 years')::date, 299001000001, (CURRENT_DATE + interval '5 years')::date,
+        3.5, (CURRENT_DATE + interval '2 years')::date, 90, '+965 5555 0102',
+        FALSE, 'Finance', 'IELTS', TRUE, NULL, 'Third year', TRUE,
+        1, 89, 89, 990001, 990001, now() - interval '5 days', 'Submitted'
+    ),
+    (
+        990002, NULL, 'Seed', 'KU Student', 'Male',
+        (CURRENT_DATE - interval '21 years')::date, 'TEST-OUT-990002',
+        (CURRENT_DATE + interval '5 years')::date, 299001000001, (CURRENT_DATE + interval '5 years')::date,
+        3.5, (CURRENT_DATE + interval '3 years')::date, 90, '+965 5555 0102',
+        FALSE, 'Finance', 'None', NULL, TRUE, 'Third year', FALSE,
+        1, 89, 89, 990002, 990001, NULL, 'Draft'
+    )
+ON CONFLICT (application_id) DO UPDATE SET
+    update_id = EXCLUDED.update_id,
+    first_name = EXCLUDED.first_name,
+    last_name = EXCLUDED.last_name,
+    gender = EXCLUDED.gender,
+    birthdate = EXCLUDED.birthdate,
+    passport_number = EXCLUDED.passport_number,
+    passport_expiry_date = EXCLUDED.passport_expiry_date,
+    civil_id_number = EXCLUDED.civil_id_number,
+    civil_id_expiry = EXCLUDED.civil_id_expiry,
+    gpa = EXCLUDED.gpa,
+    expected_graduation_semester = EXCLUDED.expected_graduation_semester,
+    credits_passed = EXCLUDED.credits_passed,
+    phone_number = EXCLUDED.phone_number,
+    is_whatsapp_available = EXCLUDED.is_whatsapp_available,
+    major = EXCLUDED.major,
+    english_test_type = EXCLUDED.english_test_type,
+    english_test_meets_requirement = EXCLUDED.english_test_meets_requirement,
+    english_106_completed = EXCLUDED.english_106_completed,
+    current_year_of_study = EXCLUDED.current_year_of_study,
+    tos = EXCLUDED.tos,
+    university_id = EXCLUDED.university_id,
+    nationality = EXCLUDED.nationality,
+    passport_issuing_country = EXCLUDED.passport_issuing_country,
+    semester_applied_for = EXCLUDED.semester_applied_for,
+    student_id = EXCLUDED.student_id,
+    submitted_at = EXCLUDED.submitted_at,
+    application_status = EXCLUDED.application_status;
+
+INSERT INTO public.application_status_log (
+    id, application_id, inbound_application_id, old_status, new_status,
+    changed_by, changed_by_name, changed_at, reason
+)
+VALUES
+    (
+        990001, NULL, 990001, 'Draft', 'Submitted',
+        '00000000-0000-4000-8000-000000000003', 'Seed KU Coordinator',
+        now() - interval '7 days', 'Seed fixture submission'
+    ),
+    (
+        990002, 990001, NULL, 'Draft', 'Submitted',
+        '00000000-0000-4000-8000-000000000003', 'Seed KU Coordinator',
+        now() - interval '5 days', 'Seed fixture submission'
+    )
+ON CONFLICT (id) DO UPDATE SET
+    application_id = EXCLUDED.application_id,
+    inbound_application_id = EXCLUDED.inbound_application_id,
+    old_status = EXCLUDED.old_status,
+    new_status = EXCLUDED.new_status,
+    changed_by = EXCLUDED.changed_by,
+    changed_by_name = EXCLUDED.changed_by_name,
+    changed_at = EXCLUDED.changed_at,
+    reason = EXCLUDED.reason;
+
+SELECT setval(
+    pg_get_serial_sequence('public.application_status_log', 'id'),
+    GREATEST((SELECT max(id) FROM public.application_status_log), 1),
+    TRUE
+);
+
+INSERT INTO public.feedback (id, details, edited, iapplicationid, oapplicationid)
+VALUES
+    (990001, 'Seed fixture feedback for the incoming exchange application.', FALSE, 990001, NULL),
+    (990002, 'Seed fixture feedback for the outgoing exchange application.', TRUE, NULL, 990001)
+ON CONFLICT (id) DO UPDATE SET
+    details = EXCLUDED.details,
+    edited = EXCLUDED.edited,
+    iapplicationid = EXCLUDED.iapplicationid,
+    oapplicationid = EXCLUDED.oapplicationid;
+
+SELECT setval(
+    pg_get_serial_sequence('public.feedback', 'id'),
+    GREATEST((SELECT max(id) FROM public.feedback), 1),
+    TRUE
+);
 
 COMMIT;

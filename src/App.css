@@ -483,6 +483,22 @@ svg { display: block; flex-shrink: 0; }
   transition: background var(--transition), color var(--transition), box-shadow var(--transition);
 }
 
+.navbar__welcome {
+  max-width: 240px;
+  overflow: hidden;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navbar__welcome-name {
+  color: var(--neon);
+  text-shadow: 0 0 18px rgba(0, 212, 255, 0.45);
+}
+
 .navbar__link:hover {
   background: rgba(0, 212, 255, 0.08);
   color: var(--neon);
@@ -533,6 +549,10 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .navbar__theme-toggle {
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: 1px solid var(--border);
   background: transparent;
   font: inherit;
@@ -541,7 +561,7 @@ svg { display: block; flex-shrink: 0; }
 
 .navbar__theme-toggle span {
   color: var(--neon-gold);
-  font-size: 1.1rem;
+  font-size: 1.35rem;
 }
 
 .navbar__university-logo {
@@ -1232,6 +1252,11 @@ svg { display: block; flex-shrink: 0; }
   background: #f8df67;
   color: #173847;
   box-shadow: 0 8px 24px rgba(195, 158, 0, 0.3);
+}
+
+:root[data-theme='light'] .navbar__welcome-name {
+  color: #173847;
+  text-shadow: 0 0 16px rgba(195, 158, 0, 0.55);
 }
 
 :root[data-theme='light'] .auth-form input,
@@ -2533,6 +2558,19 @@ svg { display: block; flex-shrink: 0; }
     justify-content: center; 
     padding: 10px 14px;
     width: 100%;
+  }
+
+  .navbar__link.navbar__theme-toggle {
+    align-self: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .navbar__welcome {
+    max-width: 100%;
+    padding: 8px 18px;
+    text-align: center;
   }
 
   .auth-card,

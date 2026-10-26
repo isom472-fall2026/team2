@@ -42,6 +42,7 @@
 * **`incomingstudentAuth` -> `auth.users`**: Connects the international applicant record to Supabase authentication identity (`ON DELETE CASCADE`).
 * **`Coordinator` -> `auth.users`**: Connects the partner coordinator record to Supabase authentication identity (`ON DELETE CASCADE`).
 * **`Coordinator.email_accepted`**: KU coordinators are accepted at signup; partner coordinators start as access requests and remain blocked until a KU coordinator approves them.
+* **`testing`**: Row `id = 1` controls testing mode and exposes credentials for synthetic demo accounts. Each additional row references exactly one public application-data row or uploaded object created while testing mode is enabled.
 
 ---
 
@@ -66,3 +67,6 @@
 * **`exchange_cycle` / `"coordinators can update exchange cycles"` (UPDATE)**: Authenticated users with a coordinator profile may update exchange cycle details.
 * **`exchange_cycle` / `"coordinators can delete exchange cycles"` (DELETE)**: Authenticated users with a coordinator profile may permanently delete exchange cycles. Linked student nominations are removed by the foreign-key cascade.
 * **`exchange_cycle` / `"Users can read exchange cycles"` (SELECT)**: Authenticated KU students, incoming students, coordinators, and KU coordinators can read cycle dates so the portal can check the application window for a nomination.
+* **`testing` / mode and record policies**: Anyone may read only control row `id = 1`; KU coordinators change testing mode and save synthetic credentials through guarded functions. A trigger registers every inserted public-data or storage row while testing mode is active. Restrictive write policies block application-data and storage writes during maintenance and limit updates or deletes during testing to registered rows. Tracker rows are created by triggers and removed through the cleanup function.
+* **`testing.test_accounts`**: This field contains runtime-generated credentials for synthetic accounts and is intentionally public so visitors can switch roles without entering credentials. Setup creates a KU student with an outbound application, an incoming student with a nomination and inbound application, a partner coordinator, and a second KU student without an application. These accounts are limited by RLS to testing records; no real account credentials belong here.
+* **`testing` / cleanup**: Ending testing mode removes tracked application rows, generated Auth profiles/accounts, and tracked uploads. Upload bytes are removed through the Supabase Storage API before database cleanup completes.

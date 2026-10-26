@@ -7,6 +7,7 @@ import OutboundApplication from './components/OutboundApplication'
 import InboundApplication from './components/InboundApplication'
 import CoordinatorApplications from './components/CoordinatorApplications'
 import CoordinatorAccountSettings, { CoordinatorPasswordPage } from './components/CoordinatorAccount'
+import TestingMode from './components/TestingMode'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
@@ -135,6 +136,8 @@ function MaintenanceStatusUnavailable({ error, onRetry }) {
 function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coordinatorOnly = false, sessionEndedMessage = '' }) {
   const options = authOptions[type]
   const isSignUp = mode === 'signup'
+  const testingMode = useAppStore((state) => state.testingMode)
+  const setTestingMode = useAppStore((state) => state.setTestingMode)
   const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '', university: '' })
   const [universities, setUniversities] = useState([])
   const [error, setError] = useState('')
@@ -178,8 +181,26 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
     const selectedUniversityId = Number(form.university)
     const isKuEmail = email.endsWith('@ku.edu.kw')
     const isKuUniversity = selectedUniversityId === 4
+    let currentTestingMode = testingMode
+    if (isSignUp && currentTestingMode === null) {
+      const { data: testingStatus, error: testingError } = await supabase
+        .from('testing')
+        .select('enabled')
+        .eq('id', 1)
+        .single()
+      if (testingError) {
+        setError(getDatabaseErrorMessage(testingError))
+        return
+      }
+      currentTestingMode = testingStatus.enabled
+      setTestingMode(currentTestingMode)
+    }
     if (isSignUp && type === 'ku' && !isKuEmail) {
       setError('KU students must use an email ending with @ku.edu.kw.')
+      return
+    }
+    if (isSignUp && type === 'coordinator' && currentTestingMode && isKuEmail && isKuUniversity) {
+      setError('KU coordinator accounts cannot be created while testing mode is enabled.')
       return
     }
     if (isSignUp && type === 'coordinator' && isKuEmail !== isKuUniversity) {
@@ -1218,6 +1239,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
               <span aria-hidden="true">⚙</span> Maintenance mode
             </button>
           )}
+          {isKuCoordinator && (
+            <Link className="portal-sidebar__action" to="/testing-mode">
+              <span aria-hidden="true">◉</span> Testing mode
+            </Link>
+          )}
         </nav>
         <div className="portal-sidebar__footer">
           <span className="portal-sidebar__secure">Signed in securely</span>
@@ -2151,8 +2177,9 @@ function PartnerUniversitiesRoute() {
   )
 }
 
-function Navbar({ session, onSignOut, theme, onThemeChange }) {
+function Navbar({ session, profile, onSignOut, theme, onThemeChange }) {
   const [isOpen, setIsOpen] = useState(false)
+  const userName = profile?.name || session?.user?.user_metadata?.name || session?.user?.email
 
   return (
     <nav className="navbar" aria-label="Main navigation">
@@ -2179,12 +2206,11 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
         <li>
           <Link to="/" className="navbar__link">Home</Link>
         </li>
-        <li>
-          <button className="navbar__link navbar__theme-toggle" type="button" onClick={onThemeChange} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
-            <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
-            {theme === 'light' ? 'Dark mode' : 'Light mode'}
-          </button>
-        </li>
+        {session && (
+          <li className="navbar__welcome" title={`Welcome, ${userName}`}>
+            Welcome, <span className="navbar__welcome-name">{userName}</span>
+          </li>
+        )}
         {!session && (
           <>
             <li>
@@ -2200,6 +2226,9 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
             <button className="navbar__link navbar__link--logout" type="button" onClick={onSignOut}>Log out</button>
           </li>
         )}
+        <li>
+          <Link to={session ? '/portal' : '/auth/signin'} className="navbar__link navbar__link--cta">Portal</Link>
+        </li>
         <li>
           <Link to="/partners" className="navbar__link">
             {/* Handshake / partnership icon */}
@@ -2221,7 +2250,15 @@ function Navbar({ session, onSignOut, theme, onThemeChange }) {
           </a>
         </li>
         <li>
-          <Link to={session ? '/portal' : '/auth/signin'} className="navbar__link navbar__link--cta">Portal</Link>
+          <button
+            className="navbar__link navbar__theme-toggle"
+            type="button"
+            onClick={onThemeChange}
+            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
+          </button>
         </li>
       </ul>
     </nav>
@@ -2518,6 +2555,7 @@ function Footer() {
             <li><a href={`${import.meta.env.BASE_URL}docs/proposal.html`} className="footer__link">Proposal</a></li>
             <li>            <Link to="/erd" className="footer__link">Schema and ERD</Link></li>
             <li><Link to="/test-status" className="footer__link">Test and Status</Link></li>
+            <li><Link to="/testing-mode" className="footer__link">Testing mode</Link></li>
           </ul>
         </div>
       </div>
@@ -2593,6 +2631,7 @@ function App() {
   const setTheme = useAppStore((state) => state.setTheme)
   const setMaintenanceMode = useAppStore((state) => state.setMaintenanceMode)
   const setMaintenanceStatusError = useAppStore((state) => state.setMaintenanceStatusError)
+  const setTestingMode = useAppStore((state) => state.setTestingMode)
   const [sessionWarningSeconds, setSessionWarningSeconds] = useState(null)
   const [sessionTimeoutError, setSessionTimeoutError] = useState('')
   const [sessionEndedMessage, setSessionEndedMessage] = useState('')
@@ -2749,6 +2788,7 @@ function App() {
       {maintenanceMode === false && (
         <Navbar
           session={session}
+          profile={profile}
           onSignOut={handleSignOut}
           theme={theme}
           onThemeChange={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}
@@ -2783,6 +2823,15 @@ function App() {
           <Route path="/blog" element={renderPublicPage(<Blog />)} />
           <Route path="/erd" element={renderPublicPage(<ErdPage />)} />
           <Route path="/test-status" element={renderPublicPage(<TestStatusPage />)} />
+          <Route path="/testing-mode" element={
+            showMaintenancePage || maintenanceMode === null
+              ? renderPublicPage(null)
+              : <TestingMode
+                  isKuCoordinator={signedInKuCoordinator}
+                  maintenanceMode={maintenanceMode}
+                  onTestingModeChanged={setTestingMode}
+                />
+          } />
         </Routes>
       </main>
       {signedInKuCoordinator && sessionWarningSeconds !== null && (

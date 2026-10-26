@@ -1,0 +1,144 @@
+.testing-page {
+  min-height: calc(100svh - var(--navbar-height));
+  padding: clamp(40px, 6vw, 72px) 1rem 80px;
+  background: var(--bg);
+}
+
+.testing-card {
+  display: grid;
+  gap: 20px;
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--glow-card);
+}
+
+.testing-card h1 {
+  color: var(--text-strong);
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.testing-card__intro,
+.testing-accounts > p {
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.testing-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.testing-status__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.testing-status--enabled .testing-status__dot {
+  background: #e49a29;
+  box-shadow: 0 0 12px rgba(228, 154, 41, 0.55);
+}
+
+.testing-status--disabled .testing-status__dot {
+  background: #27ae70;
+  box-shadow: 0 0 12px rgba(39, 174, 112, 0.4);
+}
+
+.testing-notice,
+.testing-message {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.testing-spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.6em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.15em;
+  animation: testing-spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes testing-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .testing-spinner {
+    animation-duration: 2.5s;
+  }
+}
+
+.testing-admin,
+.testing-accounts {
+  display: grid;
+  gap: 16px;
+}
+
+.testing-accounts {
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.testing-accounts h2 {
+  color: var(--text-strong);
+  font-size: 1.35rem;
+}
+
+.testing-account-list {
+  display: grid;
+  gap: 12px;
+}
+
+.testing-account {
+  display: grid;
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-alt);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition), transform var(--transition);
+}
+
+.testing-account:hover:not(:disabled) {
+  border-color: var(--neon);
+  transform: translateY(-1px);
+}
+
+.testing-account:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.testing-account strong {
+  color: var(--text-strong);
+  font-size: 1rem;
+}
+
+.testing-account span {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}

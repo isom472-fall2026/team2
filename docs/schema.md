@@ -17,6 +17,9 @@
 * **`InboundApplication`**: A complete exchange admissions dossier submitted by an incoming international applicant using an active nomination.
 * **`OutboundApplication`**: A study-abroad placement application submitted by a Kuwait University student.
 * **`OutboundApplication.civil_id_copy`**: Stores the private storage path for the student's uploaded Civil ID document.
+* **`application_status_log`**: An audit record for exactly one inbound or outbound application, with the old and new statuses, actor, timestamp, and optional reason. A trigger snapshots the actor's name when the record is created.
+* **`updates`**: A coordinator-authored notice containing non-empty details and its creation time. Applications may reference an update; deleting it clears those references.
+* **`feedback`**: Non-empty feedback linked to exactly one inbound or outbound application, with its creation time and an edited flag.
 
 ---
 
@@ -38,6 +41,9 @@
 * **`OutboundApplication` -> `exchange_cycle`**: Links the outbound dossier to the target exchange semester and evaluation window (`ON DELETE SET NULL`).
 * **`OutboundApplication` -> `Country` (Nationality)**: Records the student's legal citizenship for foreign clearance and visa processing (`ON DELETE SET NULL`).
 * **`OutboundApplication` -> `Country` (Passport Issuing)**: Identifies the issuing authority of the student's travel passport (`ON DELETE SET NULL`).
+* **`InboundApplication` / `OutboundApplication` -> `updates`**: Optionally links an application to an update (`ON DELETE SET NULL`).
+* **`application_status_log` -> `InboundApplication` / `OutboundApplication`**: Associates each audit row with exactly one application; deleting that application removes its log entries (`ON DELETE CASCADE`).
+* **`feedback` -> `InboundApplication` / `OutboundApplication`**: Associates each feedback row with exactly one application; deleting that application removes its feedback (`ON DELETE CASCADE`).
 * **`KUStudentAuth` -> `auth.users`**: Connects the institutional student record to Supabase authentication identity (`ON DELETE CASCADE`).
 * **`incomingstudentAuth` -> `auth.users`**: Connects the international applicant record to Supabase authentication identity (`ON DELETE CASCADE`).
 * **`Coordinator` -> `auth.users`**: Connects the partner coordinator record to Supabase authentication identity (`ON DELETE CASCADE`).
@@ -48,15 +54,15 @@
 
 ### 3. Row-Level Security Policies (Who, What & Why)
 
-* **`Country` / `"anyone can read"` (SELECT)**: Both anonymous and authenticated users may read country records so forms and dropdowns populate without authentication barriers.
-* **`Coordinator` / `"signup"` (INSERT)**: Authenticated partner coordinators may create their own profile only when `user_id` matches `auth.uid()` to prevent profile spoofing.
-* **`Coordinator` / `"Enable delete for coordinators"` (DELETE)**: Authenticated partner coordinators may delete only their own record to support self-service account removal without exposing peer data.
-* **`incomingstudentauth` / `"Signup"` (INSERT)**: Authenticated international applicants may create their profile only when `user_id` matches `auth.uid()` to prevent impersonation.
-* **`incomingstudentauth` / `"Enable delete for incoming students"` (DELETE)**: Authenticated international applicants may delete only their personal record during self-service account termination.
-* **`kustudentauth` / `"Signup"` (INSERT)**: Authenticated Kuwait University students may create their profile only when `user_id` matches `auth.uid()` to enforce identity integrity.
-* **`kustudentauth` / `"Enable delete for Ku students"` (DELETE)**: Authenticated Kuwait University students may delete only their personal record during self-service account removal.
-* **`studentnominations` / `"Enable insert for coordinators"` (INSERT)**: A coordinator may create nominations only when `coordinator_id` matches the coordinator profile linked to their authenticated user.
-* **`studentnominations` / `"Enable read access for coordinators"` (SELECT)**: Partner coordinators may view nominations assigned to their own coordinator profile; KU coordinators may view all nominations.
+* **`country` / `"Anyone can read countries"` (SELECT)**: Anonymous and authenticated users may read country records so forms and dropdowns populate without authentication barriers.
+* **`coordinator` / `"Users can register their coordinator profile"` (INSERT)**: Coordinators may create their own profile only when `user_id` and email match their authenticated identity.
+* **`coordinator` / `"Users and KU coordinators can delete coordinator profiles"` (DELETE)**: Coordinators may delete their own record; KU coordinators may delete coordinator records.
+* **`incomingstudentauth` / `"Users can register their incoming student profile"` (INSERT)**: Authenticated international applicants may create a profile only when `user_id` matches `auth.uid()`.
+* **`incomingstudentauth` / `"Users can delete their incoming student profile"` (DELETE)**: Authenticated international applicants may delete only their own profile.
+* **`kustudentauth` / `"Users can register their KU student profile"` (INSERT)**: Authenticated Kuwait University students may create a profile only when `user_id` matches `auth.uid()` and the email uses the KU domain.
+* **`kustudentauth` / `"Users can delete their KU student profile"` (DELETE)**: Authenticated Kuwait University students may delete only their own profile.
+* **`studentnominations` / `"Coordinators can create student nominations"` (INSERT)**: A coordinator may create nominations only when `coordinator_id` matches the coordinator profile linked to their authenticated user.
+* **`studentnominations` / `"Coordinators can read student nominations"` (SELECT)**: Coordinators may view nominations assigned to their profile; KU coordinators may view all nominations.
 * **`studentnominations` / `"Nominated students can read their nominations"` (SELECT)**: An authenticated incoming student may read only nominations addressed to their profile email so they can validate their Nomination ID.
 * **`studentnominations.id`**: Each nomination uses a unique, randomly generated eight-digit identifier that coordinators share with the nominated student.
 * **`studentnominations.nomination_status`**: New nominations default to `Active`; the database expiration function changes them to `Expired` when their exchange cycle end time has passed.
@@ -64,9 +70,12 @@
 * **`inboundapplication` / partner coordinator progress (SELECT)**: Approved partner coordinators can read applications linked to their own nominations. This is row-level access, not column-level masking; progress clients should request only `nomination_id` and `application_status`.
 * **`inboundapplication` drafts**: Drafts may omit names until the student completes them; submission requires first and last names. `submitted_at` records the submission time for the student receipt and PDF export.
 * **`inbound-application-files` / incoming-student policies**: Uploaded application files are private and accessible only to the student who owns the linked draft application.
-* **`exchange_cycle` / `"coordinators can update exchange cycles"` (UPDATE)**: Authenticated users with a coordinator profile may update exchange cycle details.
-* **`exchange_cycle` / `"coordinators can delete exchange cycles"` (DELETE)**: Authenticated users with a coordinator profile may permanently delete exchange cycles. Linked student nominations are removed by the foreign-key cascade.
-* **`exchange_cycle` / `"Users can read exchange cycles"` (SELECT)**: Authenticated KU students, incoming students, coordinators, and KU coordinators can read cycle dates so the portal can check the application window for a nomination.
+* **`exchange_cycle` / `"KU coordinators can update exchange cycles"` (UPDATE)**: KU coordinators may update exchange cycle details.
+* **`exchange_cycle` / `"KU coordinators can delete exchange cycles"` (DELETE)**: KU coordinators may permanently delete exchange cycles. Linked student nominations are removed by the foreign-key cascade.
+* **`exchange_cycle` / `"Users can read exchange cycles"` (SELECT)**: Authenticated KU students, incoming students, coordinators, and KU coordinators can read cycle dates so the portal can check application windows.
+* **`application_status_log` / `"KU students and coordinators can read application status logs"` (SELECT)**: Application-owning students and KU coordinators may read status history.
+* **`feedback` / feedback policies**: Anyone may read feedback; authenticated application authors may create and update feedback on their own applications, and only application authors or KU coordinators may delete it.
+* **`updates` / update policies**: KU coordinators may create and delete updates. Update creation, changes, and deletion are also restricted to records registered for the active testing mode.
 * **`testing` / mode and record policies**: Anyone may read only control row `id = 1`; KU coordinators change testing mode and save synthetic credentials through guarded functions. A trigger registers every inserted public-data or storage row while testing mode is active. Restrictive write policies block application-data and storage writes during maintenance and limit updates or deletes during testing to registered rows. Tracker rows are created by triggers and removed through the cleanup function.
 * **`testing.test_accounts`**: This field contains runtime-generated credentials for synthetic accounts and is intentionally public so visitors can switch roles without entering credentials. Setup creates a KU student with an outbound application, an incoming student with a nomination and inbound application, a partner coordinator, and a second KU student without an application. These accounts are limited by RLS to testing records; no real account credentials belong here.
 * **`testing` / cleanup**: Ending testing mode removes tracked application rows, generated Auth profiles/accounts, and tracked uploads. Upload bytes are removed through the Supabase Storage API before database cleanup completes.

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import ErdPage from './ErdPage'
 import Blog from './Blog'
-import VisaChecker from './components/VisaChecker'
+import AscendHome from './components/AscendHome'
 import OutboundApplication from './components/OutboundApplication'
 import InboundApplication from './components/InboundApplication'
 import CoordinatorApplications from './components/CoordinatorApplications'
@@ -2265,279 +2265,6 @@ function Navbar({ session, profile, onSignOut, theme, onThemeChange }) {
   )
 }
 
-function HeroBackground() {
-  return (
-    <div className="hero-bg" aria-hidden="true">
-      <div className="hero-orb hero-orb--1" />
-      <div className="hero-orb hero-orb--2" />
-      <div className="hero-orb hero-orb--3" />
-      <div className="hero-orb hero-orb--4" />
-      <div className="hero-orb hero-orb--5" />
-      {/* Animated grid lines */}
-      <div className="hero-grid" />
-    </div>
-  )
-}
-
-function HeroSection() {
-  return (
-    <section className="hero-section" aria-label="Student Exchange Program">
-      <HeroBackground />
-      <div className="hero-section__inner">
-        <div className="hero-section__badge">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-          </svg>
-          Kuwait University College of Business Administration
-        </div>
-        <img
-          src={`${import.meta.env.BASE_URL}images/exchangelogoeng.png`}
-          alt="Student Exchange Program"
-          className="hero-section__logo"
-        />
-        <p className="hero-section__subtitle">
-          Broaden your academic horizons by studying at one of our world-class partner
-          universities — or welcome international scholars to our campus.
-        </p>
-        <div className="hero-section__actions">
-          <a href="#incoming-application" className="btn btn--primary">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="20" height="20">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 20h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            Apply as Incoming Student
-          </a>
-          <a href="#outgoing-application" className="btn btn--secondary">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="20" height="20">
-              <path d="M12 21V9m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 4h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            Apply as Outgoing Student
-          </a>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-
-const stats = [
-  { value: '25+', label: 'Partner Universities' },
-  { value: '12', label: 'Countries' },
-  { value: '500+', label: 'Alumni Exchanged' },
-  { value: '2', label: 'Semesters per Year' },
-]
-
-function StatsBar() {
-  return (
-    <div className="stats-bar" aria-label="Program at a glance">
-      {stats.map(({ value, label }) => (
-        <div key={label} className="stats-bar__item">
-          <span className="stats-bar__value">{value}</span>
-          <span className="stats-bar__label">{label}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function EligibilityCriteria() {
-  const [gpa, setGpa] = useState('')
-  const [creditsPassed, setCreditsPassed] = useState('')
-  const hasEnteredBoth = gpa !== '' && creditsPassed !== ''
-  const exceedsMaximumGpa = gpa !== '' && Number(gpa) > 4
-  const isBelowMinimumGpa = gpa !== '' && Number(gpa) < 3
-  const meetsGpaRequirement = !isBelowMinimumGpa && !exceedsMaximumGpa
-  const meetsCreditsRequirement = Number.isInteger(Number(creditsPassed))
-    && Number(creditsPassed) >= 60
-    && Number(creditsPassed) < 103
-  const isEligible = meetsGpaRequirement && meetsCreditsRequirement
-
-  return (
-    <section id="eligibility" className="info-cards" aria-labelledby="eligibility-heading">
-      <h2 id="eligibility-heading" className="section-heading">Eligibility Criteria</h2>
-      <p className="section-subheading">
-        Enter your academic details to check your outbound exchange eligibility.
-      </p>
-      <div className="eligibility-check">
-        <div className="eligibility-check__fields">
-          <label className="eligibility-check__field">
-            GPA
-            <input
-              type="number"
-              min="0"
-              max="4"
-              step="any"
-              value={gpa}
-              onChange={(event) => setGpa(event.target.value)}
-              aria-label="GPA"
-              aria-invalid={exceedsMaximumGpa}
-              aria-describedby={exceedsMaximumGpa ? 'gpa-error' : undefined}
-            />
-            {exceedsMaximumGpa && <span id="gpa-error" className="eligibility-check__error" role="alert">GPA must be 4.0 or less.</span>}
-          </label>
-          <label className="eligibility-check__field">
-            Credits passed
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={creditsPassed}
-              onChange={(event) => setCreditsPassed(event.target.value)}
-              aria-label="Credits passed"
-            />
-          </label>
-        </div>
-        {hasEnteredBoth ? (
-          <div className={`eligibility-check__result${isEligible ? ' eligibility-check__result--eligible' : ' eligibility-check__result--ineligible'}`} aria-live="polite">
-            <h3>{isEligible ? 'You meet the eligibility criteria' : 'You do not meet the eligibility criteria'}</h3>
-            <p>
-              Eligibility requires a GPA of at least 3.0 and 60-102 credits passed.
-              {exceedsMaximumGpa && ' Your GPA cannot be greater than 4.0.'}
-              {isBelowMinimumGpa && ' Your GPA is below 3.0.'}
-              {!meetsCreditsRequirement && ' Your passed credits must be a whole number from 60 through 102.'}
-            </p>
-          </div>
-        ) : (
-          <p className="eligibility-check__hint" aria-live="polite">
-            Enter both values to see the eligibility criteria and result.
-          </p>
-        )}
-      </div>
-    </section>
-  )
-}
-
-const infoCards = [
-  {
-    id: 'duration',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-    title: 'Duration',
-    body: 'Exchange periods last one full semester or one academic year, aligned with the host institution\'s academic calendar.',
-  },
-  {
-    id: 'credits',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M3 9h18M9 21V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-    title: 'Credit Transfer',
-    body: 'Courses taken abroad are reviewed by the Academic Council and — when equivalent — transferred directly to your KU transcript.',
-  },
-  {
-    id: 'financial',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-    title: 'Financial Support',
-    body: 'Selected students may be eligible for KU travel grants and fee waivers. Tuition is paid to Kuwait University; partner tuition is waived under bilateral agreements.',
-  },
-]
-
-function InfoCards() {
-  return (
-    <section className="info-cards" aria-labelledby="program-details-heading">
-      <h2 id="program-details-heading" className="section-heading">Program Details</h2>
-      <div className="info-cards__grid">
-        {infoCards.map(({ id, icon, title, body }) => (
-          <article key={id} className="info-card">
-            <div className="info-card__icon">{icon}</div>
-            <h3 className="info-card__title">{title}</h3>
-            <p className="info-card__body">{body}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-const partners = [
-  { name: 'University of Edinburgh', country: 'United Kingdom', flag: '🇬🇧' },
-  { name: 'Université Paris-Sorbonne', country: 'France', flag: '🇫🇷' },
-  { name: 'University of Toronto', country: 'Canada', flag: '🇨🇦' },
-  { name: 'Seoul National University', country: 'South Korea', flag: '🇰🇷' },
-  { name: 'University of Melbourne', country: 'Australia', flag: '🇦🇺' },
-  { name: 'Maastricht University', country: 'Netherlands', flag: '🇳🇱' },
-]
-
-function PartnerUniversities() {
-  return (
-    <section id="partner-universities" className="partners" aria-labelledby="partners-heading">
-      <h2 id="partners-heading" className="section-heading">Partner Universities</h2>
-      <p className="section-subheading">
-        We collaborate with leading institutions across the globe.
-      </p>
-      <ul className="partners__grid" role="list">
-        {partners.map(({ name, country, flag }) => (
-          <li key={name} className="partner-card">
-            <span className="partner-card__flag" aria-hidden="true">{flag}</span>
-            <div>
-              <p className="partner-card__name">{name}</p>
-              <p className="partner-card__country">{country}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
-function ApplicationCTA() {
-  return (
-    <section className="apply-cta" aria-labelledby="apply-cta-heading">
-      <h2 id="apply-cta-heading" className="apply-cta__heading">Ready to Begin?</h2>
-      <p className="apply-cta__body">
-        Choose the application that matches your situation and follow the guided steps.
-        Our International Relations Office is available to help throughout the process.
-      </p>
-      <div className="apply-cta__cards">
-        <div id="incoming-application" className="apply-card apply-card--incoming">
-          <div className="apply-card__icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 20h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h3 className="apply-card__title">Incoming Student</h3>
-          <p className="apply-card__description">
-            You are an international student wishing to study at Kuwait University for a
-            semester or a full academic year.
-          </p>
-          <a href="#incoming-form" className="btn btn--primary btn--full">
-            Start Incoming Application
-          </a>
-        </div>
-
-        <div id="outgoing-application" className="apply-card apply-card--outgoing">
-          <div className="apply-card__icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 21V9m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 4h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h3 className="apply-card__title">Outgoing Student</h3>
-          <p className="apply-card__description">
-            You are a KU student wishing to study abroad at one of our partner universities
-            for a semester or a full academic year.
-          </p>
-          <a href="#outgoing-form" className="btn btn--secondary btn--full">
-            Start Outgoing Application
-          </a>
-        </div>
-      </div>
-    </section>
-  )
-}
-
 function Footer() {
   return (
     <footer className="footer">
@@ -2621,6 +2348,8 @@ function TestStatusPage() {
 }
 
 function App() {
+  const { pathname } = useLocation()
+  const isAscendHome = pathname === '/'
   const session = useAppStore((state) => state.session)
   const profile = useAppStore((state) => state.profile)
   const theme = useAppStore((state) => state.theme)
@@ -2785,7 +2514,7 @@ function App() {
 
   return (
     <>
-      {maintenanceMode === false && (
+      {maintenanceMode === false && !isAscendHome && (
         <Navbar
           session={session}
           profile={profile}
@@ -2797,17 +2526,7 @@ function App() {
       <main>
         <Routes>
           <Route path="/" element={
-            renderPublicPage(
-              <>
-                <HeroSection />
-                <StatsBar />
-                <EligibilityCriteria />
-                <VisaChecker />
-                <InfoCards />
-                <PartnerUniversities />
-                <ApplicationCTA />
-              </>
-            )
+            renderPublicPage(<AscendHome />)
           } />
           <Route path="/auth/signup" element={maintenanceMode !== false ? <Navigate to="/auth/signin" replace /> : <AuthRoute mode="signup" />} />
           <Route path="/auth/signin" element={<AuthRoute mode="signin" coordinatorOnly={maintenanceMode !== false} sessionEndedMessage={sessionEndedMessage} onSessionNoticeDismiss={() => setSessionEndedMessage('')} />} />
@@ -2865,7 +2584,7 @@ function App() {
           </section>
         </div>
       )}
-      {maintenanceMode !== null && !showMaintenancePage && <Footer />}
+      {maintenanceMode !== null && !showMaintenancePage && !isAscendHome && <Footer />}
     </>
   )
 }

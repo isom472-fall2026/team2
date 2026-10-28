@@ -8,22 +8,25 @@ const PLANET_CLOUDS_PNG = `${ASSET_BASE_URL}/planet-clouds.png`
 const CONFIG = {
   rimColor: '#c1faff', rimPower: 2.4, nightLights: 10, terrainDepth: 0.33, terrainShade: 1.3,
   oceanGlint: 0.45, oceanDeep: 0.12, oceanFlow: 3, oceanFlowSpeed: 0.8, oceanFlowScale: 2.1,
-  planetRadius: 1.95, spin: 0, initRotation: -1.07,
-  tilt: 0.37, autoRotate: 0,
+  planetRadius: 1.95, spin: 0.06, initRotation: 1.73,
+  tilt: 0.37,
+  // The sun has no landmarks like continents, so it turns faster than the planet on scroll
+  // for the motion to read at the same strength.
+  sunSpin: 2.5,
   cloud1Height: 1.005, cloud1Opacity: 0.3, cloud1Spin: 0.06,
   cloud2Height: 1.03, cloud2Opacity: 0.18, cloud2Spin: 0.14,
   cloud3Height: 1.075, cloud3Opacity: 0.1, cloud3Spin: 0.1,
   bgColor: '#040a1e',
   atmoColor: '#9fc4ff', atmoCount: 320, atmoSize: 22, atmoSpeed: 0,
   starColor: '#cfe0ff', starCount: 1400, starSize: 1.6, starFlicker: 0,
-  markerColor: '#ffd27a', markerCount: 60, markerSize: 16, markerSpeed: 0,
 }
 
-const LAYERS = { NONE: 0, TORUS_SCENE: 1, BLOOM_SCENE: 2, ENTIRE_SCENE: 3 }
-const STOPS_X = [{ p: 0, v: 0 }, { p: 0.32, v: -3.1 }, { p: 0.64, v: 3.2 }, { p: 1, v: -3.1 }]
-const STOPS_Y = [{ p: 0, v: -1.8 }, { p: 0.32, v: 0.55 }, { p: 0.64, v: 0.45 }, { p: 1, v: 0.15 }]
+const THEME_SWITCH_SECONDS = 1.2
+
+const LAYERS = { ENTIRE_SCENE: 3 }
+const STOPS_X = [{ p: 0, v: 3.3 }, { p: 0.32, v: -3.1 }, { p: 0.64, v: 3.2 }, { p: 1, v: -3.1 }]
+const STOPS_Y = [{ p: 0, v: -0.35 }, { p: 0.32, v: 0.55 }, { p: 0.64, v: 0.45 }, { p: 1, v: 0.15 }]
 const STOPS_S = [{ p: 0, v: 0.9 }, { p: 0.32, v: 1.0 }, { p: 0.64, v: 0.92 }, { p: 1, v: 1.12 }]
-const NIGHT_STOPS = [{ p: 0, v: 1 }, { p: 0.32, v: 0 }, { p: 1, v: 0 }]
 
 const SNOISE = `
 vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
@@ -72,23 +75,117 @@ function sample(stops, p) {
 
 const FinalPass = {
   uniforms: {
-    tDiffuse: { value: null }, torusTexture: { value: null },
-    bloomTexture: { value: null }, haloTexture: { value: null },
-    uBg: { value: null },
+    tDiffuse: { value: null }, uBg: { value: null },
+    uCenter: { value: null }, uRadius: { value: 0.3 }, uAspect: { value: 1 },
+    uTime: { value: 0 }, uLight: { value: 0 }, uLightCore: { value: null }, uLightEdge: { value: null },
+    uSunCore: { value: null }, uSunEdge: { value: null }, uSunDeep: { value: null }, uSpin: { value: 0 }, uTilt: { value: 0 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }',
+  // Light mode turns the planet into a sun and replaces space with a bright sky whose beams
+  // fade into warmer edges like a vignette. Both are masked by the planet's projected disc,
+  // and uLight sequences the theme switch: the sun ignites from its centre first, then the
+  // sky floods outward from it (run backwards when switching to dark).
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform sampler2D bloomTexture; uniform sampler2D torusTexture; uniform sampler2D haloTexture;
-    uniform vec3 uBg;
+    uniform sampler2D tDiffuse; uniform vec3 uBg; uniform vec2 uCenter; uniform float uRadius; uniform float uAspect;
+    uniform float uTime; uniform float uLight; uniform vec3 uLightCore; uniform vec3 uLightEdge;
+    uniform vec3 uSunCore; uniform vec3 uSunEdge; uniform vec3 uSunDeep; uniform float uSpin; uniform float uTilt;
     varying vec2 vUv;
-    void main(){vec3 halo=texture2D(haloTexture,vUv).xyz;gl_FragColor=vec4(uBg+texture2D(bloomTexture,vUv).xyz+texture2D(torusTexture,vUv).xyz+texture2D(tDiffuse,vUv).xyz+halo,1.);}`,
+    ${SNOISE}
+    // The noise used here stays within about +/-0.4, so fields are scaled before thresholds.
+    #ifdef LOW_POWER
+    #define SUN_OCTAVES 2
+    #else
+    #define SUN_OCTAVES 4
+    #endif
+    // Colour by temperature, from a deep red through orange and yellow to white-hot. It never
+    // reaches black: even the coolest gas on the Sun glows.
+    vec3 heatColor(float heat){
+      vec3 col=mix(vec3(0.62,0.13,0.02),uSunDeep,smoothstep(0.0,0.3,heat));
+      col=mix(col,uSunEdge,smoothstep(0.25,0.55,heat));
+      col=mix(col,vec3(1.0,0.78,0.26),smoothstep(0.5,0.78,heat));
+      return mix(col,uSunCore,smoothstep(0.76,1.0,heat));
+    }
+    // A sphere of plasma. Warped layered noise makes it flow in swirls, ridged noise draws the
+    // flame tendrils, fine noise adds the photosphere's granulation, and the edge darkens and
+    // reddens as the real Sun's limb does. It turns about the planet's tilted axis by uSpin,
+    // so scrolling spins it as it spins the Earth; drift only churns it slowly. LOW_POWER
+    // (phones) keeps the same look with fewer layers.
+    vec3 sunSurface(vec2 p, float rr){
+      float z=sqrt(max(1.0-rr*rr,0.0));
+      vec2 t=vec2(p.x*cos(uTilt)+p.y*sin(uTilt),p.y*cos(uTilt)-p.x*sin(uTilt));
+      vec3 s=vec3(t.x*cos(uSpin)-z*sin(uSpin),t.y,t.x*sin(uSpin)+z*cos(uSpin));
+      float drift=uTime*0.015;
+      vec3 q=s;
+      #ifndef LOW_POWER
+      q+=0.6*vec3(snoise(s*1.5+drift),snoise(s*1.5+vec3(5.2,1.3,2.8)-drift),0.0);
+      #endif
+      float plasma=0.0;float amp=0.5;vec3 f=q*2.2;
+      for(int i=0;i<SUN_OCTAVES;i++){plasma+=amp*snoise(f+drift*float(i+1));f*=2.1;amp*=0.5;}
+      float flame=pow(1.0-abs(snoise(q*4.5+vec3(0.0,drift*2.0,0.0))*2.4),5.0);
+      #ifdef LOW_POWER
+      // The layer's typical value, so skipping it on phones does not shift the colour.
+      float granulation=0.65;
+      #else
+      float granulation=1.0-abs(snoise(s*26.0+drift*3.0)*2.4);
+      #endif
+      // Sunspots and bright active regions are fixed to the surface, with no drift or warp,
+      // so they travel across the face as it turns; that is what makes the rotation readable,
+      // the same way the real Sun's rotation is followed by its spots.
+      float spotField=snoise(s*2.6+vec3(3.1,7.7,1.3))*2.4;
+      float penumbra=smoothstep(0.4,0.55,spotField);
+      float umbra=smoothstep(0.55,0.7,spotField);
+      float faculae=smoothstep(0.35,0.7,snoise(s*1.3+vec3(9.2,2.4,5.6))*2.4)*(1.0-penumbra);
+      float limb=pow(z,0.45);
+      // Faculae show up most near the edge on the real Sun, so they are boosted there.
+      float heat=0.52+plasma*1.3+flame*0.28+faculae*(0.18+0.22*(1.0-limb))+(granulation-0.5)*0.2;
+      heat=clamp(heat*mix(0.58,1.04,limb),0.18,1.0);
+      vec3 col=heatColor(heat)*(1.0+0.18*flame*limb);
+      // Spots are cooler gas, so they darken to a deep warm red rather than black.
+      col=mix(col,col*vec3(0.82,0.6,0.42),penumbra*0.75);
+      return mix(col,uSunDeep*0.85,umbra*0.85);
+    }
+    void main(){
+      vec3 scene=texture2D(tDiffuse,vUv).xyz;
+      if(uLight<=0.0){gl_FragColor=vec4(uBg+scene,1.0);return;}
+      vec2 p=(vUv-uCenter)*vec2(uAspect,1.0);
+      float d=length(p)/uRadius;float a=atan(p.y,p.x);
+      float beams=0.5+0.25*sin(a*6.0+uTime*0.05)+0.2*sin(a*11.0-uTime*0.07);
+      beams=pow(clamp(beams,0.0,1.0),1.8);
+      float reach=exp(-max(d-1.0,0.0)*0.5);
+      vec3 sky=mix(uLightEdge,uLightCore,clamp(reach*(0.6+beams*0.55),0.0,1.0));
+      float vignette=smoothstep(1.3,0.3,length((vUv-0.5)*vec2(uAspect,1.0)));
+      sky*=mix(0.92,1.0,vignette);
+      // Flame tongues lick off the rim like prominences; they are sampled around the disc by
+      // direction (not angle, which would leave a seam) and rise outward over time.
+      float rim=max(d-1.0,0.0);
+      float glow=exp(-rim*11.0);
+      if(rim<0.35){
+        vec2 dir=p/max(length(p),1e-4);
+        float tongue=pow(1.0-abs(snoise(vec3(dir*3.2,rim*6.0-uTime*0.28))*2.4),4.0);
+        float reachOut=1.0-smoothstep(0.02,0.35,rim);
+        vec3 fire=mix(uSunDeep,uSunEdge,glow);
+        sky=mix(sky,fire,clamp(tongue*reachOut*0.85+glow*0.5,0.0,1.0)*step(1.0,d));
+      }
+      float disc=1.0-smoothstep(0.994,1.006,d);
+      float rr=clamp(d,0.0,1.0);
+      float ignite=smoothstep(0.0,0.5,uLight)*1.3;
+      float orbMask=disc*(1.0-smoothstep(ignite-0.3,ignite,d));
+      vec3 sun=vec3(0.0);
+      if(orbMask>0.0)sun=sunSurface(p/uRadius,rr);
+      float far=length(vec2(uAspect,1.0))/uRadius+1.0;
+      float floodR=mix(1.0,far,smoothstep(0.3,1.0,uLight));
+      float skyMask=(1.0-disc)*(1.0-smoothstep(floodR-0.8,floodR,d));
+      vec3 color=mix(uBg+scene,sun,orbMask);
+      color=mix(color,sky,skyMask);
+      gl_FragColor=vec4(color,1.);
+    }`,
 }
 
-function addStars(THREE, scene, resolution) {
-  const positions = new Float32Array(CONFIG.starCount * 3)
-  const seeds = new Float32Array(CONFIG.starCount)
-  const brightness = new Float32Array(CONFIG.starCount)
-  for (let index = 0; index < CONFIG.starCount; index += 1) {
+function addStars(THREE, scene, resolution, count) {
+  const positions = new Float32Array(count * 3)
+  const seeds = new Float32Array(count)
+  const brightness = new Float32Array(count)
+  for (let index = 0; index < count; index += 1) {
     const z = Math.random() * 2 - 1
     const angle = Math.random() * Math.PI * 2
     const radius = Math.sqrt(1 - z * z) * 90
@@ -144,8 +241,9 @@ function addMotes(THREE, scene, camera, resolution) {
   return material
 }
 
-function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nightLights, surfaceBrightness, nightSurfaceColor) {
+function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nightLights, surfaceBrightness, nightSurfaceColor, lightsAmount, lowPower) {
   const source = mesh.material.clone()
+  if (lowPower) source.defines = { ...source.defines, LOW_POWER: '' }
   source.metalness = 0
   source.roughness = 1
   source.envMapIntensity = 0
@@ -154,7 +252,7 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       time: planetTime, noiseScale: { value: 30 }, speedX: { value: 1.5 }, speedY: { value: 2 }, speedZ: { value: 2.5 },
       rimColor: { value: hexToVec3(THREE, CONFIG.rimColor) }, rimPower: { value: CONFIG.rimPower },
       nightBlendTexture: { value: nightTexture }, nightLights, surfaceBrightness, nightSurfaceColor,
-      nightAmount,
+      nightAmount, lightsAmount,
       terrainDepth: { value: CONFIG.terrainDepth }, terrainShade: { value: CONFIG.terrainShade },
       oceanGlint: { value: CONFIG.oceanGlint }, oceanDeep: { value: CONFIG.oceanDeep },
       oceanFlow: { value: CONFIG.oceanFlow }, oceanFlowSpeed: { value: CONFIG.oceanFlowSpeed }, oceanFlowScale: { value: CONFIG.oceanFlowScale },
@@ -162,7 +260,7 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
     shader.vertexShader = `varying vec2 vCustomUv;\n${shader.vertexShader}`.replace('void main() {', 'void main() {\n vCustomUv = uv;')
     shader.fragmentShader = `
       uniform float time;uniform float noiseScale;uniform float speedX;uniform float speedY;uniform float speedZ;
-      uniform vec3 rimColor;uniform float rimPower;uniform sampler2D nightBlendTexture;uniform float nightLights;uniform float nightAmount;uniform float surfaceBrightness;uniform vec3 nightSurfaceColor;
+      uniform vec3 rimColor;uniform float rimPower;uniform sampler2D nightBlendTexture;uniform float nightLights;uniform float nightAmount;uniform float lightsAmount;uniform float surfaceBrightness;uniform vec3 nightSurfaceColor;
       uniform float terrainDepth;uniform float terrainShade;uniform float oceanGlint;uniform float oceanDeep;
       uniform float oceanFlow;uniform float oceanFlowSpeed;uniform float oceanFlowScale;varying vec2 vCustomUv;
       ${SNOISE}
@@ -173,8 +271,12 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       float rim=1.0-max(dot(viewDir,normalizedNormal),0.0);rim=pow(rim,rimPower);rim=pow(rim,1.5);rim*=0.7;
       vec3 currentColor=gl_FragColor.rgb;float blueDom=currentColor.b-max(currentColor.r,currentColor.g);
       float waterMask=clamp(smoothstep(-0.005,0.03,blueDom),0.0,1.0);
+      // LOW_POWER (phones) skips the faint shimmer and the glint ripple: both are too fine to
+      // see on a small screen but cost a noise lookup per pixel every frame.
+      #ifndef LOW_POWER
       float shimmer=snoise(vec3(vCustomUv.x*noiseScale+time*speedX,vCustomUv.y*noiseScale-time*speedY,time*speedZ));
       gl_FragColor.rgb+=waterMask*shimmer*0.025;
+      #endif
       float fT=time*oceanFlowSpeed*4.0;float fS=4.0*oceanFlowScale;
       float warp=snoise(vec3(vCustomUv.x*fS-fT*0.5,vCustomUv.y*fS+fT*0.4,fT*0.5));
       float flow=snoise(vec3(vCustomUv.x*fS*2.0+fT*0.6+warp,vCustomUv.y*fS*2.0-fT*0.5,fT*0.7));
@@ -191,10 +293,14 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       float dayAmt=smoothstep(-0.05,0.35,ndl);float relief=dot(shadeNormal,viewSunDir)-ndl;
       gl_FragColor.rgb*=clamp(1.0+relief*terrainShade*dayAmt,0.55,1.6);
       float nightFactor=max(1.0-smoothstep(-0.30,0.18,ndl),nightAmount);
-      float lightsFactor=max(1.0-smoothstep(-0.35,0.30,ndl),nightAmount);
+      float lightsFactor=max(1.0-smoothstep(-0.35,0.30,ndl),lightsAmount);
       gl_FragColor.rgb=mix(gl_FragColor.rgb,nightSurfaceColor,nightFactor);
       gl_FragColor.rgb+=cityLights*lightsFactor;vec3 halfDir=normalize(viewSunDir+viewDir);
+      #ifdef LOW_POWER
+      float ndh=max(dot(normalizedNormal,halfDir),0.0);
+      #else
       float ripple=snoise(vec3(vCustomUv*240.0,time*4.0));float ndh=max(dot(normalizedNormal,halfDir)+ripple*0.02,0.0);
+      #endif
       float glint=pow(ndh,140.0);      gl_FragColor.rgb+=glint*waterMask*dayAmt*oceanGlint*vec3(1.0,0.97,0.88);gl_FragColor.rgb*=surfaceBrightness;
     `)
   }
@@ -202,13 +308,13 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
   return source
 }
 
-function addCloudLayers(THREE, texture, cloudGroup, cloudTime) {
+function addCloudLayers(THREE, texture, cloudGroup, cloudTime, layerCount) {
   const layers = [
     { height: CONFIG.cloud1Height, opacity: CONFIG.cloud1Opacity, spin: CONFIG.cloud1Spin, ry: 0, phase: 0 },
     { height: CONFIG.cloud2Height, opacity: CONFIG.cloud2Opacity, spin: CONFIG.cloud2Spin, ry: 2.2, phase: 13 },
     { height: CONFIG.cloud3Height, opacity: CONFIG.cloud3Opacity, spin: CONFIG.cloud3Spin, ry: 4.3, phase: 27 },
   ]
-  return layers.map((layer) => {
+  return layers.slice(0, layerCount).map((layer) => {
     const material = new THREE.MeshStandardMaterial({ map: texture, transparent: true, depthWrite: false })
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = cloudTime
@@ -244,106 +350,6 @@ function addCloudLayers(THREE, texture, cloudGroup, cloudTime) {
   })
 }
 
-function addMarkers(THREE, mesh, texture, resolution) {
-  const image = texture?.image
-  const positionAttribute = mesh.geometry.attributes.position
-  const uvAttribute = mesh.geometry.attributes.uv
-  if (!image || !positionAttribute || !uvAttribute) return null
-
-  const canvas = document.createElement('canvas')
-  canvas.width = image.width
-  canvas.height = image.height
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) return null
-  try {
-    context.drawImage(image, 0, 0)
-  } catch (error) {
-    console.error('Unable to sample the planet texture for land markers.', error)
-    return null
-  }
-
-  let pixels
-  try {
-    pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
-  } catch (error) {
-    console.error('Unable to read the planet texture for land markers.', error)
-    return null
-  }
-
-  const index = mesh.geometry.index
-  const triangleCount = index ? index.count / 3 : positionAttribute.count / 3
-  const triangles = []
-  let areaTotal = 0
-  const a = new THREE.Vector3()
-  const b = new THREE.Vector3()
-  const c = new THREE.Vector3()
-  for (let triangle = 0; triangle < triangleCount; triangle += 1) {
-    const ia = index ? index.getX(triangle * 3) : triangle * 3
-    const ib = index ? index.getX(triangle * 3 + 1) : triangle * 3 + 1
-    const ic = index ? index.getX(triangle * 3 + 2) : triangle * 3 + 2
-    a.fromBufferAttribute(positionAttribute, ia)
-    b.fromBufferAttribute(positionAttribute, ib)
-    c.fromBufferAttribute(positionAttribute, ic)
-    const area = b.clone().sub(a).cross(c.clone().sub(a)).length() * 0.5
-    areaTotal += area
-    triangles.push({ ia, ib, ic, areaTotal })
-  }
-  if (!areaTotal) return null
-
-  const positions = []
-  const seeds = []
-  for (let attempt = 0; positions.length < CONFIG.markerCount * 3 && attempt < CONFIG.markerCount * 500; attempt += 1) {
-    const target = Math.random() * areaTotal
-    let low = 0
-    let high = triangles.length - 1
-    while (low < high) {
-      const middle = (low + high) >> 1
-      if (triangles[middle].areaTotal < target) low = middle + 1
-      else high = middle
-    }
-    const { ia, ib, ic } = triangles[low]
-    const root = Math.sqrt(Math.random())
-    const wa = 1 - root
-    const wb = root * Math.random()
-    const wc = 1 - wa - wb
-    const uvA = new THREE.Vector2().fromBufferAttribute(uvAttribute, ia)
-    const uvB = new THREE.Vector2().fromBufferAttribute(uvAttribute, ib)
-    const uvC = new THREE.Vector2().fromBufferAttribute(uvAttribute, ic)
-    const uv = uvA.multiplyScalar(wa).add(uvB.multiplyScalar(wb)).add(uvC.multiplyScalar(wc))
-    const px = Math.min(canvas.width - 1, Math.max(0, Math.floor(uv.x * canvas.width)))
-    const py = Math.min(canvas.height - 1, Math.max(0, Math.floor((1 - uv.y) * canvas.height)))
-    const pixel = (py * canvas.width + px) * 4
-    const red = pixels[pixel]
-    const green = pixels[pixel + 1]
-    const blue = pixels[pixel + 2]
-    if (blue > red + 6 && blue > green + 6) continue
-
-    a.fromBufferAttribute(positionAttribute, ia)
-    b.fromBufferAttribute(positionAttribute, ib)
-    c.fromBufferAttribute(positionAttribute, ic)
-    const point = a.multiplyScalar(wa).add(b.multiplyScalar(wb)).add(c.multiplyScalar(wc)).multiplyScalar(1.012)
-    positions.push(point.x, point.y, point.z)
-    seeds.push(Math.random())
-  }
-  if (!positions.length) return null
-
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  geometry.setAttribute('seed', new THREE.Float32BufferAttribute(seeds, 1))
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      uColor: { value: hexToVec3(THREE, CONFIG.markerColor) }, uTime: { value: 0 },
-      uSize: { value: CONFIG.markerSize }, uSpeed: { value: CONFIG.markerSpeed }, uRes: { value: resolution },
-    },
-    vertexShader: 'attribute float seed;uniform float uSize;uniform vec2 uRes;varying float vSeed;varying float vFade;void main(){vSeed=seed;vec4 mv=modelViewMatrix*vec4(position,1.0);vec3 vn=normalize(normalMatrix*normalize(position));vec3 vd=normalize(-mv.xyz);vFade=smoothstep(0.15,0.5,dot(vn,vd));gl_PointSize=max(uSize*uRes.y/900.0*(7.0/max(-mv.z,1.0)),2.0);gl_Position=projectionMatrix*mv;}',
-    fragmentShader: 'uniform vec3 uColor;uniform float uTime;uniform float uSpeed;varying float vSeed;varying float vFade;void main(){if(vFade<=0.001)discard;vec2 p=gl_PointCoord-0.5;float d=length(p)*2.0;if(d>1.0)discard;float core=smoothstep(0.30,0.0,d)*1.2;float ph=fract(uTime*uSpeed+vSeed);float ring=smoothstep(0.07,0.0,abs(d-ph))*(1.0-ph);gl_FragColor=vec4(uColor,clamp(core+ring,0.0,1.0)*vFade);}',
-    transparent: true, depthTest: true, depthWrite: false, blending: THREE.AdditiveBlending,
-  })
-  const points = new THREE.Points(geometry, material)
-  mesh.add(points)
-  return material
-}
-
 export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
   const themeRef = useRef(theme)
   useEffect(() => {
@@ -357,23 +363,20 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
     let cancelled = false
     let animationFrame = 0
     let renderer
-    let controls
-    let composers = []
+    let composer
     let cleanupResources = []
 
     async function initialize() {
       try {
-        const [threeModule, composerModule, renderModule, bloomModule, shaderModule, gammaModule, copyModule, gltfModule, dracoModule, controlsModule] = await Promise.all([
+        // index.html preloads these modules and the planet assets for the home route, so they
+        // download alongside the app bundle; keep the URLs there in step with these.
+        const [threeModule, composerModule, renderModule, shaderModule, gltfModule, dracoModule] = await Promise.all([
           import('https://unpkg.com/three@0.143.0/build/three.module.js'),
           import('https://unpkg.com/three@0.143.0/examples/jsm/postprocessing/EffectComposer.js'),
           import('https://unpkg.com/three@0.143.0/examples/jsm/postprocessing/RenderPass.js'),
-          import('https://unpkg.com/three@0.143.0/examples/jsm/postprocessing/UnrealBloomPass.js'),
           import('https://unpkg.com/three@0.143.0/examples/jsm/postprocessing/ShaderPass.js'),
-          import('https://unpkg.com/three@0.143.0/examples/jsm/shaders/GammaCorrectionShader.js'),
-          import('https://unpkg.com/three@0.143.0/examples/jsm/shaders/CopyShader.js'),
           import('https://unpkg.com/three@0.143.0/examples/jsm/loaders/GLTFLoader.js'),
           import('https://unpkg.com/three@0.143.0/examples/jsm/loaders/DRACOLoader.js'),
-          import('https://unpkg.com/three@0.143.0/examples/jsm/controls/OrbitControls.js'),
         ])
         if (cancelled) return
         const THREE = threeModule
@@ -381,68 +384,38 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         scene.background = new THREE.Color(0x000000)
         const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200)
         camera.position.set(0, 0, 8)
-        camera.layers.enable(LAYERS.TORUS_SCENE)
-        camera.layers.enable(LAYERS.BLOOM_SCENE)
-        camera.layers.enable(LAYERS.ENTIRE_SCENE)
+        camera.layers.set(LAYERS.ENTIRE_SCENE)
         scene.add(camera)
 
-        renderer = new THREE.WebGL1Renderer({ canvas, antialias: true, alpha: false })
-        renderer.setPixelRatio(window.devicePixelRatio)
+        // Touch devices get a lighter scene: phone GPUs drive 3x screens, so resolution, samples
+        // and per-pixel noise are trimmed where the difference is not visible at that size.
+        const lowPower = window.matchMedia('(pointer: coarse)').matches
+        // Above 2x (1.5x on phones) the extra pixels are not visible on the planet but cost
+        // every frame. renderScale lowers it further on devices that cannot keep up.
+        let renderScale = 1
+        const pixelRatio = () => Math.max(1, Math.min(window.devicePixelRatio, lowPower ? 1.5 : 2) * renderScale)
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false })
+        renderer.setPixelRatio(pixelRatio())
         renderer.outputEncoding = THREE.sRGBEncoding
-        renderer.shadowMap.enabled = true
-        renderer.shadowMap.type = THREE.VSMShadowMap
         renderer.setSize(window.innerWidth, window.innerHeight)
         const ambient = new THREE.AmbientLight(0xffffff, 0.5)
-        ambient.layers.set(LAYERS.TORUS_SCENE)
-        ambient.layers.enable(LAYERS.BLOOM_SCENE)
-        ambient.layers.enable(LAYERS.ENTIRE_SCENE)
+        ambient.layers.set(LAYERS.ENTIRE_SCENE)
         scene.add(ambient)
         const directional = new THREE.DirectionalLight(0xffffff, 0.7)
         directional.position.set(0, 10, 2)
-        directional.layers.set(LAYERS.TORUS_SCENE)
-        directional.layers.enable(LAYERS.BLOOM_SCENE)
-        directional.layers.enable(LAYERS.ENTIRE_SCENE)
+        directional.layers.set(LAYERS.ENTIRE_SCENE)
         scene.add(directional)
         const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight)
 
-        const makeComposer = () => {
-          const composer = new composerModule.EffectComposer(renderer)
-          composer.setSize(window.innerWidth, window.innerHeight)
-          composer.setPixelRatio(window.devicePixelRatio)
-          composers.push(composer)
-          return composer
-        }
-        const torusComposer = makeComposer()
-        torusComposer.addPass(new renderModule.RenderPass(scene, camera))
-        torusComposer.addPass(new shaderModule.ShaderPass(gammaModule.GammaCorrectionShader))
-        torusComposer.addPass(new bloomModule.UnrealBloomPass(resolution, 0.22, 0.2, 0.8))
-        torusComposer.addPass(new shaderModule.ShaderPass(copyModule.CopyShader))
-        torusComposer.renderToScreen = false
-
-        const bloomComposer = makeComposer()
-        bloomComposer.addPass(new renderModule.RenderPass(scene, camera))
-        bloomComposer.addPass(new bloomModule.UnrealBloomPass(resolution, 0.2, 0.6, 0.9))
-        bloomComposer.addPass(new shaderModule.ShaderPass(gammaModule.GammaCorrectionShader))
-        bloomComposer.renderToScreen = false
-
+        // The canvas's antialias flag does not reach the composer's render target, so it
+        // needs its own multisampling or the planet's edge renders jagged.
+        composer = new composerModule.EffectComposer(renderer, new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: lowPower ? 2 : 4 }))
+        composer.setPixelRatio(pixelRatio())
+        composer.setSize(window.innerWidth, window.innerHeight)
         FinalPass.uniforms.uBg.value = hexToVec3(THREE, CONFIG.bgColor)
-        const finalComposer = makeComposer()
-        finalComposer.addPass(new renderModule.RenderPass(scene, camera))
-        const finalPass = new shaderModule.ShaderPass(FinalPass)
-        finalPass.uniforms.torusTexture.value = torusComposer.renderTarget1.texture
-        finalPass.uniforms.bloomTexture.value = bloomComposer.renderTarget1.texture
-        finalComposer.addPass(finalPass)
-
-        controls = new controlsModule.OrbitControls(camera, renderer.domElement)
-        controls.enableDamping = true
-        controls.dampingFactor = 0.06
-        controls.enablePan = false
-        controls.enabled = false
-        controls.autoRotate = true
-        controls.autoRotateSpeed = CONFIG.autoRotate
-        controls.minDistance = 3.5
-        controls.maxDistance = 16
-        controls.target.set(0, 0, 0)
+        composer.addPass(new renderModule.RenderPass(scene, camera))
+        const finalPass = new shaderModule.ShaderPass(lowPower ? { ...FinalPass, defines: { LOW_POWER: '' } } : FinalPass)
+        composer.addPass(finalPass)
 
         const worldGroup = new THREE.Group()
         const planetGroup = new THREE.Group()
@@ -456,52 +429,54 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         scene.add(worldGroup)
         const planetTime = { value: 0 }
         const cloudTime = { value: 0 }
-        const planetBrightness = { value: 1 }
-        const planetNightSurfaceColor = { value: hexToVec3(THREE, '#090d19') }
-        const starMaterial = addStars(THREE, scene, resolution)
+        // Light mode covers the planet with the orb, so the planet keeps one look in both themes.
+        const planetBrightness = { value: 1.35 }
+        const planetNightSurfaceColor = { value: hexToVec3(THREE, '#18263f') }
+        const starMaterial = addStars(THREE, scene, resolution, lowPower ? CONFIG.starCount / 2 : CONFIG.starCount)
         const moteMaterial = addMotes(THREE, scene, camera, resolution)
         cleanupResources.push(starMaterial, moteMaterial)
-        const backgroundColors = {
-          dark: hexToVec3(THREE, CONFIG.bgColor),
-          light: hexToVec3(THREE, '#040a1e'),
-          darkNightSurface: hexToVec3(THREE, '#090d19'),
-          lightNightSurface: hexToVec3(THREE, '#253b5a'),
-          darkStars: hexToVec3(THREE, CONFIG.starColor),
-          lightStars: hexToVec3(THREE, '#d6d8df'),
-          darkMotes: hexToVec3(THREE, CONFIG.atmoColor),
-          lightMotes: hexToVec3(THREE, '#f2c578'),
-        }
-        planetNightSurfaceColor.value = backgroundColors.darkNightSurface
+        finalPass.uniforms.uCenter.value = new THREE.Vector2(0.5, 0.5)
+        finalPass.uniforms.uLightCore.value = hexToVec3(THREE, '#fffbf3')
+        finalPass.uniforms.uLightEdge.value = hexToVec3(THREE, '#efcf98')
+        finalPass.uniforms.uSunCore.value = hexToVec3(THREE, '#fff3c8')
+        finalPass.uniforms.uSunEdge.value = hexToVec3(THREE, '#ff8a1c')
+        finalPass.uniforms.uSunDeep.value = hexToVec3(THREE, '#b32e08')
+        finalPass.uniforms.uTilt.value = CONFIG.tilt
+        const projectedCenter = new THREE.Vector3()
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+        let lightAmount = themeRef.current === 'light' ? 1 : 0
 
         const draco = new dracoModule.DRACOLoader()
         draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.5/')
         const loader = new gltfModule.GLTFLoader()
         loader.setDRACOLoader(draco)
         const textureLoader = new THREE.TextureLoader()
-        const [lightsAsset, cloudsTexture] = await Promise.all([
+        const [lightsAsset, cloudsTexture, planetAsset] = await Promise.all([
           loader.loadAsync(PLANET_LIGHTS_GLB),
           textureLoader.loadAsync(PLANET_CLOUDS_PNG),
+          loader.loadAsync(PLANET_GLB),
         ])
+        if (cancelled) return
         const lightMesh = lightsAsset.scene.getObjectByProperty('isMesh', true)
         const nightTexture = lightMesh?.material?.map
         if (!nightTexture) throw new Error('Planet city-light texture is missing.')
+        const anisotropy = renderer.capabilities.getMaxAnisotropy()
+        nightTexture.anisotropy = anisotropy
         cloudsTexture.wrapS = THREE.RepeatWrapping
         cloudsTexture.wrapT = THREE.RepeatWrapping
         cloudsTexture.repeat.set(5, 5)
-        const planetAsset = await loader.loadAsync(PLANET_GLB)
-        if (cancelled) return
         const planetMesh = planetAsset.scene.getObjectByProperty('isMesh', true)
         if (!planetMesh) throw new Error('Planet mesh is missing.')
         planetMesh.geometry.computeBoundingSphere()
         planetMesh.scale.setScalar(CONFIG.planetRadius / planetMesh.geometry.boundingSphere.radius)
         planetMesh.layers.set(LAYERS.ENTIRE_SCENE)
-        const planetNight = { value: NIGHT_STOPS[0].v }
-        const planetNightLights = { value: CONFIG.nightLights }
-        const planetMaterial = addPlanetShader(THREE, planetMesh, nightTexture, planetTime, planetNight, planetNightLights, planetBrightness, planetNightSurfaceColor)
+        const planetNight = { value: 0 }
+        const planetNightLights = { value: CONFIG.nightLights * 2.3 }
+        const planetLightsAmount = { value: 0.5 }
+        const planetMaterial = addPlanetShader(THREE, planetMesh, nightTexture, planetTime, planetNight, planetNightLights, planetBrightness, planetNightSurfaceColor, planetLightsAmount, lowPower)
+        if (planetMaterial.map) planetMaterial.map.anisotropy = anisotropy
         planetGroup.add(planetMesh)
-        const markerMaterial = addMarkers(THREE, planetMesh, planetMaterial.map, resolution)
-        if (markerMaterial) cleanupResources.push(markerMaterial)
-        const cloudMeshes = addCloudLayers(THREE, cloudsTexture, cloudGroup, cloudTime)
+        const cloudMeshes = addCloudLayers(THREE, cloudsTexture, cloudGroup, cloudTime, lowPower ? 2 : 3)
         cleanupResources.push(planetMaterial, cloudsTexture, draco, planetMesh.geometry, ...cloudMeshes.flatMap((mesh) => [mesh.geometry, mesh.material]))
         cloudGroup.visible = true
 
@@ -512,18 +487,44 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         let spinPhase = 0
         let previousTime = 0
         let hasRendered = false
+        // Reading scrollHeight every frame can force a layout; the page height only changes
+        // when its content resizes, so it is measured then instead.
+        let scrollable = 0
+        const measureScroll = () => { scrollable = document.documentElement.scrollHeight - window.innerHeight }
+        measureScroll()
+        const pageObserver = new ResizeObserver(measureScroll)
+        pageObserver.observe(document.body)
+        cleanupResources.push(() => pageObserver.disconnect())
+
+        // Steps the render resolution down when frames run slower than about 50 fps, so a slow
+        // phone trades a little sharpness for smooth motion. It only steps down, so it cannot
+        // oscillate; the first frames are skipped while shaders compile.
+        let framesSeen = 0
+        let sampledTime = 0
+        let sampledFrames = 0
+        const adaptResolution = (elapsed) => {
+          framesSeen += 1
+          if (framesSeen < 120 || elapsed > 0.25 || renderScale <= 0.55) return
+          sampledTime += elapsed
+          sampledFrames += 1
+          if (sampledFrames < 90) return
+          if (sampledTime / sampledFrames > 1 / 50) {
+            renderScale = Math.max(0.55, renderScale - 0.15)
+            renderer.setPixelRatio(pixelRatio())
+            composer.setPixelRatio(pixelRatio())
+          }
+          sampledTime = 0
+          sampledFrames = 0
+        }
+
         const render = (time) => {
           if (cancelled) return
-          const dt = Math.min(0.05, previousTime ? (time - previousTime) / 1000 : 0)
+          const elapsed = previousTime ? (time - previousTime) / 1000 : 0
+          const dt = Math.min(0.05, elapsed)
           previousTime = time
-          const scrollable = document.documentElement.scrollHeight - window.innerHeight
+          adaptResolution(elapsed)
           const targetProgress = Math.max(0, Math.min(1, scrollable ? window.scrollY / scrollable : 0))
           currentProgress += (targetProgress - currentProgress) * Math.min(1, dt * 4.5)
-          const lightTheme = themeRef.current === 'light'
-          planetNight.value = lightTheme ? 0 : sample(NIGHT_STOPS, currentProgress)
-          planetNightSurfaceColor.value.copy(lightTheme
-            ? backgroundColors.lightNightSurface
-            : backgroundColors.darkNightSurface)
           const sideScale = Math.max(0.5, Math.min(1, window.innerWidth / 1200))
           const damping = Math.min(1, dt * 3.2)
           currentX += (sample(STOPS_X, currentProgress) * sideScale - currentX) * damping
@@ -531,20 +532,30 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
           currentScale += (sample(STOPS_S, currentProgress) - currentScale) * damping
           worldGroup.position.set(currentX, currentY, 0)
           worldGroup.scale.setScalar(currentScale)
-          spinPhase += dt * CONFIG.spin
+          if (!reducedMotion.matches) {
+            spinPhase += dt * CONFIG.spin
+            cloudMeshes.forEach((cloud) => { cloud.rotation.y += dt * cloud.userData.spin * 0.25 })
+          }
           planetGroup.rotation.y = CONFIG.initRotation + spinPhase + currentProgress * Math.PI * 1.6
-          planetNightLights.value = lightTheme ? CONFIG.nightLights * 0.8 : CONFIG.nightLights * 2.3
-          planetBrightness.value = lightTheme ? 1.5 : 1
-          finalPass.uniforms.uBg.value.copy(lightTheme ? backgroundColors.light : backgroundColors.dark)
-          starMaterial.uniforms.uColor.value.copy(lightTheme ? backgroundColors.lightStars : backgroundColors.darkStars)
-          moteMaterial.uniforms.uColor.value.copy(lightTheme ? backgroundColors.lightMotes : backgroundColors.darkMotes)
+          cloudGroup.rotation.y = planetGroup.rotation.y
+          const lightTarget = themeRef.current === 'light' ? 1 : 0
+          // A fixed-rate ramp on real elapsed time, not easing on the capped dt, so the
+          // ignite-then-flood sequence takes the same time even at low frame rates.
+          lightAmount = reducedMotion.matches
+            ? lightTarget
+            : lightAmount + Math.sign(lightTarget - lightAmount) * Math.min(Math.abs(lightTarget - lightAmount), Math.min(elapsed, 0.25) / THEME_SWITCH_SECONDS)
+          projectedCenter.copy(worldGroup.position).project(camera)
+          const cameraDistance = camera.position.distanceTo(worldGroup.position)
+          const planetSize = CONFIG.planetRadius * currentScale
+          finalPass.uniforms.uCenter.value.set(projectedCenter.x * 0.5 + 0.5, projectedCenter.y * 0.5 + 0.5)
+          finalPass.uniforms.uRadius.value = (planetSize / Math.sqrt(Math.max(cameraDistance ** 2 - planetSize ** 2, 0.01)))
+            / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 0.5
+          finalPass.uniforms.uAspect.value = camera.aspect
+          finalPass.uniforms.uTime.value = time / 1000
+          finalPass.uniforms.uLight.value = lightAmount
+          finalPass.uniforms.uSpin.value = planetGroup.rotation.y * CONFIG.sunSpin
 
-          camera.layers.set(LAYERS.TORUS_SCENE)
-          torusComposer.render()
-          camera.layers.set(LAYERS.BLOOM_SCENE)
-          bloomComposer.render()
-          camera.layers.set(LAYERS.ENTIRE_SCENE)
-          finalComposer.render()
+          composer.render()
           if (!hasRendered) {
             hasRendered = true
             onReady()
@@ -558,13 +569,12 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
           const height = window.innerHeight
           camera.aspect = width / height
           camera.updateProjectionMatrix()
-          renderer.setPixelRatio(window.devicePixelRatio)
+          renderer.setPixelRatio(pixelRatio())
           renderer.setSize(width, height)
-          composers.forEach((composer) => {
-            composer.setPixelRatio(window.devicePixelRatio)
-            composer.setSize(width, height)
-          })
+          composer.setPixelRatio(pixelRatio())
+          composer.setSize(width, height)
           resolution.set(width, height)
+          measureScroll()
         }
         window.addEventListener('resize', handleResize)
         cleanupResources.push(() => window.removeEventListener('resize', handleResize))
@@ -580,12 +590,11 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
     return () => {
       cancelled = true
       window.cancelAnimationFrame(animationFrame)
-      controls?.dispose()
-      composers.forEach((composer) => {
+      if (composer) {
         composer.passes.forEach((pass) => pass.dispose?.())
         composer.renderTarget1.dispose()
         composer.renderTarget2.dispose()
-      })
+      }
       cleanupResources.forEach((resource) => {
         if (typeof resource === 'function') resource()
         else resource?.dispose?.()

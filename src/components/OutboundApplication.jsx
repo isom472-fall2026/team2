@@ -13,7 +13,10 @@ import {
   otherMajor,
   requiresEnglishTestProof,
 } from '../studentExchangeEligibility'
+import DateField from './DateField'
 import './OutboundApplication.css'
+
+const DATE_TYPES = ['date', 'month', 'datetime-local']
 
 const storageBucket = 'outbound-application-files'
 
@@ -215,10 +218,11 @@ function getApplicationSaveErrorMessage(error) {
 }
 
 function InputField({ label, name, value, onChange, onBlur, error, type = 'text', required = false, ...props }) {
+  const Field = DATE_TYPES.includes(type) ? DateField : 'input'
   return (
     <label className="outbound-form__field">
       <span>{label}{required && <span className="outbound-form__required" aria-hidden="true"> *</span>}</span>
-      <input
+      <Field
         name={name}
         type={type}
         value={value}

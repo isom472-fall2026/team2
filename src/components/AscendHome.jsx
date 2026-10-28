@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import SiteLoader from './SiteLoader'
+import SiteNavbar from './SiteNavbar'
 import PlanetScene from './PlanetScene'
 import StudentEligibilityChecker from './StudentEligibilityChecker'
 import VisaChecker from './VisaChecker'
 import { useAppStore } from '../stores/appStore'
+import './AscendTheme.css'
 import './AscendHome.css'
+
+// The checkers take no props and do not depend on the theme, so a theme switch does not
+// need to re-render them.
+const EligibilityChecker = memo(StudentEligibilityChecker)
+const VisaAdvisory = memo(VisaChecker)
 
 const features = [
   {
@@ -92,66 +100,24 @@ function usePageMotion() {
 export default function AscendHome() {
   const canvasRef = useRef(null)
   const theme = useAppStore((state) => state.theme)
-  const setTheme = useAppStore((state) => state.setTheme)
-  const session = useAppStore((state) => state.session)
   const [planetStatus, setPlanetStatus] = useState('loading')
-  const [navOpen, setNavOpen] = useState(false)
   const onPlanetReady = useCallback(() => setPlanetStatus('ready'), [])
   const onPlanetError = useCallback(() => setPlanetStatus('error'), [])
   usePageMotion()
 
-  const closeNav = () => setNavOpen(false)
-
   return (
     <div className="ascend-home" id="top" data-theme={theme}>
       <PlanetScene canvasRef={canvasRef} theme={theme} onReady={onPlanetReady} onError={onPlanetError} />
-      {planetStatus !== 'ready' && (
-        <div className={`ascend-loader${planetStatus === 'error' ? ' ascend-loader--error' : ''}`} role={planetStatus === 'error' ? 'alert' : 'status'} aria-live="polite">
-          <span className="ascend-loader-mark" aria-hidden="true">KU</span>
-          <span className="ascend-loader-spinner" aria-hidden="true" />
-          <p>{planetStatus === 'error' ? 'The globe could not be loaded.' : 'Preparing your world'}</p>
-          {planetStatus === 'error' && <button type="button" onClick={() => window.location.reload()}>Try again</button>}
-        </div>
+      {planetStatus === 'loading' && <SiteLoader />}
+      {planetStatus === 'error' && (
+        <SiteLoader
+          error
+          message="The globe could not be loaded."
+          actions={<button type="button" onClick={() => window.location.reload()}>Try again</button>}
+        />
       )}
       <div className={`ascend-page${planetStatus === 'ready' ? ' ascend-page--ready' : ''}`}>
-        <div className="exchange-nav-shell">
-          <nav className="exchange-nav" aria-label="Main navigation">
-            <a className="exchange-brand" href="#top" onClick={(event) => scrollToSection(event, 'top')} aria-label="KU Exchange home">
-              <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" />
-              <span><strong>KU Exchange</strong><small>Student Exchange Program</small></span>
-            </a>
-            <button
-              className="exchange-menu-toggle"
-              type="button"
-              aria-expanded={navOpen}
-              aria-controls="exchange-nav-links"
-              onClick={() => setNavOpen((open) => !open)}
-            >
-              {navOpen ? 'Close menu' : 'Menu'}
-            </button>
-            <div className={`exchange-nav-links${navOpen ? ' exchange-nav-links--open' : ''}`} id="exchange-nav-links">
-              <a href="#features" onClick={(event) => { scrollToSection(event, 'features'); closeNav() }}>Program</a>
-              <a href="#eligibility" onClick={(event) => { scrollToSection(event, 'eligibility'); closeNav() }}>Eligibility</a>
-              <a href="#visa-advisory" onClick={(event) => { scrollToSection(event, 'visa-advisory'); closeNav() }}>Visa advisory</a>
-              <Link to="/partners" onClick={closeNav}>Universities</Link>
-            </div>
-            <div className="exchange-nav-actions">
-              <button
-                className="ascend-theme-toggle"
-                type="button"
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              >
-                <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
-                {theme === 'dark' ? 'Light' : 'Dark'}
-              </button>
-              {session
-                ? <Link className="exchange-nav-portal" to="/portal">My portal</Link>
-                : <Link className="exchange-nav-portal" to="/auth/signin">Sign in</Link>}
-            </div>
-          </nav>
-        </div>
+        <SiteNavbar onHomeClick={(event) => scrollToSection(event, 'top')} />
         <header className="exchange-hero">
           <div className="exchange-hero-inner">
             <span className="exchange-eyebrow" data-reveal>KU College of Business Administration</span>
@@ -197,7 +163,7 @@ export default function AscendHome() {
               <p>Answer a few questions to check your academic and English proficiency eligibility for outbound exchange.</p>
             </div>
             <div className="exchange-tool-card">
-              <StudentEligibilityChecker />
+              <EligibilityChecker />
             </div>
             <p className="exchange-disclaimer">This is a preliminary check based on the current outbound application criteria. It does not guarantee selection or placement.</p>
           </section>
@@ -209,7 +175,7 @@ export default function AscendHome() {
               <p>Check preliminary study visa guidance for your nationality and selected destination.</p>
             </div>
             <div className="exchange-tool-card exchange-visa-card">
-              <VisaChecker />
+              <VisaAdvisory />
             </div>
           </section>
 
@@ -223,13 +189,25 @@ export default function AscendHome() {
 
         <footer className="exchange-footer">
           <a className="exchange-brand" href="#top" onClick={(event) => scrollToSection(event, 'top')}>
-            <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" />
+            <img src={`${import.meta.env.BASE_URL}images/${theme === 'light' ? 'kulogolightmode' : 'kulogodarkmode'}.png`} alt="" />
             <span><strong>KU Exchange</strong><small>Kuwait University · College of Business Administration</small></span>
           </a>
-          <div className="exchange-footer-links">
-            <Link to="/partners">Partner universities</Link>
-            <Link to="/auth/signin">Sign in</Link>
-          </div>
+          <nav className="exchange-footer-links" aria-label="Footer">
+            <div className="exchange-footer-group">
+              <h4>Main links</h4>
+              <Link to="/partners">Partner universities</Link>
+              <a href="#">Contact us</a>
+              <Link to="/blog">Blog</Link>
+              <Link to="/auth/signin">Sign in</Link>
+            </div>
+            <div className="exchange-footer-group">
+              <h4>Legacy documents</h4>
+              <a href={`${import.meta.env.BASE_URL}docs/proposal.html`}>Proposal</a>
+              <Link to="/erd">Schema and ERD</Link>
+              <Link to="/test-status">Test and status</Link>
+              <Link to="/testing-mode">Testing mode</Link>
+            </div>
+          </nav>
           <p>© {new Date().getFullYear()} Kuwait University College of Business Administration</p>
         </footer>
       </div>

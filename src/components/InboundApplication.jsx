@@ -4,7 +4,10 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
+import DateField from './DateField'
 import './OutboundApplication.css'
+
+const DATE_TYPES = ['date', 'month', 'datetime-local']
 
 const storageBucket = 'inbound-application-files'
 
@@ -159,10 +162,11 @@ function getBirthdateError(value) {
 }
 
 function InputField({ label, name, value, onChange, type = 'text', required = false, error = '', ...props }) {
+  const Field = DATE_TYPES.includes(type) ? DateField : 'input'
   return (
     <label className="outbound-form__field">
       <span>{label}{required && <span className="outbound-form__required" aria-hidden="true"> *</span>}</span>
-      <input
+      <Field
         name={name}
         type={type}
         value={value}

@@ -33,8 +33,8 @@ export function getAcademicFieldError(field, form, otherMajor = 'Other') {
   if (field === 'gpa') {
     if (!value) return 'Enter your GPA.'
     const gpa = Number(value)
-    if (!Number.isFinite(gpa) || gpa <= 3 || gpa >= 4) {
-      return 'GPA must be greater than 3.0 and less than 4.0.'
+    if (!Number.isFinite(gpa) || gpa <= 3 || gpa > 4) {
+      return 'GPA must be greater than 3.0 and no higher than 4.0.'
     }
   }
   if (field === 'credits_passed') {

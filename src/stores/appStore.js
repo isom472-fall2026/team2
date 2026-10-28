@@ -7,7 +7,7 @@ export const useAppStore = create((set) => ({
   visaNationality: '',
   visaPassportMatches: '',
   visaDestination: '',
-  theme: localStorage.getItem('team2-theme') || 'light',
+  theme: localStorage.getItem('team2-theme') || 'dark',
   maintenanceMode: null,
   maintenanceStatusError: '',
   testingMode: null,

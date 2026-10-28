@@ -1,0 +1,43 @@
+/* The home page palette, shared with the site navbar so the portal routes get the same
+   look. App.css uses some of the same variable names with other values, so these stay
+   scoped to the elements that opt in. */
+.ascend-home,
+.exchange-nav-shell--site {
+  --bg: #04060f;
+  --section-bg: #070d19;
+  --ink: #f3f6ff;
+  --muted: #aab5cf;
+  --muted-2: #8795b4;
+  --line: rgba(150, 175, 230, .16);
+  --line-strong: rgba(150, 175, 230, .3);
+  --accent: #61dfbd;
+  --accent-2: #38c49b;
+  --accent-ink: #032018;
+  --glass: rgba(12, 18, 38, .78);
+  --glass-2: #10182b;
+  --radius: 18px;
+  --maxw: 1180px;
+  --shadow: 0 24px 60px -34px rgba(0, 0, 0, .8);
+}
+
+.ascend-home[data-theme='light'],
+.exchange-nav-shell--site[data-theme='light'] {
+  --bg: #fbf4e6;
+  --section-bg: transparent;
+  --ink: #17202f;
+  --muted: #465064;
+  --muted-2: #5f6779;
+  --line: rgba(92, 64, 22, .14);
+  --line-strong: rgba(92, 64, 22, .28);
+  --accent: #9a5807;
+  --accent-2: #7f4805;
+  --accent-ink: #fffaf0;
+  --glass: rgba(255, 251, 243, .74);
+  --glass-2: rgba(255, 250, 240, .92);
+  --shadow: 0 22px 48px -30px rgba(120, 78, 18, .38);
+}
+
+/* Length of the page cross-fade in src/themeTransition.js. The planet's own ignite-and-flood
+   keeps playing live underneath it. */
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: .5s; }

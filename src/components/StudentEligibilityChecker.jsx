@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import DateField from './DateField'
 import {
   getAcademicFieldError,
   getEnglishEligibilityError,
@@ -88,7 +89,7 @@ export default function StudentEligibilityChecker() {
         <label>
           Current GPA
           <input name="gpa" type="number" min="3" max="4" step="any" value={form.gpa} onChange={updateField} />
-          <span>Must be greater than 3.0 and less than 4.0.</span>
+          <span>Must be greater than 3.0 and no higher than 4.0.</span>
         </label>
         <label>
           Credits passed
@@ -97,7 +98,7 @@ export default function StudentEligibilityChecker() {
         </label>
         <label>
           Expected graduation month and year
-          <input name="expected_graduation_semester" type="month" value={form.expected_graduation_semester} onChange={updateField} />
+          <DateField name="expected_graduation_semester" type="month" value={form.expected_graduation_semester} onChange={updateField} />
         </label>
         <label>
           English proficiency test

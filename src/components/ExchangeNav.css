@@ -1,0 +1,84 @@
+/* Portal layouts (the outbound wizard, full-height pages) offset themselves by this, so the
+   bar is a fixed height and the mobile menu opens over the page instead of pushing it down. */
+:root { --navbar-height: 116px; }
+
+.exchange-nav-shell { position: sticky; z-index: 100; top: 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 94%, transparent); color: var(--ink); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.exchange-nav-shell *, .exchange-nav-shell *::before, .exchange-nav-shell *::after { box-sizing: border-box; }
+.exchange-nav-shell a { color: inherit; text-decoration: none; }
+.exchange-nav { position: relative; display: flex; width: min(100%, var(--maxw)); height: var(--navbar-height); align-items: center; justify-content: space-between; gap: 24px; margin: 0 auto; padding: 0 24px; }
+.exchange-brand { display: inline-flex; min-width: max-content; align-items: center; gap: 14px; }
+.exchange-brand img { width: 46px; height: 58px; object-fit: contain; }
+.exchange-brand span { display: grid; gap: 3px; }
+.exchange-brand strong { color: var(--ink); font-size: 21px; font-weight: 750; letter-spacing: .015em; }
+.exchange-brand small { color: var(--muted); font-size: 13.5px; }
+/* Both logos stay rendered and cross-fade with a small turn, so the theme switch never
+   waits on the other image to download. */
+.exchange-brand .exchange-brand-logo { position: relative; display: block; width: 74px; height: 92px; flex-shrink: 0; }
+.exchange-brand .exchange-brand-logo img { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity .6s ease, transform .7s cubic-bezier(.22, .7, .2, 1); }
+.exchange-brand-logo[data-theme='light'] .exchange-brand-logo--dark,
+.exchange-brand-logo[data-theme='dark'] .exchange-brand-logo--light { opacity: 0; transform: scale(.8) rotate(-16deg); }
+.exchange-nav-menu { display: contents; }
+.exchange-nav-links { display: flex; align-items: center; gap: clamp(16px, 2.2vw, 30px); color: var(--muted); font-size: 16px; font-weight: 550; }
+.exchange-nav-links a { white-space: nowrap; transition: color .18s ease; }
+.exchange-nav-links a:hover, .exchange-nav-links a:focus-visible { color: var(--accent); }
+.exchange-nav-actions { display: flex; align-items: center; gap: 11px; }
+.exchange-nav-actions > * { flex-shrink: 0; }
+.exchange-nav-welcome { max-width: 210px; overflow: hidden; color: var(--muted); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.exchange-nav-welcome strong { color: var(--ink); font-weight: 650; }
+.exchange-nav-shell .exchange-nav-portal { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; padding: 10px 19px; border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--ink); cursor: pointer; font: inherit; font-size: 15px; font-weight: 650; line-height: 1.2; white-space: nowrap; transition: border-color .18s ease, background .18s ease; }
+.exchange-nav-shell .exchange-nav-portal:hover { border-color: var(--accent); }
+.exchange-nav-shell .exchange-nav-portal--primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
+.exchange-nav-shell .exchange-nav-portal--primary:hover { border-color: transparent; background: var(--accent-2); }
+.exchange-nav-shell .ascend-theme-toggle { display: inline-flex; width: 44px; height: 44px; flex-shrink: 0; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--ink); cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; line-height: 1.2; white-space: nowrap; }
+.exchange-nav-shell .ascend-theme-toggle:hover { border-color: var(--accent); }
+.exchange-nav-shell .ascend-theme-toggle svg { width: 20px; height: 20px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.exchange-nav-shell .exchange-menu-toggle { display: none; }
+
+.exchange-menu-icon { position: relative; display: inline-block; width: 16px; height: 12px; }
+.exchange-menu-icon span { position: absolute; left: 0; width: 100%; height: 1.6px; border-radius: 2px; background: currentColor; transition: top .3s cubic-bezier(.22, .7, .2, 1), transform .3s cubic-bezier(.22, .7, .2, 1), opacity .2s ease; }
+.exchange-menu-icon span:nth-child(1) { top: 0; }
+.exchange-menu-icon span:nth-child(2) { top: 5px; }
+.exchange-menu-icon span:nth-child(3) { top: 10px; }
+.exchange-nav-shell .exchange-menu-toggle[aria-expanded='true'] .exchange-menu-icon span:nth-child(1) { top: 5px; transform: rotate(45deg); }
+.exchange-nav-shell .exchange-menu-toggle[aria-expanded='true'] .exchange-menu-icon span:nth-child(2) { opacity: 0; }
+.exchange-nav-shell .exchange-menu-toggle[aria-expanded='true'] .exchange-menu-icon span:nth-child(3) { top: 5px; transform: rotate(-45deg); }
+
+@media (max-width: 1180px) {
+  :root { --navbar-height: 96px; }
+  .exchange-nav { padding: 0 20px; }
+  .exchange-brand { gap: 11px; }
+  .exchange-brand .exchange-brand-logo { width: 62px; height: 78px; }
+  .exchange-brand strong { font-size: 18px; }
+  .exchange-brand small { font-size: 12px; }
+  .exchange-nav-shell .exchange-menu-toggle { display: inline-flex; min-height: 42px; align-items: center; gap: 10px; padding: 9px 15px; border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--ink); cursor: pointer; font: inherit; font-size: 15px; font-weight: 600; }
+  .exchange-nav-shell .exchange-menu-toggle:hover { border-color: var(--accent); }
+
+  /* The panel stays in the layout while closed so it can animate both ways; visibility
+     waits for the closing transition to finish before hiding it from focus and readers. */
+  .exchange-nav-menu { position: absolute; top: 100%; right: 0; left: 0; display: flex; max-height: calc(100svh - var(--navbar-height)); flex-direction: column; gap: 18px; padding: 6px 20px 24px; overflow-y: auto; border-bottom: 1px solid var(--line); background: var(--bg); box-shadow: 0 28px 44px -30px rgba(0, 0, 0, .55); opacity: 0; visibility: hidden; clip-path: inset(0 0 100% 0); transform: translateY(-8px); transition: opacity .26s ease, transform .36s cubic-bezier(.22, .7, .2, 1), clip-path .36s cubic-bezier(.22, .7, .2, 1), visibility 0s linear .36s; }
+  .exchange-nav-menu--open { opacity: 1; visibility: visible; clip-path: inset(0 0 -60px 0); transform: none; transition-delay: 0s; }
+  .exchange-nav-links { flex-direction: column; align-items: stretch; gap: 0; font-size: 17px; }
+  .exchange-nav-links a { padding: 14px 4px; border-bottom: 1px solid var(--line); }
+  .exchange-nav-actions { flex-wrap: wrap; gap: 10px; }
+  .exchange-nav-welcome { flex-basis: 100%; max-width: none; }
+  .exchange-nav-menu > * > * { opacity: 0; transform: translateY(-6px); transition: opacity .22s ease, transform .3s cubic-bezier(.22, .7, .2, 1); }
+  .exchange-nav-menu--open > * > * { opacity: 1; transform: none; }
+  .exchange-nav-menu--open .exchange-nav-links > :nth-child(1) { transition-delay: .06s; }
+  .exchange-nav-menu--open .exchange-nav-links > :nth-child(2) { transition-delay: .1s; }
+  .exchange-nav-menu--open .exchange-nav-links > :nth-child(3) { transition-delay: .14s; }
+  .exchange-nav-menu--open .exchange-nav-links > :nth-child(4) { transition-delay: .18s; }
+  .exchange-nav-menu--open .exchange-nav-links > :nth-child(n + 5) { transition-delay: .22s; }
+  .exchange-nav-menu--open .exchange-nav-actions > * { transition-delay: .24s; }
+}
+
+@media (max-width: 440px) {
+  .exchange-nav { padding: 0 14px; }
+  .exchange-brand { gap: 9px; }
+  .exchange-brand .exchange-brand-logo { width: 54px; height: 68px; }
+  .exchange-brand small { max-width: 140px; font-size: 11px; }
+  .exchange-nav-shell .exchange-menu-toggle { padding: 8px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exchange-nav-menu, .exchange-nav-menu > * > *, .exchange-menu-icon span, .exchange-brand-logo img { transition: none !important; }
+}

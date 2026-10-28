@@ -272,9 +272,17 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
       const { error: profileError } = await supabase.from(options.table).insert(profile)
 
       if (profileError) {
-        setError(profileError.code === '23505'
+        const profileErrorMessage = profileError.code === '23505'
           ? 'An account with this ID or email already exists.'
-          : getDatabaseErrorMessage(profileError))
+          : getDatabaseErrorMessage(profileError)
+        if (result.data.session) {
+          const { error: signOutError } = await supabase.auth.signOut()
+          setError(signOutError
+            ? `${profileErrorMessage} Sign-out failed: ${signOutError.message}`
+            : profileErrorMessage)
+        } else {
+          setError(profileErrorMessage)
+        }
         setIsSubmitting(false)
         return
       }
@@ -2704,7 +2712,7 @@ function App() {
     if (!signedInKuCoordinator) return undefined
 
     const inactivityTimeout = 15 * 60 * 1000
-    const warningDelay = inactivityTimeout - 2 * 60 * 1000
+    const warningDelay = inactivityTimeout - 60 * 1000
     let warningTimer
     let signOutTimer
     let countdownTimer
@@ -2737,7 +2745,7 @@ function App() {
       setSessionTimeoutError('')
       setSessionWarningSeconds(null)
       warningTimer = window.setTimeout(() => {
-        setSessionWarningSeconds(120)
+        setSessionWarningSeconds(60)
         countdownTimer = window.setInterval(() => {
           setSessionWarningSeconds((seconds) => (
             seconds === null ? null : Math.max(0, seconds - 1)

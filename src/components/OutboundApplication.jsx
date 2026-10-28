@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
@@ -830,12 +830,15 @@ function OutboundApplication() {
   const [acceptedTerms, setAcceptedTerms] = useState(terms.map(() => false))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [draftSaveStatus, setDraftSaveStatus] = useState('')
   const [uploading, setUploading] = useState({})
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [scrollProgress, setScrollProgress] = useState(0)
   const pageContentRef = useRef(null)
   const wizardScrollRef = useRef(null)
+  const lastSavedFormRef = useRef(JSON.stringify(emptyForm))
+  const lastAutosaveAttemptedFormRef = useRef('')
 
   const openCycles = useMemo(() => cycles.filter(isCycleOpen), [cycles])
   const canSubmit = acceptedTerms.every(Boolean)
@@ -914,7 +917,7 @@ function OutboundApplication() {
     }
   }, [activeStep, loading, location.pathname, routeApplicationId])
 
-  const loadApplications = async (studentId) => {
+  const loadApplications = useCallback(async (studentId) => {
     const { data, error: applicationsError } = await supabase
       .from('outboundapplication')
       .select('application_id, application_status, semester_applied_for, university_id, created_at')
@@ -922,7 +925,7 @@ function OutboundApplication() {
       .order('created_at', { ascending: false })
     if (applicationsError) throw applicationsError
     setApplications(data || [])
-  }
+  }, [])
 
   useEffect(() => {
     let current = true
@@ -1017,7 +1020,11 @@ function OutboundApplication() {
         navigate('/portal/outbound-application', { replace: true })
         return
       }
-      setForm(formFromApplication(data))
+      const loadedForm = formFromApplication(data)
+      setForm(loadedForm)
+      lastSavedFormRef.current = JSON.stringify(loadedForm)
+      lastAutosaveAttemptedFormRef.current = ''
+      setDraftSaveStatus('')
       setEditedPersonalFields({})
       setPersonalFieldErrors({})
       setEditedAcademicFields({})
@@ -1110,6 +1117,7 @@ function OutboundApplication() {
     const { name, value, checked, type } = event.target
     const updatedValue = type === 'checkbox' ? checked : value
     setForm((current) => ({ ...current, [name]: updatedValue }))
+    setDraftSaveStatus('pending')
     if (personalInformationFieldNames.includes(name) && updatedValue !== '') {
       setEditedPersonalFields((current) => ({ ...current, [name]: true }))
     }
@@ -1237,7 +1245,7 @@ function OutboundApplication() {
     return ''
   }
 
-  const applicationValues = (tos = false) => ({
+  const applicationValues = useCallback((tos = false) => ({
     first_name: form.first_name.trim(),
     last_name: form.last_name.trim(),
     middle_name: optionalText(form.middle_name),
@@ -1277,19 +1285,23 @@ function OutboundApplication() {
     semester_applied_for: Number(form.semester_applied_for),
     student_id: String(student.student_id),
     submitted_at: tos ? new Date().toISOString() : null,
-  })
+  }), [form, student])
 
-  const saveApplication = async ({ tos = false, status = 'Draft' } = {}) => {
+  const saveApplication = useCallback(async ({ tos = false, status = 'Draft' } = {}) => {
     if (!form.first_name.trim() || !form.last_name.trim()) {
       setError('First and last name are required to save a draft.')
+      if (status === 'Draft') setDraftSaveStatus('error')
       return false
     }
     if (!form.semester_applied_for) {
       setError('Select an exchange cycle before saving this application.')
+      if (status === 'Draft') setDraftSaveStatus('error')
       return false
     }
 
+    const formSignature = JSON.stringify(form)
     setSaving(true)
+    if (status === 'Draft') setDraftSaveStatus('saving')
     setError('')
     setMessage('')
 
@@ -1306,6 +1318,7 @@ function OutboundApplication() {
       if (updateError || !data) {
         setError(updateError ? getApplicationSaveErrorMessage(updateError) : 'The application was not saved. Check your access and try again.')
         setSaving(false)
+        if (status === 'Draft') setDraftSaveStatus('error')
         return false
       }
       setApplications((current) => current.map((application) => (
@@ -1323,6 +1336,7 @@ function OutboundApplication() {
       if (duplicateError) {
         setError(getDatabaseErrorMessage(duplicateError))
         setSaving(false)
+        if (status === 'Draft') setDraftSaveStatus('error')
         return false
       }
       if (duplicate) {
@@ -1331,6 +1345,7 @@ function OutboundApplication() {
           : 'You have already submitted an application for this cycle.')
         await loadApplications(student.student_id).catch((loadError) => setError(getDatabaseErrorMessage(loadError)))
         setSaving(false)
+        if (status === 'Draft') setDraftSaveStatus('error')
         return false
       }
       const randomId = new Uint32Array(2)
@@ -1347,6 +1362,7 @@ function OutboundApplication() {
           ? getApplicationSaveErrorMessage(insertError)
           : 'The application could not be created.')
         setSaving(false)
+        if (status === 'Draft') setDraftSaveStatus('error')
         return false
       }
       setApplicationId(data.application_id)
@@ -1359,9 +1375,33 @@ function OutboundApplication() {
         created_at: new Date().toISOString(),
       }, ...current])
     }
+    lastSavedFormRef.current = formSignature
+    lastAutosaveAttemptedFormRef.current = formSignature
     setSaving(false)
+    if (status === 'Draft') setDraftSaveStatus('saved')
     return savedApplicationId
-  }
+  }, [applicationId, applicationValues, form, loadApplications, student])
+
+  useEffect(() => {
+    if (!student || routeStep < 0 || loading || saving || Object.values(uploading).some(Boolean)) return undefined
+
+    const formSignature = JSON.stringify(form)
+    if (
+      formSignature === lastSavedFormRef.current
+      || formSignature === lastAutosaveAttemptedFormRef.current
+    ) return undefined
+
+    const autosaveTimer = window.setTimeout(async () => {
+      if (!form.first_name.trim() || !form.last_name.trim() || !form.semester_applied_for) return
+      lastAutosaveAttemptedFormRef.current = formSignature
+      const savedApplicationId = await saveApplication()
+      if (savedApplicationId && !applicationId) {
+        navigate(`/portal/outbound-application/${savedApplicationId}/${steps[routeStep].path}`, { replace: true })
+      }
+    }, 700)
+
+    return () => window.clearTimeout(autosaveTimer)
+  }, [applicationId, form, loading, navigate, routeStep, saveApplication, saving, student, uploading])
 
   const startNewApplication = () => {
     if (!form.semester_applied_for) {
@@ -1376,6 +1416,9 @@ function OutboundApplication() {
       return
     }
     setForm({ ...emptyForm, semester_applied_for: form.semester_applied_for })
+    lastSavedFormRef.current = JSON.stringify({ ...emptyForm, semester_applied_for: form.semester_applied_for })
+    lastAutosaveAttemptedFormRef.current = ''
+    setDraftSaveStatus('')
     setEditedPersonalFields({})
     setPersonalFieldErrors({})
     setEditedAcademicFields({})
@@ -1407,7 +1450,11 @@ function OutboundApplication() {
       setLoading(false)
       return
     }
-    setForm(formFromApplication(data))
+    const loadedForm = formFromApplication(data)
+    setForm(loadedForm)
+    lastSavedFormRef.current = JSON.stringify(loadedForm)
+    lastAutosaveAttemptedFormRef.current = ''
+    setDraftSaveStatus('')
     setEditedPersonalFields({})
     setPersonalFieldErrors({})
     setEditedAcademicFields({})
@@ -1466,6 +1513,9 @@ function OutboundApplication() {
     setApplications((current) => current.filter((application) => application.application_id !== applicationId))
     setApplicationId(null)
     setForm(emptyForm)
+    lastSavedFormRef.current = JSON.stringify(emptyForm)
+    lastAutosaveAttemptedFormRef.current = ''
+    setDraftSaveStatus('')
     setStep(0)
     setSaving(false)
     setMessage('The ineligible draft application was deleted.')
@@ -1707,6 +1757,14 @@ function OutboundApplication() {
           {message && <p className="outbound-application__message" role="status">{message}</p>}
         </div>
         <div className="outbound-form__actions">
+          {draftSaveStatus && (
+            <p className="outbound-application__message" role="status">
+              {draftSaveStatus === 'pending' && 'Unsaved changes'}
+              {draftSaveStatus === 'saving' && 'Saving changes…'}
+              {draftSaveStatus === 'saved' && 'Changes saved'}
+              {draftSaveStatus === 'error' && 'Changes could not be saved.'}
+            </p>
+          )}
           <button
             className="btn btn--secondary"
             type="button"

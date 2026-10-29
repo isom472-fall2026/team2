@@ -1,20 +1,25 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import ErdPage from './ErdPage'
-import Blog from './Blog'
-import VisaChecker from './components/VisaChecker'
-import OutboundApplication from './components/OutboundApplication'
-import InboundApplication from './components/InboundApplication'
-import CoordinatorApplications from './components/CoordinatorApplications'
-import CoordinatorAccountSettings, { CoordinatorPasswordPage } from './components/CoordinatorAccount'
-import TestingMode from './components/TestingMode'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
-import { MAPBOX_ACCESS_TOKEN } from '../js/config.js'
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import AscendHome from './components/AscendHome'
+import SiteLoader from './components/SiteLoader'
+import SiteNavbar from './components/SiteNavbar'
+import DateField from './components/DateField'
 import { supabase } from './supabase'
 import { getDatabaseErrorMessage } from './databaseErrors'
 import { useAppStore } from './stores/appStore'
 import './App.css'
+
+// Everything except the home page loads on demand, so the landing page does not download
+// the map, PDF and application code before it can show anything.
+const ErdPage = lazy(() => import('./ErdPage'))
+const Blog = lazy(() => import('./Blog'))
+const OutboundApplication = lazy(() => import('./components/OutboundApplication'))
+const InboundApplication = lazy(() => import('./components/InboundApplication'))
+const CoordinatorApplications = lazy(() => import('./components/CoordinatorApplications'))
+const CoordinatorAccountSettings = lazy(() => import('./components/CoordinatorAccount'))
+const CoordinatorPasswordPage = lazy(() => import('./components/CoordinatorAccount').then((module) => ({ default: module.CoordinatorPasswordPage })))
+const TestingMode = lazy(() => import('./components/TestingMode'))
+const PartnerUniversityMap = lazy(() => import('./components/PartnerUniversityMap'))
 
 const authOptions = {
   ku: {
@@ -86,50 +91,44 @@ function SuccessToast({ message, onClose }) {
   )
 }
 
-function MaintenancePage() {
+// Every visitor sees only this while maintenance mode is on. The sign-in sits in the corner
+// because it is for KU coordinators, who sign in to switch maintenance off.
+function MaintenanceScreen({ theme }) {
   return (
-    <section className="maintenance-page" aria-labelledby="maintenance-heading">
-      <div className="maintenance-page__card">
-        <span className="auth-card__eyebrow">Website maintenance</span>
-        <h1 id="maintenance-heading">The KU Exchange website is temporarily unavailable.</h1>
-        <p>
-          We are updating the site to improve the student and coordinator experience.
-          Please sign in as a KU coordinator to restore access when the work is complete.
-        </p>
-        <div className="maintenance-page__actions">
-          <Link className="btn btn--primary" to="/auth/signin">KU coordinator sign in</Link>
+    <div className="ascend-home" data-theme={theme}>
+      <main className="maintenance-screen" aria-labelledby="maintenance-heading">
+        <Link className="maintenance-screen__signin" to="/auth/signin">KU coordinator sign in</Link>
+        <div className="maintenance-screen__message">
+          <span className="ascend-loader-mark">Kuwait University</span>
+          <h1 id="maintenance-heading">System is in maintenance</h1>
+          <p>Please check back later.</p>
         </div>
-      </div>
-    </section>
+      </main>
+    </div>
   )
 }
 
-function MaintenanceStatusUnavailable({ error, onRetry }) {
-  const isChecking = !error
-
+// Shown on every route while the website status is unknown, in the same look as the home
+// page's loader, so the check reads as one screen wherever a visitor lands.
+function StatusLoader({ theme, error, onRetry }) {
   return (
-    <section className="maintenance-page" aria-labelledby="maintenance-status-error-heading">
-      <div className="maintenance-page__card">
-        {isChecking ? (
-          <div className="maintenance-status" role="status" aria-live="polite">
-            <span className="maintenance-status__loader" aria-hidden="true" />
-            <span className="auth-card__eyebrow">Checking website status</span>
-            <h1 id="maintenance-status-error-heading">Please wait</h1>
-            <p>We are checking whether KU Exchange is available.</p>
-          </div>
-        ) : (
-          <>
-            <span className="auth-card__eyebrow">Website status unavailable</span>
-            <h1 id="maintenance-status-error-heading">We could not check the website status.</h1>
-            <p role="alert">{error}</p>
-            <div className="maintenance-page__actions">
-              <button className="btn btn--primary" type="button" onClick={onRetry}>Retry</button>
-              <Link className="btn btn--secondary" to="/auth/signin">KU coordinator sign in</Link>
-            </div>
-          </>
-        )}
-      </div>
-    </section>
+    <div className="ascend-home" data-theme={theme}>
+      {error
+        ? (
+            <SiteLoader
+              error
+              message="We could not check the website status."
+              detail={error}
+              actions={
+                <>
+                  <button type="button" onClick={onRetry}>Retry</button>
+                  <Link to="/auth/signin">KU coordinator sign in</Link>
+                </>
+              }
+            />
+          )
+        : <SiteLoader />}
+    </div>
   )
 }
 
@@ -537,22 +536,22 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel,
           <input id="cycle-academic-year" name="academicYear" value={form.academicYear} onChange={updateField} placeholder="2026/2027" pattern="\d{4}/\d{4}" required />
         </label>
         <label htmlFor="cycle-nominations-open">Inbound nominations open
-          <input id="cycle-nominations-open" name="nominationsOpen" type="datetime-local" value={form.nominationsOpen} onChange={updateField} required />
+          <DateField id="cycle-nominations-open" name="nominationsOpen" type="datetime-local" value={form.nominationsOpen} onChange={updateField} required />
         </label>
         <label htmlFor="cycle-nominations-close">Inbound nominations close
-          <input id="cycle-nominations-close" name="nominationsClose" type="datetime-local" value={form.nominationsClose} onChange={updateField} required />
+          <DateField id="cycle-nominations-close" name="nominationsClose" type="datetime-local" value={form.nominationsClose} onChange={updateField} required />
         </label>
         <label htmlFor="cycle-application-open">Applications open
-          <input id="cycle-application-open" name="applicationOpen" type="datetime-local" value={form.applicationOpen} onChange={updateField} required />
+          <DateField id="cycle-application-open" name="applicationOpen" type="datetime-local" value={form.applicationOpen} onChange={updateField} required />
         </label>
         <label htmlFor="cycle-application-close">Applications close
-          <input id="cycle-application-close" name="applicationClose" type="datetime-local" value={form.applicationClose} onChange={updateField} required />
+          <DateField id="cycle-application-close" name="applicationClose" type="datetime-local" value={form.applicationClose} onChange={updateField} required />
         </label>
         <label htmlFor="cycle-start">Exchange cycle starts
-          <input id="cycle-start" name="cycleStart" type="datetime-local" value={form.cycleStart} onChange={updateField} required />
+          <DateField id="cycle-start" name="cycleStart" type="datetime-local" value={form.cycleStart} onChange={updateField} required />
         </label>
         <label htmlFor="cycle-end">Exchange cycle ends
-          <input id="cycle-end" name="cycleEnd" type="datetime-local" value={form.cycleEnd} onChange={updateField} required />
+          <DateField id="cycle-end" name="cycleEnd" type="datetime-local" value={form.cycleEnd} onChange={updateField} required />
         </label>
       </div>
       {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
@@ -1261,7 +1260,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         </div>
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
-        {activeView === 'account' && <CoordinatorAccountSettings profile={profile} />}
+        {activeView === 'account' && <Suspense fallback={null}><CoordinatorAccountSettings profile={profile} /></Suspense>}
         {isKuCoordinator && activeView === 'start' && (
           <>
             <span className="auth-card__eyebrow">New cycle</span>
@@ -1403,7 +1402,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
               )}
           </>
         )}
-        {isKuCoordinator && activeView === 'applications' && <CoordinatorApplications />}
+        {isKuCoordinator && activeView === 'applications' && <Suspense fallback={null}><CoordinatorApplications /></Suspense>}
         {!isKuCoordinator && activeView === 'progress' && (
           <section aria-labelledby="progress-heading">
             <span className="auth-card__eyebrow">Nomination tracking</span>
@@ -1877,151 +1876,6 @@ const partnerUniversityAirports = {
   'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD', coordinates: [151.177, -33.946], distanceKm: 7, driveMinutes: 15 },
 }
 
-const mapStyles = [
-  { id: 'dark', label: 'Dark', url: 'mapbox://styles/mapbox/dark-v11' },
-  { id: 'streets', label: 'Streets', url: 'mapbox://styles/mapbox/streets-v12' },
-  { id: 'light', label: 'Light', url: 'mapbox://styles/mapbox/light-v11' },
-  { id: 'satellite', label: 'Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12' },
-]
-
-function PartnerUniversityMap({ universities, homeUniversity, selectedUniversity, onSelect, onResetSelection, showAirport }) {
-  const mapContainer = useRef(null)
-  const map = useRef(null)
-  const markers = useRef([])
-  const airportMarker = useRef(null)
-  const [styleId, setStyleId] = useState('streets')
-
-  const addMarkers = useCallback(() => {
-    if (!map.current) return
-    markers.current.forEach((marker) => marker.remove())
-    markers.current = universities.flatMap((university) => {
-      if (university.latitude == null || university.longitude == null) return []
-      const marker = new mapboxgl.Marker({ color: '#00d4ff' })
-        .setLngLat([university.longitude, university.latitude])
-        .addTo(map.current)
-      marker.getElement().addEventListener('click', () => onSelect(university.university_id))
-      return [marker]
-    })
-  }, [universities, onSelect])
-
-  useEffect(() => {
-    if (!mapContainer.current || homeUniversity?.longitude == null || homeUniversity?.latitude == null) return undefined
-    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: mapStyles.find((style) => style.id === 'streets').url,
-      center: [homeUniversity.longitude, homeUniversity.latitude],
-      zoom: 12,
-    })
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
-    return () => {
-      airportMarker.current?.remove()
-      map.current?.remove()
-      map.current = null
-    }
-  }, [homeUniversity])
-
-  useEffect(() => {
-    if (!map.current) return undefined
-    addMarkers()
-    return () => {
-      markers.current.forEach((marker) => marker.remove())
-      markers.current = []
-    }
-  }, [addMarkers])
-
-  const drawAirportRoute = useCallback(() => {
-    if (!map.current || !selectedUniversity) return
-    const airport = partnerUniversityAirports[selectedUniversity.name]
-    if (!airport?.coordinates || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
-    airportMarker.current?.remove()
-    airportMarker.current = new mapboxgl.Marker({ color: '#f0a500' })
-      .setLngLat(airport.coordinates)
-      .addTo(map.current)
-    const sourceData = {
-      type: 'Feature',
-      geometry: {
-        type: 'LineString',
-        coordinates: [[selectedUniversity.longitude, selectedUniversity.latitude], airport.coordinates],
-      },
-    }
-    if (map.current.getSource('airport-route')) {
-      map.current.getSource('airport-route').setData(sourceData)
-      return
-    }
-    map.current.addSource('airport-route', { type: 'geojson', data: sourceData })
-    map.current.addLayer({
-      id: 'airport-route-line',
-      type: 'line',
-      source: 'airport-route',
-      paint: { 'line-color': '#f0a500', 'line-width': 4, 'line-dasharray': [2, 1] },
-    })
-  }, [selectedUniversity])
-
-  const fitAirportRoute = useCallback(() => {
-    if (!map.current || !selectedUniversity) return
-    const airport = partnerUniversityAirports[selectedUniversity.name]
-    if (!airport?.coordinates || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
-    const bounds = new mapboxgl.LngLatBounds()
-    bounds.extend([selectedUniversity.longitude, selectedUniversity.latitude])
-    bounds.extend(airport.coordinates)
-    map.current.fitBounds(bounds, {
-      padding: { top: 100, right: 100, bottom: 100, left: 100 },
-      maxZoom: 13,
-      duration: 900,
-    })
-  }, [selectedUniversity])
-
-  useEffect(() => {
-    if (!map.current) return
-    if (!showAirport) {
-      airportMarker.current?.remove()
-      airportMarker.current = null
-      if (map.current.getLayer('airport-route-line')) map.current.removeLayer('airport-route-line')
-      if (map.current.getSource('airport-route')) map.current.removeSource('airport-route')
-      return
-    }
-    const showRoute = () => {
-      drawAirportRoute()
-      fitAirportRoute()
-    }
-    if (map.current.isStyleLoaded()) showRoute()
-    else map.current.once('style.load', showRoute)
-  }, [drawAirportRoute, fitAirportRoute, showAirport])
-
-  const changeStyle = (nextStyleId) => {
-    const nextStyle = mapStyles.find((style) => style.id === nextStyleId)
-    if (!map.current || !nextStyle || nextStyleId === styleId) return
-    onResetSelection()
-    setStyleId(nextStyleId)
-    map.current.once('style.load', addMarkers)
-    map.current.setStyle(nextStyle.url)
-  }
-
-  useEffect(() => {
-    if (!map.current || !selectedUniversity || selectedUniversity.latitude == null || selectedUniversity.longitude == null) return
-    map.current.flyTo({ center: [selectedUniversity.longitude, selectedUniversity.latitude], zoom: 5, duration: 900 })
-  }, [selectedUniversity])
-
-  return (
-    <div className="partner-directory__map-shell">
-      <div className="partner-directory__map" ref={mapContainer} />
-      <div className="partner-directory__map-styles" aria-label="Map style">
-        {mapStyles.map((style) => (
-          <button
-            className={style.id === styleId ? 'partner-directory__map-style partner-directory__map-style--active' : 'partner-directory__map-style'}
-            type="button"
-            key={style.id}
-            onClick={() => changeStyle(style.id)}
-          >
-            {style.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function PartnerUniversitiesRoute() {
   const [universities, setUniversities] = useState([])
   const [homeUniversity, setHomeUniversity] = useState(null)
@@ -2164,384 +2018,26 @@ function PartnerUniversitiesRoute() {
                       </div>
                     )}
                   </div>
-                  <PartnerUniversityMap
-                    universities={universities}
-                    homeUniversity={homeUniversity}
-                    selectedUniversity={selectedUniversity}
-                    onSelect={selectUniversity}
-                    onResetSelection={() => {
-                      setSelectedUniversityId(null)
-                      setShowAirport(false)
-                    }}
-                    showAirport={showAirport}
-                  />
+                  <Suspense fallback={<div className="partner-directory__map-shell" />}>
+                    <PartnerUniversityMap
+                      airports={partnerUniversityAirports}
+                      universities={universities}
+                      homeUniversity={homeUniversity}
+                      selectedUniversity={selectedUniversity}
+                      onSelect={selectUniversity}
+                      onResetSelection={() => {
+                        setSelectedUniversityId(null)
+                        setShowAirport(false)
+                      }}
+                      showAirport={showAirport}
+                    />
+                  </Suspense>
                 </>
               )}
             </div>
           </section>
         </>
       )}
-    </section>
-  )
-}
-
-function Navbar({ session, profile, onSignOut, theme, onThemeChange }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const userName = profile?.name || session?.user?.user_metadata?.name || session?.user?.email
-
-  return (
-    <nav className="navbar" aria-label="Main navigation">
-      <Link to="/" className="navbar__brand" aria-label="Go to KU Exchange home">
-        <span className="navbar__university-logo" aria-hidden="true">
-          <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="" className="navbar__university-logo--light" />
-          <img src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" className="navbar__university-logo--dark" />
-        </span>
-        <span className="navbar__brand-text">KU Exchange</span>
-      </Link>
-
-      <button
-        className="navbar__toggle"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
-        aria-label="Toggle navigation"
-      >
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none">
-          <path d={isOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-
-      <ul className={`navbar__links ${isOpen ? 'navbar__links--open' : ''}`} role="list">
-        <li>
-          <Link to="/" className="navbar__link">Home</Link>
-        </li>
-        {session && (
-          <li className="navbar__welcome" title={`Welcome, ${userName}`}>
-            Welcome, <span className="navbar__welcome-name">{userName}</span>
-          </li>
-        )}
-        {!session && (
-          <>
-            <li>
-              <Link to="/auth/signup" className="navbar__link navbar__link--auth">Sign Up</Link>
-            </li>
-            <li>
-              <Link to="/auth/signin" className="navbar__link navbar__link--auth navbar__link--auth-alt">Log In</Link>
-            </li>
-          </>
-        )}
-        {session && (
-          <li>
-            <button className="navbar__link navbar__link--logout" type="button" onClick={onSignOut}>Log out</button>
-          </li>
-        )}
-        <li>
-          <Link to={session ? '/portal' : '/auth/signin'} className="navbar__link navbar__link--cta">Portal</Link>
-        </li>
-        <li>
-          <Link to="/partners" className="navbar__link">
-            {/* Handshake / partnership icon */}
-            <svg className="navbar__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M16 8l-4-4-4 4M12 4v8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M8 13l-3 3a2 2 0 0 0 2.83 2.83L11 15.66M16 13l3 3a2 2 0 0 1-2.83 2.83L13 15.66M11 15.66l1 1 1-1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Partner Universities
-          </Link>
-        </li>
-        <li>
-          <a
-            href="https://www.ku.edu.kw"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="navbar__link"
-          >
-            Kuwait University
-          </a>
-        </li>
-        <li>
-          <button
-            className="navbar__link navbar__theme-toggle"
-            type="button"
-            onClick={onThemeChange}
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-          >
-            <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
-          </button>
-        </li>
-      </ul>
-    </nav>
-  )
-}
-
-function HeroBackground() {
-  return (
-    <div className="hero-bg" aria-hidden="true">
-      <div className="hero-orb hero-orb--1" />
-      <div className="hero-orb hero-orb--2" />
-      <div className="hero-orb hero-orb--3" />
-      <div className="hero-orb hero-orb--4" />
-      <div className="hero-orb hero-orb--5" />
-      {/* Animated grid lines */}
-      <div className="hero-grid" />
-    </div>
-  )
-}
-
-function HeroSection() {
-  return (
-    <section className="hero-section" aria-label="Student Exchange Program">
-      <HeroBackground />
-      <div className="hero-section__inner">
-        <div className="hero-section__badge">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="16" height="16">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-          </svg>
-          Kuwait University College of Business Administration
-        </div>
-        <img
-          src={`${import.meta.env.BASE_URL}images/exchangelogoeng.png`}
-          alt="Student Exchange Program"
-          className="hero-section__logo"
-        />
-        <p className="hero-section__subtitle">
-          Broaden your academic horizons by studying at one of our world-class partner
-          universities — or welcome international scholars to our campus.
-        </p>
-        <div className="hero-section__actions">
-          <a href="#incoming-application" className="btn btn--primary">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="20" height="20">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 20h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            Apply as Incoming Student
-          </a>
-          <a href="#outgoing-application" className="btn btn--secondary">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="20" height="20">
-              <path d="M12 21V9m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 4h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            Apply as Outgoing Student
-          </a>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-
-const stats = [
-  { value: '25+', label: 'Partner Universities' },
-  { value: '12', label: 'Countries' },
-  { value: '500+', label: 'Alumni Exchanged' },
-  { value: '2', label: 'Semesters per Year' },
-]
-
-function StatsBar() {
-  return (
-    <div className="stats-bar" aria-label="Program at a glance">
-      {stats.map(({ value, label }) => (
-        <div key={label} className="stats-bar__item">
-          <span className="stats-bar__value">{value}</span>
-          <span className="stats-bar__label">{label}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function EligibilityCriteria() {
-  const [gpa, setGpa] = useState('')
-  const [creditsPassed, setCreditsPassed] = useState('')
-  const hasEnteredBoth = gpa !== '' && creditsPassed !== ''
-  const exceedsMaximumGpa = gpa !== '' && Number(gpa) > 4
-  const isBelowMinimumGpa = gpa !== '' && Number(gpa) < 3
-  const meetsGpaRequirement = !isBelowMinimumGpa && !exceedsMaximumGpa
-  const meetsCreditsRequirement = Number.isInteger(Number(creditsPassed))
-    && Number(creditsPassed) >= 60
-    && Number(creditsPassed) < 103
-  const isEligible = meetsGpaRequirement && meetsCreditsRequirement
-
-  return (
-    <section id="eligibility" className="info-cards" aria-labelledby="eligibility-heading">
-      <h2 id="eligibility-heading" className="section-heading">Eligibility Criteria</h2>
-      <p className="section-subheading">
-        Enter your academic details to check your outbound exchange eligibility.
-      </p>
-      <div className="eligibility-check">
-        <div className="eligibility-check__fields">
-          <label className="eligibility-check__field">
-            GPA
-            <input
-              type="number"
-              min="0"
-              max="4"
-              step="any"
-              value={gpa}
-              onChange={(event) => setGpa(event.target.value)}
-              aria-label="GPA"
-              aria-invalid={exceedsMaximumGpa}
-              aria-describedby={exceedsMaximumGpa ? 'gpa-error' : undefined}
-            />
-            {exceedsMaximumGpa && <span id="gpa-error" className="eligibility-check__error" role="alert">GPA must be 4.0 or less.</span>}
-          </label>
-          <label className="eligibility-check__field">
-            Credits passed
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={creditsPassed}
-              onChange={(event) => setCreditsPassed(event.target.value)}
-              aria-label="Credits passed"
-            />
-          </label>
-        </div>
-        {hasEnteredBoth ? (
-          <div className={`eligibility-check__result${isEligible ? ' eligibility-check__result--eligible' : ' eligibility-check__result--ineligible'}`} aria-live="polite">
-            <h3>{isEligible ? 'You meet the eligibility criteria' : 'You do not meet the eligibility criteria'}</h3>
-            <p>
-              Eligibility requires a GPA of at least 3.0 and 60-102 credits passed.
-              {exceedsMaximumGpa && ' Your GPA cannot be greater than 4.0.'}
-              {isBelowMinimumGpa && ' Your GPA is below 3.0.'}
-              {!meetsCreditsRequirement && ' Your passed credits must be a whole number from 60 through 102.'}
-            </p>
-          </div>
-        ) : (
-          <p className="eligibility-check__hint" aria-live="polite">
-            Enter both values to see the eligibility criteria and result.
-          </p>
-        )}
-      </div>
-    </section>
-  )
-}
-
-const infoCards = [
-  {
-    id: 'duration',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-    title: 'Duration',
-    body: 'Exchange periods last one full semester or one academic year, aligned with the host institution\'s academic calendar.',
-  },
-  {
-    id: 'credits',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M3 9h18M9 21V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-    title: 'Credit Transfer',
-    body: 'Courses taken abroad are reviewed by the Academic Council and — when equivalent — transferred directly to your KU transcript.',
-  },
-  {
-    id: 'financial',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-    title: 'Financial Support',
-    body: 'Selected students may be eligible for KU travel grants and fee waivers. Tuition is paid to Kuwait University; partner tuition is waived under bilateral agreements.',
-  },
-]
-
-function InfoCards() {
-  return (
-    <section className="info-cards" aria-labelledby="program-details-heading">
-      <h2 id="program-details-heading" className="section-heading">Program Details</h2>
-      <div className="info-cards__grid">
-        {infoCards.map(({ id, icon, title, body }) => (
-          <article key={id} className="info-card">
-            <div className="info-card__icon">{icon}</div>
-            <h3 className="info-card__title">{title}</h3>
-            <p className="info-card__body">{body}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-const partners = [
-  { name: 'University of Edinburgh', country: 'United Kingdom', flag: '🇬🇧' },
-  { name: 'Université Paris-Sorbonne', country: 'France', flag: '🇫🇷' },
-  { name: 'University of Toronto', country: 'Canada', flag: '🇨🇦' },
-  { name: 'Seoul National University', country: 'South Korea', flag: '🇰🇷' },
-  { name: 'University of Melbourne', country: 'Australia', flag: '🇦🇺' },
-  { name: 'Maastricht University', country: 'Netherlands', flag: '🇳🇱' },
-]
-
-function PartnerUniversities() {
-  return (
-    <section id="partner-universities" className="partners" aria-labelledby="partners-heading">
-      <h2 id="partners-heading" className="section-heading">Partner Universities</h2>
-      <p className="section-subheading">
-        We collaborate with leading institutions across the globe.
-      </p>
-      <ul className="partners__grid" role="list">
-        {partners.map(({ name, country, flag }) => (
-          <li key={name} className="partner-card">
-            <span className="partner-card__flag" aria-hidden="true">{flag}</span>
-            <div>
-              <p className="partner-card__name">{name}</p>
-              <p className="partner-card__country">{country}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
-function ApplicationCTA() {
-  return (
-    <section className="apply-cta" aria-labelledby="apply-cta-heading">
-      <h2 id="apply-cta-heading" className="apply-cta__heading">Ready to Begin?</h2>
-      <p className="apply-cta__body">
-        Choose the application that matches your situation and follow the guided steps.
-        Our International Relations Office is available to help throughout the process.
-      </p>
-      <div className="apply-cta__cards">
-        <div id="incoming-application" className="apply-card apply-card--incoming">
-          <div className="apply-card__icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 20h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h3 className="apply-card__title">Incoming Student</h3>
-          <p className="apply-card__description">
-            You are an international student wishing to study at Kuwait University for a
-            semester or a full academic year.
-          </p>
-          <a href="#incoming-form" className="btn btn--primary btn--full">
-            Start Incoming Application
-          </a>
-        </div>
-
-        <div id="outgoing-application" className="apply-card apply-card--outgoing">
-          <div className="apply-card__icon-wrap">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 21V9m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 4h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h3 className="apply-card__title">Outgoing Student</h3>
-          <p className="apply-card__description">
-            You are a KU student wishing to study abroad at one of our partner universities
-            for a semester or a full academic year.
-          </p>
-          <a href="#outgoing-form" className="btn btn--secondary btn--full">
-            Start Outgoing Application
-          </a>
-        </div>
-      </div>
     </section>
   )
 }
@@ -2629,6 +2125,8 @@ function TestStatusPage() {
 }
 
 function App() {
+  const { pathname } = useLocation()
+  const isAscendHome = pathname === '/'
   const session = useAppStore((state) => state.session)
   const profile = useAppStore((state) => state.profile)
   const theme = useAppStore((state) => state.theme)
@@ -2636,7 +2134,6 @@ function App() {
   const maintenanceStatusError = useAppStore((state) => state.maintenanceStatusError)
   const setSession = useAppStore((state) => state.setSession)
   const setProfile = useAppStore((state) => state.setProfile)
-  const setTheme = useAppStore((state) => state.setTheme)
   const setMaintenanceMode = useAppStore((state) => state.setMaintenanceMode)
   const setMaintenanceStatusError = useAppStore((state) => state.setMaintenanceStatusError)
   const setTestingMode = useAppStore((state) => state.setTestingMode)
@@ -2774,14 +2271,6 @@ function App() {
     }
   }, [session?.user?.id, signedInKuCoordinator])
 
-  const showMaintenancePage = maintenanceMode !== false && !signedInKuCoordinator
-  const renderPublicPage = (page) => {
-    if (maintenanceMode === null) {
-      return <MaintenanceStatusUnavailable error={maintenanceStatusError} onRetry={refreshMaintenanceStatus} />
-    }
-    return showMaintenancePage ? <MaintenancePage /> : page
-  }
-
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut()
     if (error) window.alert(error.message)
@@ -2791,56 +2280,43 @@ function App() {
     window.location.hash = '/auth/signin'
   }
 
+  // One gate for the whole website. Until the database confirms maintenance is off, nothing
+  // of the site renders: visitors see the status loader, then the maintenance screen, on every
+  // address. Coordinator sign-in stays reachable, and a signed-in KU coordinator gets through
+  // because the portal is where maintenance is switched off.
+  const siteOpen = maintenanceMode === false || signedInKuCoordinator
+  if (!siteOpen && pathname !== '/auth/signin') {
+    return maintenanceMode === null
+      ? <StatusLoader theme={theme} error={maintenanceStatusError} onRetry={refreshMaintenanceStatus} />
+      : <MaintenanceScreen theme={theme} />
+  }
+
   return (
     <>
-      {maintenanceMode === false && (
-        <Navbar
-          session={session}
-          profile={profile}
-          onSignOut={handleSignOut}
-          theme={theme}
-          onThemeChange={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}
-        />
-      )}
+      {siteOpen && !isAscendHome && <SiteNavbar />}
       <main>
-        <Routes>
-          <Route path="/" element={
-            renderPublicPage(
-              <>
-                <HeroSection />
-                <StatsBar />
-                <EligibilityCriteria />
-                <VisaChecker />
-                <InfoCards />
-                <PartnerUniversities />
-                <ApplicationCTA />
-              </>
-            )
-          } />
-          <Route path="/auth/signup" element={maintenanceMode !== false ? <Navigate to="/auth/signin" replace /> : <AuthRoute mode="signup" />} />
-          <Route path="/auth/signin" element={<AuthRoute mode="signin" coordinatorOnly={maintenanceMode !== false} sessionEndedMessage={sessionEndedMessage} onSessionNoticeDismiss={() => setSessionEndedMessage('')} />} />
-          <Route path="/portal/password" element={
-            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal passwordOnly onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
-          } />
-          <Route path="/portal" element={
-            !signedInKuCoordinator && (showMaintenancePage || maintenanceMode === null) ? renderPublicPage(null) : session ? <ProtectedPortal onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />
-          } />
-          <Route path="/portal/inbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <InboundApplication /> : <Navigate to="/auth/signin" replace />} />
-          <Route path="/portal/outbound-application/*" element={showMaintenancePage || maintenanceMode === null ? renderPublicPage(null) : session ? <OutboundApplication /> : <Navigate to="/auth/signin" replace />} />
-          <Route path="/partners" element={renderPublicPage(<PartnerUniversitiesRoute />)} />
-          <Route path="/blog" element={renderPublicPage(<Blog />)} />
-          <Route path="/erd" element={renderPublicPage(<ErdPage />)} />
-          <Route path="/test-status" element={renderPublicPage(<TestStatusPage />)} />
-          <Route path="/testing-mode" element={
-            showMaintenancePage || maintenanceMode === null
-              ? renderPublicPage(null)
-              : <TestingMode
-                  isKuCoordinator={signedInKuCoordinator}
-                  maintenanceMode={maintenanceMode}
-                  onTestingModeChanged={setTestingMode}
-                />
-          } />
-        </Routes>
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/" element={<AscendHome />} />
+            <Route path="/auth/signup" element={maintenanceMode !== false ? <Navigate to="/auth/signin" replace /> : <AuthRoute mode="signup" />} />
+            <Route path="/auth/signin" element={<AuthRoute mode="signin" coordinatorOnly={maintenanceMode !== false} sessionEndedMessage={sessionEndedMessage} onSessionNoticeDismiss={() => setSessionEndedMessage('')} />} />
+            <Route path="/portal/password" element={session ? <ProtectedPortal passwordOnly onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />} />
+            <Route path="/portal" element={session ? <ProtectedPortal onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />} />
+            <Route path="/portal/inbound-application/*" element={session ? <InboundApplication /> : <Navigate to="/auth/signin" replace />} />
+            <Route path="/portal/outbound-application/*" element={session ? <OutboundApplication /> : <Navigate to="/auth/signin" replace />} />
+            <Route path="/partners" element={<PartnerUniversitiesRoute />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/erd" element={<ErdPage />} />
+            <Route path="/test-status" element={<TestStatusPage />} />
+            <Route path="/testing-mode" element={
+              <TestingMode
+                isKuCoordinator={signedInKuCoordinator}
+                maintenanceMode={maintenanceMode}
+                onTestingModeChanged={setTestingMode}
+              />
+            } />
+          </Routes>
+        </Suspense>
       </main>
       {signedInKuCoordinator && sessionWarningSeconds !== null && (
         <div className="inactivity-warning__backdrop">
@@ -2873,7 +2349,7 @@ function App() {
           </section>
         </div>
       )}
-      {maintenanceMode !== null && !showMaintenancePage && <Footer />}
+      {siteOpen && !isAscendHome && <Footer />}
     </>
   )
 }

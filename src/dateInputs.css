@@ -1,0 +1,74 @@
+/* One look for every date, month and date-time field across the site. The browser's own
+   picker is kept for its keyboard and screen-reader support; only the field is restyled.
+   Each form styles its inputs with a `background` and `padding` shorthand, so these rules
+   are prefixed with :root to stay ahead of them. */
+:root input:is([type='date'], [type='datetime-local'], [type='month']) {
+  --date-accent: var(--accent, var(--neon, #00d4ff));
+  position: relative;
+  min-height: 44px;
+  padding-right: 42px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+/* Makes the picker's calendar popup follow the site theme instead of the system one. */
+:root[data-theme='dark'] input:is([type='date'], [type='datetime-local'], [type='month']) { color-scheme: dark; }
+:root[data-theme='light'] input:is([type='date'], [type='datetime-local'], [type='month']) { color-scheme: light; }
+
+:root input:is([type='date'], [type='datetime-local'], [type='month']):hover { border-color: var(--date-accent); }
+:root input:is([type='date'], [type='datetime-local'], [type='month']):focus-visible {
+  border-color: var(--date-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--date-accent) 24%, transparent);
+}
+
+/* Chromium and Safari: swap the small native icon for a themed one and stretch the
+   invisible picker button over the whole field, so a click anywhere opens the calendar.
+   Firefox keeps its own icon, which already sits inside the field. The icon rules carry the
+   theme in the selector so they outrank the light-theme form rules that reset `background`. */
+@supports selector(::-webkit-calendar-picker-indicator) {
+  html:root:not([data-theme='light']) input:is([type='date'], [type='datetime-local'], [type='month']) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aab5cf' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2.5'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2'/%3E%3C/svg%3E");
+    background-position: right 13px center;
+    background-repeat: no-repeat;
+    background-size: 18px;
+  }
+
+  html:root[data-theme='light'] input:is([type='date'], [type='datetime-local'], [type='month']) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23465064' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2.5'/%3E%3Cpath d='M3 9.5h18M8 2.5v4M16 2.5v4M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2'/%3E%3C/svg%3E");
+    background-position: right 13px center;
+    background-repeat: no-repeat;
+    background-size: 18px;
+  }
+
+  :root input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  :root input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-datetime-edit { padding: 0; }
+
+  :root input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-datetime-edit-day-field:focus,
+  :root input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-datetime-edit-month-field:focus,
+  :root input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-datetime-edit-year-field:focus,
+  :root input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-datetime-edit-hour-field:focus,
+  :root input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-datetime-edit-minute-field:focus,
+  :root input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-datetime-edit-ampm-field:focus {
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--date-accent) 30%, transparent);
+    color: inherit;
+    outline: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root input:is([type='date'], [type='datetime-local'], [type='month']) { transition: none; }
+}

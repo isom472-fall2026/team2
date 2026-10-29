@@ -31,7 +31,6 @@
   --radius-lg: 22px;
 
   --transition: 0.22s ease;
-  --navbar-height: 92px;
 }
 
 :root[data-theme='light'] {
@@ -302,68 +301,6 @@ svg { display: block; flex-shrink: 0; }
 
 .btn--full { width: 100%; justify-content: center; }
 
-.maintenance-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - var(--navbar-height));
-  padding: 3rem 1.5rem;
-}
-
-.maintenance-page__card {
-  width: min(100%, 760px);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--glow-card);
-  padding: clamp(2rem, 5vw, 4rem);
-  text-align: center;
-}
-
-.maintenance-page__card h1 {
-  margin-top: 0.75rem;
-  color: var(--text-strong);
-  font-size: clamp(2rem, 5vw, 3.2rem);
-  line-height: 1.12;
-}
-
-.maintenance-page__card p {
-  margin-top: 1rem;
-  color: var(--text);
-  font-size: 1.05rem;
-  line-height: 1.7;
-}
-
-.maintenance-page__actions {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 2rem;
-}
-
-.maintenance-status__loader {
-  display: block;
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 1.75rem;
-  border: 3px solid var(--border);
-  border-top-color: var(--neon);
-  border-right-color: var(--neon-gold);
-  border-radius: 50%;
-  animation: maintenance-status-spin 1s linear infinite;
-}
-
-@keyframes maintenance-status-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .maintenance-status__loader {
-    animation-duration: 2.5s;
-  }
-}
-
 .maintenance-panel {
   margin-top: 2rem;
   padding: 1.5rem;
@@ -408,216 +345,6 @@ svg { display: block; flex-shrink: 0; }
 .maintenance-panel__copy {
   margin-bottom: 1.25rem;
   color: var(--text);
-}
-
-/* ─── Navbar ───────────────────────────────────────────────────────────────── */
-.navbar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0 2rem;
-  min-height: var(--navbar-height);
-  background: rgba(5, 11, 24, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 0 rgba(0, 212, 255, 0.06), 0 4px 24px rgba(0,0,0,0.5);
-}
-
-.navbar__brand {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  color: var(--neon);
-  font-weight: 700;
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
-
-.navbar__logo-icon {
-  width: 28px;
-  height: 28px;
-  color: var(--neon);
-  filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.6));
-}
-
-.navbar__brand-text {
-  letter-spacing: -0.02em;
-  text-shadow: none;
-}
-
-.navbar__toggle {
-  display: none;
-  background: transparent;
-  border: none;
-  color: var(--neon);
-  cursor: pointer;
-  padding: 4px;
-}
-
-.navbar__links {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.navbar__icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.navbar__link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: var(--radius-sm);
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--text);
-  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
-}
-
-.navbar__welcome {
-  max-width: 240px;
-  overflow: hidden;
-  padding: 0 10px;
-  color: var(--text-muted);
-  font-size: 0.88rem;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.navbar__welcome-name {
-  color: var(--neon);
-  text-shadow: 0 0 18px rgba(0, 212, 255, 0.45);
-}
-
-.navbar__link:hover {
-  background: rgba(0, 212, 255, 0.08);
-  color: var(--neon);
-  box-shadow: inset 0 0 0 1px rgba(0, 212, 255, 0.2);
-}
-
-.navbar__link--cta {
-  background: var(--neon);
-  color: #03080f;
-  font-weight: 600;
-  margin-left: 4px;
-  box-shadow: var(--glow-cyan);
-}
-.navbar__link--cta:hover {
-  background: #33dcff;
-  color: #03080f;
-  box-shadow: 0 0 28px rgba(0, 212, 255, 0.7);
-}
-
-.navbar__link--cta-alt {
-  background: transparent;
-  color: var(--neon-2);
-  border: 1.5px solid var(--neon-2);
-  margin-left: 0;
-  box-shadow: inset 0 0 10px rgba(123, 95, 255, 0.05);
-}
-.navbar__link--cta-alt:hover {
-  background: rgba(123, 95, 255, 0.1);
-  box-shadow: var(--glow-violet);
-  color: var(--neon-2);
-}
-
-.navbar__link--auth {
-  color: var(--neon);
-  border: 1px solid rgba(0, 212, 255, 0.35);
-}
-
-.navbar__link--auth-alt {
-  color: var(--neon-2);
-  border-color: rgba(123, 95, 255, 0.45);
-}
-
-.navbar__link--logout {
-  font: inherit;
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid var(--border);
-}
-
-.navbar__theme-toggle {
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: 1px solid var(--border);
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-
-.navbar__theme-toggle span {
-  color: var(--neon-gold);
-  font-size: 1.35rem;
-}
-
-.navbar__university-logo {
-  position: relative;
-  width: 68px;
-  height: 68px;
-  flex-shrink: 0;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 16px rgba(14, 172, 227, 0.14);
-  overflow: hidden;
-}
-
-.navbar__university-logo img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  transition: opacity 0.35s ease, transform 0.35s ease;
-}
-
-.navbar__brand:hover .navbar__brand-text {
-  color: var(--neon-2);
-}
-
-.navbar__brand:hover .navbar__university-logo {
-  border-color: var(--border-bright);
-  box-shadow: var(--glow-cyan);
-}
-
-.navbar__university-logo--light {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.navbar__university-logo--dark {
-  opacity: 0;
-  transform: scale(0.8) rotate(-8deg);
-}
-
-:root[data-theme='dark'] .navbar__university-logo--light {
-  opacity: 0;
-  transform: scale(0.8) rotate(8deg);
-}
-
-:root[data-theme='dark'] .navbar__university-logo--dark {
-  opacity: 1;
-  transform: scale(1) rotate(0);
-}
-
-:root[data-theme='light'] .navbar__brand:hover .navbar__university-logo--light,
-:root[data-theme='dark'] .navbar__brand:hover .navbar__university-logo--dark {
-  transform: scale(1.08) rotate(0);
 }
 
 .auth-warning {
@@ -1136,10 +863,6 @@ svg { display: block; flex-shrink: 0; }
   font: inherit;
 }
 
-:root[data-theme='dark'] .cycle-form input[type='datetime-local'] {
-  color-scheme: dark;
-}
-
 .cycle-form input:focus,
 .cycle-form select:focus {
   outline: 2px solid var(--neon);
@@ -1227,11 +950,6 @@ svg { display: block; flex-shrink: 0; }
   background: var(--bg);
 }
 
-:root[data-theme='light'] .navbar {
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 4px 24px rgba(18, 61, 82, 0.08);
-}
-
 :root[data-theme='light'] .portal-sidebar {
   background: var(--bg-card);
 }
@@ -1240,23 +958,16 @@ svg { display: block; flex-shrink: 0; }
   background: var(--bg-card);
 }
 
-:root[data-theme='light'] .btn--primary,
-:root[data-theme='light'] .navbar__link--cta {
+:root[data-theme='light'] .btn--primary {
   background: #f5d735;
   color: #173847;
   box-shadow: 0 6px 18px rgba(195, 158, 0, 0.22);
 }
 
-:root[data-theme='light'] .btn--primary:hover,
-:root[data-theme='light'] .navbar__link--cta:hover {
+:root[data-theme='light'] .btn--primary:hover {
   background: #f8df67;
   color: #173847;
   box-shadow: 0 8px 24px rgba(195, 158, 0, 0.3);
-}
-
-:root[data-theme='light'] .navbar__welcome-name {
-  color: #173847;
-  text-shadow: 0 0 16px rgba(195, 158, 0, 0.55);
 }
 
 :root[data-theme='light'] .auth-form input,
@@ -2519,58 +2230,6 @@ svg { display: block; flex-shrink: 0; }
 
   .cycle-form__grid {
     grid-template-columns: 1fr;
-  }
-
-  .navbar {
-    padding: 0 1rem;
-    flex-wrap: wrap;
-    height: auto;
-    gap: 0;
-  }
-
-  .navbar__brand { padding: 10px 0; }
-  .navbar__university-logo { width: 56px; height: 56px; }
-  .navbar__toggle { display: block; margin: 12px 0; }
-
-  .navbar__links {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 0;
-    border-top: 1px solid transparent;
-    max-height: 0;
-    opacity: 0;
-    visibility: hidden;
-    overflow: hidden;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .navbar__links--open {
-    max-height: calc(100svh - 72px);
-    opacity: 1;
-    visibility: visible;
-    padding: 16px 0;
-    border-top-color: var(--border);
-    overflow-y: auto;
-  }
-
-  .navbar__link { 
-    justify-content: center; 
-    padding: 10px 14px;
-    width: 100%;
-  }
-
-  .navbar__link.navbar__theme-toggle {
-    align-self: center;
-    width: 44px;
-    height: 44px;
-    padding: 0;
-  }
-
-  .navbar__welcome {
-    max-width: 100%;
-    padding: 8px 18px;
-    text-align: center;
   }
 
   .auth-card,

@@ -4,7 +4,19 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
+import {
+  getAcademicFieldError,
+  getEnglishEligibilityError,
+  isCurrentlyIneligible,
+  majors,
+  needsEnglish106,
+  otherMajor,
+  requiresEnglishTestProof,
+} from '../studentExchangeEligibility'
+import DateField from './DateField'
 import './OutboundApplication.css'
+
+const DATE_TYPES = ['date', 'month', 'datetime-local']
 
 const storageBucket = 'outbound-application-files'
 
@@ -14,18 +26,6 @@ const steps = [
   { path: 'exchange-documents', title: 'Exchange and documents', description: 'Choose a destination and attach the required documents.' },
   { path: 'terms-and-conditions', title: 'Terms and conditions', description: 'Review and confirm each statement before submitting.' },
 ]
-
-const majors = [
-  'Marketing',
-  'Management',
-  'Public Management',
-  'Finance',
-  'Accounting',
-  'Management Information Systems',
-  'Operations Management',
-]
-
-const otherMajor = 'Other'
 
 const terms = [
   'I confirm that the information and documents in this application are accurate and complete.',
@@ -64,21 +64,6 @@ const emptyForm = {
   university_id: '',
   nationality: '',
   passport_issuing_country: '',
-}
-
-function requiresEnglishTestProof(form) {
-  return ['IELTS', 'TOEFL iBT'].includes(form.english_test_type)
-    && form.english_test_meets_requirement === 'yes'
-}
-
-function needsEnglish106(form) {
-  return form.english_test_type === 'None'
-    || (['IELTS', 'TOEFL iBT'].includes(form.english_test_type)
-      && form.english_test_meets_requirement === 'no')
-}
-
-function isCurrentlyIneligible(form) {
-  return needsEnglish106(form) && form.english_106_completed === 'no'
 }
 
 const personalInformationFieldNames = [
@@ -195,35 +180,6 @@ function getPersonalFieldError(field, form) {
   return ''
 }
 
-function getAcademicFieldError(field, form) {
-  const value = String(form[field] ?? '').trim()
-  if (field === 'major' && !value) return 'Select a major.'
-  if (field === 'major_other' && form.major === otherMajor && !value) return 'Enter your major.'
-  if (field === 'current_year_of_study' && !value) return 'Select your current year of study.'
-  if (field === 'gpa') {
-    if (!value) return 'Enter your GPA.'
-    const gpa = Number(value)
-    if (!Number.isFinite(gpa) || gpa <= 3 || gpa >= 4) {
-      return 'GPA must be greater than 3.0 and less than 4.0.'
-    }
-  }
-  if (field === 'credits_passed') {
-    if (!value) return 'Enter your credits passed.'
-    const credits = Number(value)
-    if (!Number.isInteger(credits) || credits < 60 || credits >= 103) {
-      return 'Credits passed must be a whole number from 60 through 102.'
-    }
-  }
-  if (field === 'expected_graduation_semester') {
-    if (!value) return 'Select your expected graduation month and year.'
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return 'Enter a valid graduation month and year.'
-    const today = new Date()
-    const todayValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    if (`${value}-20` <= todayValue) return 'Expected graduation month must be after the 20th of this month.'
-  }
-  return ''
-}
-
 function getCreditsWarning(form) {
   const value = String(form.credits_passed ?? '').trim()
   if (!value) return ''
@@ -262,10 +218,11 @@ function getApplicationSaveErrorMessage(error) {
 }
 
 function InputField({ label, name, value, onChange, onBlur, error, type = 'text', required = false, ...props }) {
+  const Field = DATE_TYPES.includes(type) ? DateField : 'input'
   return (
     <label className="outbound-form__field">
       <span>{label}{required && <span className="outbound-form__required" aria-hidden="true"> *</span>}</span>
-      <input
+      <Field
         name={name}
         type={type}
         value={value}
@@ -1223,18 +1180,7 @@ function OutboundApplication() {
       ]
       const academicError = academicFields.map((field) => getAcademicFieldError(field, form)).find(Boolean)
       if (academicError) return academicError
-      if (!form.english_test_type) return 'Answer whether you have taken IELTS or TOEFL.'
-      if (['IELTS', 'TOEFL iBT'].includes(form.english_test_type)) {
-        if (!form.english_test_meets_requirement) return 'Answer whether your English test score meets the requirement.'
-        if (form.english_test_meets_requirement === 'yes' && !form.language_proficiency) {
-          return 'Upload your IELTS or TOEFL score report.'
-        }
-      }
-      if (needsEnglish106(form)) {
-        if (!form.english_106_completed) return 'Answer whether you have taken English 106 (course code 9988106).'
-        if (form.english_106_completed === 'no') return 'You are not currently eligible for the student exchange program.'
-      }
-      return ''
+      return getEnglishEligibilityError(form, { requireTestProof: true })
     }
     if (stepToValidate === 2) {
       if (!form.university_id || !form.semester_applied_for) return 'Choose a partner university and an open exchange cycle.'

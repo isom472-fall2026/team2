@@ -4,13 +4,13 @@
 
 const CACHE = 'ku-exchange-v1'
 
-// Third-party files the home page needs. The planet models are served with no-cache, so
-// without this every visit re-requests about 2 MB before the planet can draw.
+// Third-party files the home page needs. Without this every visit re-requests a few MB of
+// planet textures before the planet can draw.
 const ASSET_ORIGINS = [
   'https://unpkg.com/three@0.143.0/',
   'https://unpkg.com/lenis@1.3.23/',
   'https://api.getlayers.ai/storage/v1/object/public/public/assets/ascend-d9857ad1f2/',
-  'https://www.gstatic.com/draco/versioned/decoders/1.5.5/',
+  'https://unpkg.com/three-globe@2.31.0/example/img/',
 ]
 
 // Vite names bundles name-<8 character hash>.ext, so a changed file gets a new name.

@@ -1,14 +1,17 @@
 import { useEffect, useRef } from 'react'
 
 const ASSET_BASE_URL = 'https://api.getlayers.ai/storage/v1/object/public/public/assets/ascend-d9857ad1f2'
-const PLANET_GLB = `${ASSET_BASE_URL}/planet.glb`
-const PLANET_LIGHTS_GLB = `${ASSET_BASE_URL}/planet-lights.glb`
 const PLANET_CLOUDS_PNG = `${ASSET_BASE_URL}/planet-clouds.png`
+// NASA's Blue Marble (day) and Black Marble (city lights) maps, which are public domain.
+const EARTH_TEXTURE_BASE_URL = 'https://unpkg.com/three-globe@2.31.0/example/img'
+const EARTH_DAY_JPG = `${EARTH_TEXTURE_BASE_URL}/earth-blue-marble.jpg`
+const EARTH_NIGHT_JPG = `${EARTH_TEXTURE_BASE_URL}/earth-night.jpg`
+const EARTH_WATER_PNG = `${EARTH_TEXTURE_BASE_URL}/earth-water.png`
 
 const CONFIG = {
-  rimColor: '#c1faff', rimPower: 2.4, nightLights: 10, terrainDepth: 0.33, terrainShade: 1.3,
+  rimColor: '#c1faff', rimPower: 2.4, nightLights: 4, terrainDepth: 0.33, terrainShade: 1.3,
   oceanGlint: 0.45, oceanDeep: 0.12, oceanFlow: 3, oceanFlowSpeed: 0.8, oceanFlowScale: 2.1,
-  planetRadius: 1.95, spin: 0.06, initRotation: 1.73,
+  planetRadius: 1.95, spin: 0.06, initRotation: 2.86,
   tilt: 0.37,
   cloud1Height: 1.005, cloud1Opacity: 0.3, cloud1Spin: 0.06,
   cloud2Height: 1.03, cloud2Opacity: 0.18, cloud2Spin: 0.14,
@@ -173,7 +176,7 @@ function addMotes(THREE, scene, camera, resolution) {
   return material
 }
 
-function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nightLights, surfaceBrightness, nightSurfaceColor, lightsAmount, dayMode, lowPower) {
+function addPlanetShader(THREE, mesh, nightTexture, waterTexture, planetTime, nightAmount, nightLights, surfaceBrightness, nightSurfaceColor, lightsAmount, dayMode, lowPower) {
   const source = mesh.material.clone()
   if (lowPower) source.defines = { ...source.defines, LOW_POWER: '' }
   source.metalness = 0
@@ -183,7 +186,7 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
     Object.assign(shader.uniforms, {
       time: planetTime, noiseScale: { value: 30 }, speedX: { value: 1.5 }, speedY: { value: 2 }, speedZ: { value: 2.5 },
       rimColor: { value: hexToVec3(THREE, CONFIG.rimColor) }, rimPower: { value: CONFIG.rimPower },
-      nightBlendTexture: { value: nightTexture }, nightLights, surfaceBrightness, nightSurfaceColor,
+      nightBlendTexture: { value: nightTexture }, waterMaskTexture: { value: waterTexture }, nightLights, surfaceBrightness, nightSurfaceColor,
       nightAmount, lightsAmount, dayMode,
       terrainDepth: { value: CONFIG.terrainDepth }, terrainShade: { value: CONFIG.terrainShade },
       oceanGlint: { value: CONFIG.oceanGlint }, oceanDeep: { value: CONFIG.oceanDeep },
@@ -192,7 +195,7 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
     shader.vertexShader = `varying vec2 vCustomUv;\n${shader.vertexShader}`.replace('void main() {', 'void main() {\n vCustomUv = uv;')
     shader.fragmentShader = `
       uniform float time;uniform float noiseScale;uniform float speedX;uniform float speedY;uniform float speedZ;
-      uniform vec3 rimColor;uniform float rimPower;uniform sampler2D nightBlendTexture;uniform float nightLights;uniform float nightAmount;uniform float lightsAmount;uniform float dayMode;uniform float surfaceBrightness;uniform vec3 nightSurfaceColor;
+      uniform vec3 rimColor;uniform float rimPower;uniform sampler2D nightBlendTexture;uniform sampler2D waterMaskTexture;uniform float nightLights;uniform float nightAmount;uniform float lightsAmount;uniform float dayMode;uniform float surfaceBrightness;uniform vec3 nightSurfaceColor;
       uniform float terrainDepth;uniform float terrainShade;uniform float oceanGlint;uniform float oceanDeep;
       uniform float oceanFlow;uniform float oceanFlowSpeed;uniform float oceanFlowScale;varying vec2 vCustomUv;
       ${SNOISE}
@@ -201,8 +204,9 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       #include <dithering_fragment>
       vec3 normalizedNormal=normalize(vNormal);vec3 viewDir=normalize(vViewPosition);
       float rim=1.0-max(dot(viewDir,normalizedNormal),0.0);rim=pow(rim,rimPower);rim=pow(rim,1.5);rim*=0.7;
-      vec3 currentColor=gl_FragColor.rgb;float blueDom=currentColor.b-max(currentColor.r,currentColor.g);
-      float waterMask=clamp(smoothstep(-0.005,0.03,blueDom),0.0,1.0);
+      // The Blue Marble's deep oceans are too dark to tell from land by colour, so water comes
+      // from its own mask (white is water).
+      float waterMask=texture2D(waterMaskTexture,vCustomUv).r;
       // LOW_POWER (phones) skips the faint shimmer and the glint ripple: both are too fine to
       // see on a small screen but cost a noise lookup per pixel every frame.
       #ifndef LOW_POWER
@@ -220,7 +224,18 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       float fDet=dot(sigX,vR1);vec3 vGrad=sign(fDet)*(dFdx(terrH)*vR1+dFdy(terrH)*vR2);
       vec3 bumpedNormal=normalize(abs(fDet)*normalizedNormal-terrainDepth*vGrad);
       vec3 shadeNormal=mix(bumpedNormal,normalizedNormal,waterMask);
-      vec3 cityLights=texture2D(nightBlendTexture,vCustomUv).rgb*gl_FragColor.rgb*nightLights;
+      // The night map's lights are neutral grey (near 0.45 at full size, much less once mipmapped) and its land and sea a
+      // faint blue, so blue is subtracted before the threshold. The low threshold lifts small
+      // towns so every settled region glows, not only the largest cities.
+      vec3 nightMap=texture2D(nightBlendTexture,vCustomUv).rgb;
+      float nightLum=dot(nightMap,vec3(0.299,0.587,0.114))-max(nightMap.b-nightMap.r,0.0)*2.0;
+      float cityGlow=smoothstep(0.02,0.15,nightLum);
+      // A blurred sample (a lower mip level) spreads a soft glow around each lit area, so
+      // cities still read at the globe's on-screen size, where each is only a few pixels.
+      vec3 haloMap=texture2D(nightBlendTexture,vCustomUv,3.5).rgb;
+      float haloLum=dot(haloMap,vec3(0.299,0.587,0.114))-max(haloMap.b-haloMap.r,0.0)*2.0;
+      cityGlow+=smoothstep(0.01,0.07,haloLum)*0.45;
+      vec3 cityLights=cityGlow*vec3(1.0,0.8,0.5)*nightLights;
       vec3 viewSunDir=normalize(mix(vec3(-0.9,0.18,0.4),vec3(-0.3,0.35,0.9),dayMode));float ndl=dot(normalizedNormal,viewSunDir);
       float dayAmt=smoothstep(-0.05,0.35,ndl);float relief=dot(shadeNormal,viewSunDir)-ndl;
       gl_FragColor.rgb*=clamp(1.0+relief*terrainShade*dayAmt,0.55,1.6);
@@ -230,7 +245,7 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       // Light mode's sunny satellite look: the light swings to the front so the whole face is
       // in daylight, oceans turn a clearer blue and land colours are a little more saturated.
       float dayLum=dot(gl_FragColor.rgb,vec3(0.299,0.587,0.114));vec3 vivid=max(mix(vec3(dayLum),gl_FragColor.rgb,1.1),0.0);
-      vivid=mix(vivid,vivid*0.3+vec3(0.06,0.22,0.42),waterMask);
+      vivid=mix(vivid,vivid*0.3+vec3(0.03,0.15,0.34),waterMask);
       gl_FragColor.rgb=mix(gl_FragColor.rgb,vivid,dayMode);
       gl_FragColor.rgb+=cityLights*lightsFactor;vec3 halfDir=normalize(viewSunDir+viewDir);
       #ifdef LOW_POWER
@@ -308,13 +323,11 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
       try {
         // index.html preloads these modules and the planet assets for the home route, so they
         // download alongside the app bundle; keep the URLs there in step with these.
-        const [threeModule, composerModule, renderModule, shaderModule, gltfModule, dracoModule] = await Promise.all([
+        const [threeModule, composerModule, renderModule, shaderModule] = await Promise.all([
           import('https://unpkg.com/three@0.143.0/build/three.module.js'),
           import('https://unpkg.com/three@0.143.0/examples/jsm/postprocessing/EffectComposer.js'),
           import('https://unpkg.com/three@0.143.0/examples/jsm/postprocessing/RenderPass.js'),
           import('https://unpkg.com/three@0.143.0/examples/jsm/postprocessing/ShaderPass.js'),
-          import('https://unpkg.com/three@0.143.0/examples/jsm/loaders/GLTFLoader.js'),
-          import('https://unpkg.com/three@0.143.0/examples/jsm/loaders/DRACOLoader.js'),
         ])
         if (cancelled) return
         const THREE = threeModule
@@ -384,38 +397,34 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
         let lightAmount = themeRef.current === 'light' ? 1 : 0
 
-        const draco = new dracoModule.DRACOLoader()
-        draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.5/')
-        const loader = new gltfModule.GLTFLoader()
-        loader.setDRACOLoader(draco)
         const textureLoader = new THREE.TextureLoader()
-        const [lightsAsset, cloudsTexture, planetAsset] = await Promise.all([
-          loader.loadAsync(PLANET_LIGHTS_GLB),
+        textureLoader.setCrossOrigin('anonymous')
+        const [nightTexture, waterTexture, cloudsTexture, dayTexture] = await Promise.all([
+          textureLoader.loadAsync(EARTH_NIGHT_JPG),
+          textureLoader.loadAsync(EARTH_WATER_PNG),
           textureLoader.loadAsync(PLANET_CLOUDS_PNG),
-          loader.loadAsync(PLANET_GLB),
+          textureLoader.loadAsync(EARTH_DAY_JPG),
         ])
         if (cancelled) return
-        const lightMesh = lightsAsset.scene.getObjectByProperty('isMesh', true)
-        const nightTexture = lightMesh?.material?.map
-        if (!nightTexture) throw new Error('Planet city-light texture is missing.')
+        dayTexture.encoding = THREE.sRGBEncoding
         const anisotropy = renderer.capabilities.getMaxAnisotropy()
         nightTexture.anisotropy = anisotropy
         cloudsTexture.wrapS = THREE.RepeatWrapping
         cloudsTexture.wrapT = THREE.RepeatWrapping
         cloudsTexture.repeat.set(5, 5)
-        const planetMesh = planetAsset.scene.getObjectByProperty('isMesh', true)
-        if (!planetMesh) throw new Error('Planet mesh is missing.')
-        planetMesh.geometry.computeBoundingSphere()
-        planetMesh.scale.setScalar(CONFIG.planetRadius / planetMesh.geometry.boundingSphere.radius)
+        const planetMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(CONFIG.planetRadius, 128, 128),
+          new THREE.MeshStandardMaterial({ map: dayTexture }),
+        )
         planetMesh.layers.set(LAYERS.ENTIRE_SCENE)
         const planetNight = { value: 0 }
-        const planetNightLights = { value: CONFIG.nightLights * 2.3 }
-        const planetLightsAmount = { value: 0.5 }
-        const planetMaterial = addPlanetShader(THREE, planetMesh, nightTexture, planetTime, planetNight, planetNightLights, planetBrightness, planetNightSurfaceColor, planetLightsAmount, dayMode, lowPower)
+        const planetNightLights = { value: CONFIG.nightLights }
+        const planetLightsAmount = { value: 0.15 }
+        const planetMaterial = addPlanetShader(THREE, planetMesh, nightTexture, waterTexture, planetTime, planetNight, planetNightLights, planetBrightness, planetNightSurfaceColor, planetLightsAmount, dayMode, lowPower)
         if (planetMaterial.map) planetMaterial.map.anisotropy = anisotropy
         planetGroup.add(planetMesh)
         const cloudMeshes = addCloudLayers(THREE, cloudsTexture, cloudGroup, cloudTime, dayMode, lowPower ? 2 : 3)
-        cleanupResources.push(planetMaterial, cloudsTexture, draco, planetMesh.geometry, ...cloudMeshes.flatMap((mesh) => [mesh.geometry, mesh.material]))
+        cleanupResources.push(planetMaterial, dayTexture, nightTexture, waterTexture, cloudsTexture, planetMesh.geometry, ...cloudMeshes.flatMap((mesh) => [mesh.geometry, mesh.material]))
         cloudGroup.visible = true
 
         let currentProgress = 0

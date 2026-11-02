@@ -22,22 +22,22 @@
 
 .ascend-home[data-theme='light'],
 .exchange-nav-shell--site[data-theme='light'] {
-  --bg: #fbf4e6;
+  --bg: #e4f3fd;
   --section-bg: transparent;
-  --ink: #17202f;
-  --muted: #465064;
-  --muted-2: #5f6779;
-  --line: rgba(92, 64, 22, .14);
-  --line-strong: rgba(92, 64, 22, .28);
-  --accent: #9a5807;
-  --accent-2: #7f4805;
-  --accent-ink: #fffaf0;
-  --glass: rgba(255, 251, 243, .74);
-  --glass-2: rgba(255, 250, 240, .92);
-  --shadow: 0 22px 48px -30px rgba(120, 78, 18, .38);
+  --ink: #0f2236;
+  --muted: #3c5470;
+  --muted-2: #536a84;
+  --line: rgba(24, 92, 150, .16);
+  --line-strong: rgba(24, 92, 150, .3);
+  --accent: #0a679f;
+  --accent-2: #085683;
+  --accent-ink: #f4fbff;
+  --glass: rgba(244, 251, 255, .76);
+  --glass-2: rgba(240, 249, 255, .92);
+  --shadow: 0 22px 48px -30px rgba(20, 80, 140, .38);
 }
 
-/* Length of the page cross-fade in src/themeTransition.js. The planet's own ignite-and-flood
+/* Length of the page cross-fade in src/themeTransition.js. The planet's own glow-and-flood
    keeps playing live underneath it. */
 ::view-transition-old(root),
 ::view-transition-new(root) { animation-duration: .5s; }

@@ -27,6 +27,7 @@ __pycache__/
 # Editor and tooling cruft
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~

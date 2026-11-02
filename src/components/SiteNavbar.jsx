@@ -3,12 +3,21 @@ import ExchangeNav from './ExchangeNav'
 import { supabase } from '../supabase'
 import { useAppStore } from '../stores/appStore'
 import { toggleTheme } from '../themeTransition'
+import { isKuCoordinatorProfile } from '../coordinatorProfile'
+
+function portalLabel(profile, userEmail) {
+  if (profile?.role === 'ku') return 'KU student'
+  if (profile?.role === 'incoming') return 'Incoming student'
+  if (profile?.role === 'coordinator') return isKuCoordinatorProfile(profile, userEmail) ? 'KU coordinator' : 'Partner coordinator'
+  return null
+}
 
 export default function SiteNavbar({ onHomeClick }) {
   const session = useAppStore((state) => state.session)
   const profile = useAppStore((state) => state.profile)
   const theme = useAppStore((state) => state.theme)
   const userName = profile?.name || session?.user?.user_metadata?.name || session?.user?.email
+  const userType = session ? portalLabel(profile, session.user.email) : null
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut()
@@ -54,7 +63,9 @@ export default function SiteNavbar({ onHomeClick }) {
               <Link className="exchange-nav-portal" to="/auth/signin">Log in</Link>
             </>
           )}
-          <Link className="exchange-nav-portal exchange-nav-portal--primary" to={session ? '/portal' : '/auth/signin'}>Portal</Link>
+          <Link className="exchange-nav-portal exchange-nav-portal--primary" to={session ? '/portal' : '/auth/signin'}>
+            {userType ? `Portal: ${userType}` : 'Portal'}
+          </Link>
           {session && <button className="exchange-nav-portal" type="button" onClick={signOut}>Log out</button>}
         </>
       }

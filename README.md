@@ -5,7 +5,7 @@ Client: Student Exchange Office under the Vice President for Academic Affairs (V
 
 A web-based portal that automates student exchange application intake, evaluates academic eligibility criteria, and streamlines coordinator review.
 
-Where we are: Phase 3, our first working increment, is due Monday 26 October. All 17 stories on our delivery note are Done.
+Where we are: Phase 4, our second working increment, is due Monday 9 nov .Wednesday 4 November. 18 stories are planned.
  The rules and phase requirements are in `docs/how-we-work.md`. 
 This line gets updated at the start of every phase, because it is the first thing the team reads.
  
@@ -42,7 +42,7 @@ it. Do not delete it.
 | Data Lead | Rawan Abdrabou | the schema and seed data in Supabase |
 | Build Lead | Hadi Haidar | the running system and release notes |
 | FinOps Lead | yousef almohammed | the ledger |
-| Quality Lead | Fatma Alsammari | bug issues, each closed as fixed, will-not-fix or not-a-bug |
+| Quality Lead | Fatma Alshammari | bug issues, each closed as fixed, will-not-fix or not-a-bug |
 
 At six members, every role is held by one person. At five, one person holds a combined
 Quality and FinOps Lead. **At four there is no FinOps or Quality Lead at all:** whoever is
@@ -56,7 +56,7 @@ cuts the tag.
 | 1 — team, environment, proposal | Rawan Abdrabou | Wed 23 Sep |
 | 2 — design sprint | Almaha Alajmi | Wed 7 Oct |
 | 3 — sprint 1 | Aysha Jan | Mon 26 Oct |
-| 4 — sprint 2 | TODO | Wed 4 Nov |
+| 4 — sprint 2 | Fatma Alshimmari | Wed 4 Nov |
 | 5 — sprint 3 | TODO | Wed 18 Nov |
 | 6 — final sprint | TODO | Wed 9 Dec |
 

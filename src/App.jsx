@@ -6,6 +6,7 @@ import SiteNavbar from './components/SiteNavbar'
 import DateField from './components/DateField'
 import { supabase } from './supabase'
 import { getDatabaseErrorMessage } from './databaseErrors'
+import { isKuCoordinatorProfile } from './coordinatorProfile'
 import { useAppStore } from './stores/appStore'
 import './App.css'
 
@@ -1713,13 +1714,6 @@ function CoordinatorAccessPending({ user, onSignOut, onDeleted }) {
       </div>
     </section>
   )
-}
-
-function isKuCoordinatorProfile(profile, userEmail) {
-  const profileEmailIsKu = profile.email?.trim().toLowerCase().endsWith('@ku.edu.kw')
-  const authenticatedEmailIsKu = userEmail?.trim().toLowerCase().endsWith('@ku.edu.kw')
-  const universityId = profile.university ?? profile.university_id
-  return Number(universityId) === 4 || profileEmailIsKu || authenticatedEmailIsKu
 }
 
 function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus, passwordOnly = false }) {

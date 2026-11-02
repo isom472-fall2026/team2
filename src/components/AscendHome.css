@@ -27,9 +27,9 @@ html.lenis.lenis-stopped { overflow: hidden; }
 .ascend-loader { position: fixed; z-index: 2; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); color: var(--ink); }
 .ascend-loader-mark { color: var(--accent); font-size: clamp(22px, 3vw, 28px); font-weight: 800; letter-spacing: .06em; text-align: center; }
 /* The cube spins on its vertical axis, tilted towards the viewer; its glow is a blurred copy
-   of the top face pushed below it. Light mode uses the page accent so it shows on cream. */
+   of the top face pushed below it. Light mode uses the page accent so it shows on the sky blue. */
 .ascend-cube { --cube-size: 75px; --cube-color: hsl(176.89, 99.07%, 58.04%); --cube-glow: hsl(176.61, 42.28%, 40.7%); position: relative; width: var(--cube-size); height: var(--cube-size); margin: 26px 0 30px; transform-style: preserve-3d; transform: rotateX(-30deg); animation: ascend-cube-spin 4s linear infinite; }
-.ascend-home[data-theme='light'] .ascend-cube { --cube-color: var(--accent); --cube-glow: color-mix(in srgb, var(--accent) 70%, #3b2200); }
+.ascend-home[data-theme='light'] .ascend-cube { --cube-color: var(--accent); --cube-glow: color-mix(in srgb, var(--accent) 70%, #002a44); }
 .ascend-cube-sides { position: absolute; inset: 0; transform-style: preserve-3d; }
 .ascend-cube-sides span { position: absolute; inset: 0; background: var(--cube-color); transform: rotateY(calc(90deg * var(--i))) translateZ(calc(var(--cube-size) / 2)); }
 .ascend-cube-top { position: absolute; inset: 0; background: var(--cube-color); transform: rotateX(90deg) translateZ(calc(var(--cube-size) / 2)); transform-style: preserve-3d; }
@@ -57,7 +57,7 @@ html.lenis.lenis-stopped { overflow: hidden; }
 .exchange-hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 13px; margin-top: 32px; }
 .exchange-scroll-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 45px; color: var(--muted-2); font-size: 12px; letter-spacing: .04em; text-shadow: 0 1px 14px rgba(0, 0, 0, .9); }
 .exchange-scroll-link span { color: var(--accent); font-size: 17px; }
-.ascend-home[data-theme='light'] :is(.exchange-eyebrow, .exchange-hero-title, .exchange-hero-sub, .exchange-scroll-link, .exchange-section-head h2, .exchange-bottom-cta h2, .exchange-section-head p, .exchange-bottom-cta p) { text-shadow: 0 1px 16px rgba(255, 249, 236, .9); }
+.ascend-home[data-theme='light'] :is(.exchange-eyebrow, .exchange-hero-title, .exchange-hero-sub, .exchange-scroll-link, .exchange-section-head h2, .exchange-bottom-cta h2, .exchange-section-head p, .exchange-bottom-cta p) { text-shadow: 0 1px 16px rgba(236, 248, 255, .9); }
 .ascend-button { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; gap: 9px; padding: 12px 21px; border: 1px solid transparent; border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 650; transition: transform .18s ease, border-color .2s ease, background .2s ease; white-space: nowrap; }
 .ascend-button svg { width: 17px; height: 17px; flex-shrink: 0; }
 .ascend-button-primary { color: var(--accent-ink) !important; background: var(--accent); }

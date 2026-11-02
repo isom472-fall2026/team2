@@ -79,15 +79,15 @@ const FinalPass = {
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }',
   // Light mode keeps the Earth and replaces space with a sky-blue daylight sky whose beams
-  // radiate from the globe and deepen towards the edges like a vignette. Both are masked by
-  // the planet's projected disc, and uLight sequences the theme switch: the globe's halo
-  // brightens first, then the sky floods outward from it (run backwards when switching to dark).
+  // radiate from the globe and deepen towards the edges like a vignette. uLight sequences the
+  // theme switch: the globe's halo brightens first, then the sky floods outward from it (run
+  // backwards when switching to dark).
   fragmentShader: `
     uniform sampler2D tDiffuse; uniform vec3 uBg; uniform vec2 uCenter; uniform float uRadius; uniform float uAspect;
     uniform float uTime; uniform float uLight; uniform vec3 uLightCore; uniform vec3 uLightEdge; uniform vec3 uHalo;
     varying vec2 vUv;
     void main(){
-      vec3 scene=texture2D(tDiffuse,vUv).xyz;
+      vec4 frame=texture2D(tDiffuse,vUv);vec3 scene=frame.rgb;
       if(uLight<=0.0){gl_FragColor=vec4(uBg+scene,1.0);return;}
       vec2 p=(vUv-uCenter)*vec2(uAspect,1.0);
       float d=length(p)/uRadius;float a=atan(p.y,p.x);
@@ -97,20 +97,19 @@ const FinalPass = {
       vec3 sky=mix(uLightEdge,uLightCore,clamp(reach*(0.6+beams*0.55),0.0,1.0));
       float vignette=smoothstep(1.3,0.3,length((vUv-0.5)*vec2(uAspect,1.0)));
       sky*=mix(0.9,1.0,vignette);
-      float disc=1.0-smoothstep(0.994,1.006,d);
       float glowIn=smoothstep(0.0,0.5,uLight);
-      // The halo also hides the dark antialiased edge the planet leaves against black space.
       float rim=max(d-1.0,0.0);
       sky=mix(sky,uHalo,exp(-rim*7.0)*0.9*glowIn);
       float far=length(vec2(uAspect,1.0))/uRadius+1.0;
       float floodR=mix(1.0,far,smoothstep(0.3,1.0,uLight));
-      float skyMask=(1.0-disc)*(1.0-smoothstep(floodR-0.8,floodR,d));
-      vec3 earth=uBg+scene;
-      // A screen blend lifts the deep-navy oceans most, so the whole globe brightens without
-      // the land clipping to white.
-      earth=1.0-(1.0-clamp(earth,0.0,1.0))*(1.0-uHalo*0.22*glowIn*disc);
-      earth+=uHalo*pow(clamp(d,0.0,1.0),5.0)*0.6*glowIn*disc;
-      gl_FragColor=vec4(mix(earth,sky,skyMask),1.);
+      float skyMask=1.0-smoothstep(floodR-0.8,floodR,d);
+      // The scene renders over a transparent clear, so its alpha is the globe's exact
+      // silhouette, clouds and antialiased edge included. A disc from the planet's radius
+      // would crop it: the clouds stand above the surface, and a sphere off the view axis
+      // projects wider than a circle.
+      vec3 earth=scene+uHalo*pow(clamp(d,0.0,1.0),5.0)*0.45*glowIn*frame.a;
+      vec3 day=sky*(1.0-frame.a)+earth;
+      gl_FragColor=vec4(mix(uBg+scene,day,skyMask),1.);
     }`,
 }
 
@@ -174,7 +173,7 @@ function addMotes(THREE, scene, camera, resolution) {
   return material
 }
 
-function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nightLights, surfaceBrightness, nightSurfaceColor, lightsAmount, lowPower) {
+function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nightLights, surfaceBrightness, nightSurfaceColor, lightsAmount, dayMode, lowPower) {
   const source = mesh.material.clone()
   if (lowPower) source.defines = { ...source.defines, LOW_POWER: '' }
   source.metalness = 0
@@ -185,7 +184,7 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       time: planetTime, noiseScale: { value: 30 }, speedX: { value: 1.5 }, speedY: { value: 2 }, speedZ: { value: 2.5 },
       rimColor: { value: hexToVec3(THREE, CONFIG.rimColor) }, rimPower: { value: CONFIG.rimPower },
       nightBlendTexture: { value: nightTexture }, nightLights, surfaceBrightness, nightSurfaceColor,
-      nightAmount, lightsAmount,
+      nightAmount, lightsAmount, dayMode,
       terrainDepth: { value: CONFIG.terrainDepth }, terrainShade: { value: CONFIG.terrainShade },
       oceanGlint: { value: CONFIG.oceanGlint }, oceanDeep: { value: CONFIG.oceanDeep },
       oceanFlow: { value: CONFIG.oceanFlow }, oceanFlowSpeed: { value: CONFIG.oceanFlowSpeed }, oceanFlowScale: { value: CONFIG.oceanFlowScale },
@@ -193,7 +192,7 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
     shader.vertexShader = `varying vec2 vCustomUv;\n${shader.vertexShader}`.replace('void main() {', 'void main() {\n vCustomUv = uv;')
     shader.fragmentShader = `
       uniform float time;uniform float noiseScale;uniform float speedX;uniform float speedY;uniform float speedZ;
-      uniform vec3 rimColor;uniform float rimPower;uniform sampler2D nightBlendTexture;uniform float nightLights;uniform float nightAmount;uniform float lightsAmount;uniform float surfaceBrightness;uniform vec3 nightSurfaceColor;
+      uniform vec3 rimColor;uniform float rimPower;uniform sampler2D nightBlendTexture;uniform float nightLights;uniform float nightAmount;uniform float lightsAmount;uniform float dayMode;uniform float surfaceBrightness;uniform vec3 nightSurfaceColor;
       uniform float terrainDepth;uniform float terrainShade;uniform float oceanGlint;uniform float oceanDeep;
       uniform float oceanFlow;uniform float oceanFlowSpeed;uniform float oceanFlowScale;varying vec2 vCustomUv;
       ${SNOISE}
@@ -213,7 +212,7 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       float fT=time*oceanFlowSpeed*4.0;float fS=4.0*oceanFlowScale;
       float warp=snoise(vec3(vCustomUv.x*fS-fT*0.5,vCustomUv.y*fS+fT*0.4,fT*0.5));
       float flow=snoise(vec3(vCustomUv.x*fS*2.0+fT*0.6+warp,vCustomUv.y*fS*2.0-fT*0.5,fT*0.7));
-      flow=warp*0.6+flow*0.4;gl_FragColor.rgb+=waterMask*flow*0.12*oceanFlow;
+      flow=warp*0.6+flow*0.4;gl_FragColor.rgb+=waterMask*flow*0.12*oceanFlow*(1.0-0.85*dayMode);
       gl_FragColor.rgb=mix(gl_FragColor.rgb,vec3(0.01,0.06,0.16),waterMask*oceanDeep);
       vec3 finalColor=mix(gl_FragColor.rgb,rimColor,rim);gl_FragColor=vec4(finalColor,1.0);
       vec3 surfPos=-vViewPosition;float terrH=dot(texture2D(map,vCustomUv).rgb,vec3(0.299,0.587,0.114));
@@ -222,26 +221,31 @@ function addPlanetShader(THREE, mesh, nightTexture, planetTime, nightAmount, nig
       vec3 bumpedNormal=normalize(abs(fDet)*normalizedNormal-terrainDepth*vGrad);
       vec3 shadeNormal=mix(bumpedNormal,normalizedNormal,waterMask);
       vec3 cityLights=texture2D(nightBlendTexture,vCustomUv).rgb*gl_FragColor.rgb*nightLights;
-      vec3 viewSunDir=normalize(vec3(-0.9,0.18,0.4));float ndl=dot(normalizedNormal,viewSunDir);
+      vec3 viewSunDir=normalize(mix(vec3(-0.9,0.18,0.4),vec3(-0.3,0.35,0.9),dayMode));float ndl=dot(normalizedNormal,viewSunDir);
       float dayAmt=smoothstep(-0.05,0.35,ndl);float relief=dot(shadeNormal,viewSunDir)-ndl;
       gl_FragColor.rgb*=clamp(1.0+relief*terrainShade*dayAmt,0.55,1.6);
-      float nightFactor=max(1.0-smoothstep(-0.30,0.18,ndl),nightAmount);
-      float lightsFactor=max(1.0-smoothstep(-0.35,0.30,ndl),lightsAmount);
+      float nightFactor=max(1.0-smoothstep(-0.30,0.18,ndl),nightAmount)*(1.0-dayMode);
+      float lightsFactor=max(1.0-smoothstep(-0.35,0.30,ndl),lightsAmount)*(1.0-dayMode);
       gl_FragColor.rgb=mix(gl_FragColor.rgb,nightSurfaceColor,nightFactor);
+      // Light mode's sunny satellite look: the light swings to the front so the whole face is
+      // in daylight, oceans turn a clearer blue and land colours are a little more saturated.
+      float dayLum=dot(gl_FragColor.rgb,vec3(0.299,0.587,0.114));vec3 vivid=max(mix(vec3(dayLum),gl_FragColor.rgb,1.1),0.0);
+      vivid=mix(vivid,vivid*0.3+vec3(0.06,0.22,0.42),waterMask);
+      gl_FragColor.rgb=mix(gl_FragColor.rgb,vivid,dayMode);
       gl_FragColor.rgb+=cityLights*lightsFactor;vec3 halfDir=normalize(viewSunDir+viewDir);
       #ifdef LOW_POWER
       float ndh=max(dot(normalizedNormal,halfDir),0.0);
       #else
       float ripple=snoise(vec3(vCustomUv*240.0,time*4.0));float ndh=max(dot(normalizedNormal,halfDir)+ripple*0.02,0.0);
       #endif
-      float glint=pow(ndh,140.0);      gl_FragColor.rgb+=glint*waterMask*dayAmt*oceanGlint*vec3(1.0,0.97,0.88);gl_FragColor.rgb*=surfaceBrightness;
+      float glint=pow(ndh,140.0);      gl_FragColor.rgb+=glint*waterMask*dayAmt*oceanGlint*(1.0-0.7*dayMode)*vec3(1.0,0.97,0.88);gl_FragColor.rgb*=surfaceBrightness;
     `)
   }
   mesh.material = source
   return source
 }
 
-function addCloudLayers(THREE, texture, cloudGroup, cloudTime, layerCount) {
+function addCloudLayers(THREE, texture, cloudGroup, cloudTime, dayMode, layerCount) {
   const layers = [
     { height: CONFIG.cloud1Height, opacity: CONFIG.cloud1Opacity, spin: CONFIG.cloud1Spin, ry: 0, phase: 0 },
     { height: CONFIG.cloud2Height, opacity: CONFIG.cloud2Opacity, spin: CONFIG.cloud2Spin, ry: 2.2, phase: 13 },
@@ -257,8 +261,9 @@ function addCloudLayers(THREE, texture, cloudGroup, cloudTime, layerCount) {
       shader.uniforms.uSpeedZ = { value: 2 }
       shader.uniforms.uOpacity = { value: layer.opacity }
       shader.uniforms.uPhase = { value: layer.phase }
+      shader.uniforms.uDay = dayMode
       shader.vertexShader = `varying vec2 vCloudUv;\n${shader.vertexShader}`.replace('void main() {', 'void main() {\n vCloudUv = uv;')
-      shader.fragmentShader = `uniform float uTime;uniform float noiseScale;uniform float uSpeedX;uniform float uSpeedY;uniform float uSpeedZ;uniform float uOpacity;uniform float uPhase;varying vec2 vCloudUv;${SNOISE}\n${shader.fragmentShader}`
+      shader.fragmentShader = `uniform float uTime;uniform float noiseScale;uniform float uSpeedX;uniform float uSpeedY;uniform float uSpeedZ;uniform float uOpacity;uniform float uPhase;uniform float uDay;varying vec2 vCloudUv;${SNOISE}\n${shader.fragmentShader}`
       shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>', `
         #include <dithering_fragment>
         gl_FragColor.rgb=vec3(1.0);
@@ -266,7 +271,7 @@ function addCloudLayers(THREE, texture, cloudGroup, cloudTime, layerCount) {
         float cloudNdv=max(dot(normalize(vNormal),normalize(vViewPosition)),0.0);
         float cloudEdge=pow(1.0-cloudNdv,3.0);float cloudMod=mix(cloudNoise,1.0,cloudEdge);
         float cloudNdl=dot(normalize(vNormal),normalize(vec3(-0.9,0.18,0.4)));
-        float cloudNight=1.0-smoothstep(-0.30,0.30,cloudNdl);float cloudDay=1.0-cloudNight*0.9;
+        float cloudNight=(1.0-smoothstep(-0.30,0.30,cloudNdl))*(1.0-uDay);float cloudDay=1.0-cloudNight*0.9;
         gl_FragColor.a*=cloudMod*uOpacity*cloudDay;
       `)
     }
@@ -314,7 +319,6 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         if (cancelled) return
         const THREE = threeModule
         const scene = new THREE.Scene()
-        scene.background = new THREE.Color(0x000000)
         const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200)
         camera.position.set(0, 0, 8)
         camera.layers.set(LAYERS.ENTIRE_SCENE)
@@ -330,12 +334,16 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false })
         renderer.setPixelRatio(pixelRatio())
         renderer.outputEncoding = THREE.sRGBEncoding
+        // A transparent clear lets the final pass use the frame's alpha as the globe's outline.
+        renderer.setClearColor(0x000000, 0)
         renderer.setSize(window.innerWidth, window.innerHeight)
         const ambient = new THREE.AmbientLight(0xffffff, 0.5)
         ambient.layers.set(LAYERS.ENTIRE_SCENE)
         scene.add(ambient)
         const directional = new THREE.DirectionalLight(0xffffff, 0.7)
         directional.position.set(0, 10, 2)
+        const nightLightPosition = directional.position.clone()
+        const dayLightPosition = new THREE.Vector3(-3, 4, 10)
         directional.layers.set(LAYERS.ENTIRE_SCENE)
         scene.add(directional)
         const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight)
@@ -362,12 +370,9 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         scene.add(worldGroup)
         const planetTime = { value: 0 }
         const cloudTime = { value: 0 }
-        // Light mode brightens the globe and lifts its night side, so it reads as lit against
-        // the daytime sky instead of a dark disc.
         const planetBrightness = { value: 1.35 }
-        const darkNightSurface = hexToVec3(THREE, '#18263f')
-        const lightNightSurface = hexToVec3(THREE, '#8db4da')
-        const planetNightSurfaceColor = { value: darkNightSurface.clone() }
+        const planetNightSurfaceColor = { value: hexToVec3(THREE, '#18263f') }
+        const dayMode = { value: 0 }
         const starMaterial = addStars(THREE, scene, resolution, lowPower ? CONFIG.starCount / 2 : CONFIG.starCount)
         const moteMaterial = addMotes(THREE, scene, camera, resolution)
         cleanupResources.push(starMaterial, moteMaterial)
@@ -406,10 +411,10 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         const planetNight = { value: 0 }
         const planetNightLights = { value: CONFIG.nightLights * 2.3 }
         const planetLightsAmount = { value: 0.5 }
-        const planetMaterial = addPlanetShader(THREE, planetMesh, nightTexture, planetTime, planetNight, planetNightLights, planetBrightness, planetNightSurfaceColor, planetLightsAmount, lowPower)
+        const planetMaterial = addPlanetShader(THREE, planetMesh, nightTexture, planetTime, planetNight, planetNightLights, planetBrightness, planetNightSurfaceColor, planetLightsAmount, dayMode, lowPower)
         if (planetMaterial.map) planetMaterial.map.anisotropy = anisotropy
         planetGroup.add(planetMesh)
-        const cloudMeshes = addCloudLayers(THREE, cloudsTexture, cloudGroup, cloudTime, lowPower ? 2 : 3)
+        const cloudMeshes = addCloudLayers(THREE, cloudsTexture, cloudGroup, cloudTime, dayMode, lowPower ? 2 : 3)
         cleanupResources.push(planetMaterial, cloudsTexture, draco, planetMesh.geometry, ...cloudMeshes.flatMap((mesh) => [mesh.geometry, mesh.material]))
         cloudGroup.visible = true
 
@@ -486,9 +491,16 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
           finalPass.uniforms.uAspect.value = camera.aspect
           finalPass.uniforms.uTime.value = time / 1000
           finalPass.uniforms.uLight.value = lightAmount
-          const earthGlow = THREE.MathUtils.smoothstep(lightAmount, 0, 0.5)
-          planetBrightness.value = 1.35 + earthGlow * 0.5
-          planetNightSurfaceColor.value.lerpVectors(darkNightSurface, lightNightSurface, earthGlow)
+          dayMode.value = THREE.MathUtils.smoothstep(lightAmount, 0, 0.5)
+          planetBrightness.value = 1.35 + dayMode.value * 0.15
+          // The scene light sits above the globe for the dark look; light mode brings it to the
+          // front so no edge of the globe is left in shadow.
+          directional.position.lerpVectors(nightLightPosition, dayLightPosition, dayMode.value)
+          directional.intensity = 0.7 + dayMode.value * 0.3
+          ambient.intensity = 0.5 + dayMode.value * 0.3
+          // Stars and motes are additive and would show as specks once the sky is up.
+          starMaterial.visible = lightAmount < 1
+          moteMaterial.visible = lightAmount < 1
 
           composer.render()
           if (!hasRendered) {

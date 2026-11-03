@@ -244,14 +244,6 @@ CREATE TABLE public.outboundapplication (
     is_whatsapp_available BOOLEAN NOT NULL DEFAULT FALSE,
     major VARCHAR(255) CHECK (major IS NULL OR length(btrim(major)) > 0),
     transcript VARCHAR(255) CHECK (transcript IS NULL OR length(btrim(transcript)) > 0),
-    english_test_type VARCHAR(20) CHECK (
-        english_test_type IS NULL OR english_test_type IN ('IELTS', 'TOEFL iBT', 'None')
-    ),
-    english_test_meets_requirement BOOLEAN,
-    english_106_completed BOOLEAN,
-    language_proficiency VARCHAR(255) CHECK (
-        language_proficiency IS NULL OR length(btrim(language_proficiency)) > 0
-    ),
     current_year_of_study VARCHAR(50) CHECK (
         current_year_of_study IS NULL OR current_year_of_study IN (
             'Second year', 'Third year', 'Fourth year'
@@ -497,7 +489,8 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-    SELECT auth.uid() IS NOT NULL
+    SELECT public.get_maintenance_mode() IS FALSE
+       AND auth.uid() IS NOT NULL
        AND (
             EXISTS (
                 SELECT 1
@@ -536,7 +529,8 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-    SELECT CASE requested_table
+    SELECT public.get_maintenance_mode() IS FALSE
+       AND CASE requested_table
         WHEN 'updates' THEN EXISTS (
             SELECT 1 FROM public.testing WHERE update_id::TEXT = requested_id
         )
@@ -824,7 +818,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-    IF NOT public.is_ku_coordinator() THEN
+    IF public.get_maintenance_mode() IS DISTINCT FROM FALSE
+       OR NOT public.is_ku_coordinator() THEN
         RETURN FALSE;
     END IF;
 
@@ -846,7 +841,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-    IF NOT public.is_ku_coordinator() THEN
+    IF public.get_maintenance_mode() IS DISTINCT FROM FALSE
+       OR NOT public.is_ku_coordinator() THEN
         RETURN FALSE;
     END IF;
 
@@ -1083,7 +1079,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-    SELECT (
+    SELECT public.get_maintenance_mode() IS FALSE AND ((
         inbound_application_id IS NOT NULL
         AND EXISTS (
             SELECT 1
@@ -1103,7 +1099,7 @@ AS $$
             WHERE application.application_id = outbound_application_id
               AND student.user_id = auth.uid()
         )
-    );
+    ));
 $$;
 
 REVOKE ALL ON FUNCTION public.is_feedback_author(INT, BIGINT) FROM PUBLIC;
@@ -2003,6 +1999,12 @@ BEGIN
             MESSAGE = 'Only KU coordinators can list testing files for cleanup';
     END IF;
 
+    IF public.get_maintenance_mode() IS DISTINCT FROM FALSE THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '55000',
+            MESSAGE = 'Testing files cannot be listed during maintenance';
+    END IF;
+
     RETURN QUERY
     SELECT objects.bucket_id, objects.name
     FROM storage.objects AS objects
@@ -2568,13 +2570,29 @@ AS $$
     FROM public.coordinator;
 $$;
 
+CREATE OR REPLACE FUNCTION public.is_testing_mode_enabled()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF public.get_maintenance_mode() IS DISTINCT FROM FALSE THEN
+        RETURN NULL;
+    END IF;
+
+    RETURN (SELECT enabled FROM public.testing WHERE id = 1);
+END;
+$$;
+
 REVOKE ALL ON FUNCTION public.get_maintenance_mode() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_maintenance_mode() TO anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.set_maintenance_mode(requested_mode BOOLEAN)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
@@ -2616,6 +2634,90 @@ BEGIN
     RETURN requested_mode;
 END;
 $$;
+
+ALTER FUNCTION public.set_maintenance_mode(BOOLEAN) OWNER TO postgres;
+
+DROP POLICY IF EXISTS "Maintenance blocks country reads" ON public.country;
+CREATE POLICY "Maintenance blocks country reads"
+ON public.country AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks exchange cycle reads" ON public.exchange_cycle;
+CREATE POLICY "Maintenance blocks exchange cycle reads"
+ON public.exchange_cycle AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks KU student reads" ON public.kustudentauth;
+CREATE POLICY "Maintenance blocks KU student reads"
+ON public.kustudentauth AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks incoming student reads" ON public.incomingstudentauth;
+CREATE POLICY "Maintenance blocks incoming student reads"
+ON public.incomingstudentauth AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks emergency contact reads" ON public.emergency_contact;
+CREATE POLICY "Maintenance blocks emergency contact reads"
+ON public.emergency_contact AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks partner university reads" ON public.partneruniversity;
+CREATE POLICY "Maintenance blocks partner university reads"
+ON public.partneruniversity AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance limits coordinator profile reads" ON public.coordinator;
+CREATE POLICY "Maintenance limits coordinator profile reads"
+ON public.coordinator AS RESTRICTIVE FOR SELECT TO authenticated
+USING (
+    public.get_maintenance_mode() IS FALSE
+    OR (
+        public.get_maintenance_mode() IS TRUE
+        AND user_id = auth.uid()
+        AND public.is_ku_coordinator()
+    )
+);
+
+DROP POLICY IF EXISTS "Maintenance blocks nomination reads" ON public.studentnominations;
+CREATE POLICY "Maintenance blocks nomination reads"
+ON public.studentnominations AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks inbound application reads" ON public.inboundapplication;
+CREATE POLICY "Maintenance blocks inbound application reads"
+ON public.inboundapplication AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks outbound application reads" ON public.outboundapplication;
+CREATE POLICY "Maintenance blocks outbound application reads"
+ON public.outboundapplication AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks status log reads" ON public.application_status_log;
+CREATE POLICY "Maintenance blocks status log reads"
+ON public.application_status_log AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks update reads" ON public.updates;
+CREATE POLICY "Maintenance blocks update reads"
+ON public.updates AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks feedback reads" ON public.feedback;
+CREATE POLICY "Maintenance blocks feedback reads"
+ON public.feedback AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks testing data reads" ON public.testing;
+CREATE POLICY "Maintenance blocks testing data reads"
+ON public.testing AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
+
+DROP POLICY IF EXISTS "Maintenance blocks storage object reads" ON storage.objects;
+CREATE POLICY "Maintenance blocks storage object reads"
+ON storage.objects AS RESTRICTIVE FOR SELECT TO anon, authenticated
+USING (public.get_maintenance_mode() IS FALSE);
 
 REVOKE ALL ON FUNCTION public.set_maintenance_mode(BOOLEAN) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.set_maintenance_mode(BOOLEAN) TO authenticated;

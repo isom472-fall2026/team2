@@ -40,7 +40,10 @@ export default function PartnerUniversityMap({ airports, universities, homeUnive
       zoom: 12,
     })
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
+    const resizeObserver = new ResizeObserver(() => map.current?.resize())
+    resizeObserver.observe(mapContainer.current)
     return () => {
+      resizeObserver.disconnect()
       airportMarker.current?.remove()
       map.current?.remove()
       map.current = null

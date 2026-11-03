@@ -85,7 +85,7 @@ function getApplicationFields(application, data) {
         return ['Destination university', universityById.get(String(value)) || `University #${value}`]
       }
       if (key === 'semester_applied_for' && value !== null) {
-        return ['Exchange cycle', cycleById.get(String(value)) || `Cycle #${value}`]
+        return ['KU semester', cycleById.get(String(value)) || `Cycle #${value}`]
       }
       if (key === 'emergency_contact' && value !== null) {
         const contact = data.contacts.find(({ contact_id }) => Number(contact_id) === Number(value))
@@ -374,7 +374,7 @@ export default function CoordinatorApplications() {
       </div>
       {section === 'current' && (
         <p className="coordinator-applications__cycle">
-          {currentCycle ? `Application window: ${currentCycle.semester} ${currentCycle.academic_year}` : 'There is no exchange cycle in its application window right now.'}
+          {currentCycle ? `Application window: ${currentCycle.semester} ${currentCycle.academic_year}` : 'There is no KU semester in its application window right now.'}
         </p>
       )}
       <div className="coordinator-applications__type-tabs" role="group" aria-label="Application type">

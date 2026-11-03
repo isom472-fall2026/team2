@@ -11,8 +11,10 @@ export const useAppStore = create((set) => ({
   maintenanceMode: null,
   maintenanceStatusError: '',
   testingMode: null,
+  authVerificationPending: false,
   setSession: (session) => set({ session }),
   setProfile: (profile) => set({ profile }),
+  setAuthVerificationPending: (authVerificationPending) => set({ authVerificationPending }),
   setAuthType: (authType) => set({ authType }),
   setVisaNationality: (visaNationality) => set({
     visaNationality,

@@ -42,6 +42,8 @@ html.lenis.lenis-stopped { overflow: hidden; }
 .maintenance-screen p { margin: 0; color: var(--muted); font-size: 17px; line-height: 1.6; }
 .maintenance-screen__signin { position: absolute; top: 20px; right: 20px; padding: 10px 18px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--glass); color: var(--ink); font-size: 14px; font-weight: 650; transition: border-color .18s ease; }
 .maintenance-screen__signin:hover, .maintenance-screen__signin:focus-visible { border-color: var(--accent); }
+.maintenance-screen__actions { display: grid; width: min(100%, 320px); justify-items: center; gap: 12px; }
+.maintenance-screen__actions .auth-form__error { margin: 0; }
 .ascend-loader p { color: var(--muted); font-size: 14px; letter-spacing: .04em; }
 .ascend-loader--error .ascend-cube { display: none; }
 .ascend-loader button, .ascend-loader a { padding: 10px 18px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--glass); color: var(--ink); cursor: pointer; font-size: 14px; }

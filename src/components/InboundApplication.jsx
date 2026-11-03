@@ -107,6 +107,12 @@ function todayValue() {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
+function oneYearFromTodayValue() {
+  const date = new Date()
+  date.setFullYear(date.getFullYear() + 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 function formFromApplication(application) {
   const savedPhone = application.phone_number ?? ''
   const savedPhoneCode = phoneCountryCodes
@@ -238,12 +244,12 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
     ['Credits passed', application.credits_passed],
     ['Maximum credits', application.max_credits],
     ['Expected graduation date', displayDate(application.expected_graduation_date)],
-    ['Exchange cycle', cycle ? `${cycle.semester} ${cycle.academic_year}` : application.semester_applied_for],
+    ['KU semester', cycle ? `${cycle.semester} ${cycle.academic_year}` : application.semester_applied_for],
     ['Host university', university?.name || application.university_id],
     ['Academic transcript', uploadedFileName(application.transcript)],
     ['English proficiency document', uploadedFileName(application.language_proficiency)],
     ['Passport copy', uploadedFileName(application.passport_copy)],
-    ['Profile photo', uploadedFileName(application.profile_photo)],
+    ['Personal photo', uploadedFileName(application.profile_photo)],
     ['Terms and conditions accepted', application.tos ? 'Yes' : 'No'],
   ].filter(([, value]) => value !== null && value !== undefined && value !== '')
   const statusClass = String(application.application_status || 'Unknown')
@@ -262,7 +268,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
         ['Academic transcript', application.transcript],
         ['English proficiency document', application.language_proficiency],
         ['Passport copy', application.passport_copy],
-        ['Profile photo', application.profile_photo],
+        ['Personal photo', application.profile_photo],
       ].filter(([, path]) => Boolean(path))
 
       const pages = await Promise.all(files.map(async ([label, path]) => {
@@ -672,8 +678,8 @@ function InboundApplication() {
       ))
       if (!data || !isNominationCycleAvailable(cycle) || used) {
         setError(used
-          ? 'You already have an application for this exchange cycle. Continue your existing draft from your applications list.'
-          : 'The nomination is invalid, expired, or its exchange cycle is not accepting applications.')
+          ? 'You already have an application for this KU semester. Continue your existing draft from your applications list.'
+          : 'The nomination is invalid, expired, or its KU semester is not accepting applications.')
         setLoading(false)
         navigate('/portal/inbound-application', { replace: true })
         return
@@ -815,8 +821,8 @@ function InboundApplication() {
           return 'Enter a phone number with 7 to 15 digits.'
         }
       }
-      if (form.passport_expiry_date && form.passport_expiry_date < todayValue()) {
-        return 'Passport must not be expired.'
+      if (!form.passport_expiry_date || form.passport_expiry_date <= oneYearFromTodayValue()) {
+        return 'Passport must be valid for more than one year.'
       }
     }
     if (stepIndex === 1) {
@@ -836,10 +842,10 @@ function InboundApplication() {
       }
     }
     if (stepIndex === 2 && (!nomination || !isNominationCycleAvailable(nomination.cycle))) {
-      return 'The nomination does not have an available exchange cycle.'
+      return 'The nomination does not have an available KU semester.'
     }
     if (stepIndex === 2 && Number(form.semester_applied_for) !== Number(nomination.semester)) {
-      return 'Choose the exchange cycle associated with your nomination.'
+      return 'Choose the KU semester associated with your nomination.'
     }
     return ''
   }, [birthdateError, form, nomination])
@@ -933,7 +939,7 @@ function InboundApplication() {
         }
         if (insertError || !inserted) {
           setError(insertError?.code === '23505'
-            ? 'You already have an application for this exchange cycle.'
+            ? 'You already have an application for this KU semester.'
             : getDatabaseErrorMessage(insertError))
           return null
         }
@@ -1023,13 +1029,13 @@ function InboundApplication() {
       return
     }
     if (applications.some((item) => Number(item.semester_applied_for) === Number(data.semester))) {
-      setError('You already have an application for this exchange cycle. Continue your existing draft from your applications list.')
+      setError('You already have an application for this KU semester. Continue your existing draft from your applications list.')
       setLoading(false)
       return
     }
     const cycle = cycles.find((item) => Number(item.id) === Number(data.semester))
     if (!isNominationCycleAvailable(cycle)) {
-      setError('The exchange cycle associated with this nomination is not accepting applications.')
+      setError('The KU semester associated with this nomination is not accepting applications.')
       setLoading(false)
       return
     }
@@ -1095,7 +1101,7 @@ function InboundApplication() {
     }
     if (!allowedTypes.includes(file.type)) {
       setError(field === 'profile_photo'
-        ? 'Profile photos must be JPEG or PNG files.'
+        ? 'Personal photos must be JPEG or PNG files.'
         : 'Choose a PDF, JPEG, or PNG file.')
       return
     }
@@ -1160,7 +1166,7 @@ function InboundApplication() {
           Start application
         </button>
       </form>
-      {openCycles.length === 0 && <p>No exchange cycle is currently accepting applications.</p>}
+      {openCycles.length === 0 && <p>No KU semester is currently accepting applications.</p>}
       {applications.length > 0 ? (
         <div className="outbound-application-list">
           <h2 className="portal-section-heading">Your applications</h2>
@@ -1169,7 +1175,7 @@ function InboundApplication() {
             return (
               <article className="outbound-application-list__item" key={application.application_id}>
                 <div>
-                  <h3>{cycle ? `${cycle.semester} ${cycle.academic_year}` : 'Exchange cycle'}</h3>
+                  <h3>{cycle ? `${cycle.semester} ${cycle.academic_year}` : 'KU semester'}</h3>
                   <p>Application #{application.application_id} · Nomination #{application.nomination_id}</p>
                 </div>
                 <span className={`outbound-application-list__status outbound-application-list__status--${application.application_status?.toLowerCase()}`}>
@@ -1318,14 +1324,14 @@ function InboundApplication() {
               <p className="outbound-form__section-heading">
                 Nomination #{nomination?.id} · {nomination?.cycle?.semester} {nomination?.cycle?.academic_year}
               </p>
-              <SelectField label="Exchange cycle associated with your nomination" name="semester_applied_for" value={form.semester_applied_for || ''} onChange={updateField} required>
+              <SelectField label="KU semester associated with your nomination" name="semester_applied_for" value={form.semester_applied_for || ''} onChange={updateField} required>
                 <option value={nomination?.semester || ''}>
                   {nomination?.cycle?.semester} {nomination?.cycle?.academic_year}
                 </option>
               </SelectField>
               <p>Your cycle is linked to the active nomination.</p>
               <FileField label="Passport copy" name="passport_copy" value={form.passport_copy} onUpload={uploadFile} uploading={uploading} />
-              <FileField label="Profile photo" name="profile_photo" value={form.profile_photo} onUpload={uploadFile} uploading={uploading} accept=".jpg,.jpeg,.png" />
+              <FileField label="Personal photo" name="profile_photo" value={form.profile_photo} onUpload={uploadFile} uploading={uploading} accept=".jpg,.jpeg,.png" />
             </div>
           )}
           {pageIndex === 3 && (

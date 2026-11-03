@@ -237,8 +237,6 @@ async function createSubmittedOutboundApplication(studentClient, studentId, name
     credits_passed: 75,
     major: 'Business Administration',
     current_year_of_study: 'Third year',
-    english_test_type: 'None',
-    english_106_completed: true,
     tos: false,
     university_id: universityId,
     semester_applied_for: cycleId,
@@ -386,7 +384,7 @@ export default function TestingMode({
     try {
       const generatedAccounts = await provisionTestingScenario()
       setAccounts(generatedAccounts)
-      setMessage('Testing accounts, exchange cycle, and submitted applications are ready.')
+      setMessage('Testing accounts, KU semester data, and submitted applications are ready.')
     } catch (setupError) {
       setError(setupError.message || getDatabaseErrorMessage(setupError))
     }

@@ -94,15 +94,31 @@ function SuccessToast({ message, onClose }) {
 
 // Every visitor sees only this while maintenance mode is on. The sign-in sits in the corner
 // because it is for KU coordinators, who sign in to switch maintenance off.
-function MaintenanceScreen({ theme }) {
+function MaintenanceScreen({
+  theme,
+  isKuCoordinator,
+  isUpdatingMaintenance,
+  maintenanceError,
+  onDisableMaintenance,
+  onSignOut,
+}) {
   return (
     <div className="ascend-home" data-theme={theme}>
       <main className="maintenance-screen" aria-labelledby="maintenance-heading">
-        <Link className="maintenance-screen__signin" to="/auth/signin">KU coordinator sign in</Link>
+        {!isKuCoordinator && <Link className="maintenance-screen__signin" to="/auth/signin">KU coordinator sign in</Link>}
         <div className="maintenance-screen__message">
           <span className="ascend-loader-mark">Kuwait University</span>
           <h1 id="maintenance-heading">System is in maintenance</h1>
           <p>Please check back later.</p>
+          {isKuCoordinator && (
+            <div className="maintenance-screen__actions">
+              <button className="btn btn--primary" type="button" onClick={onDisableMaintenance} disabled={isUpdatingMaintenance}>
+                {isUpdatingMaintenance ? 'Disabling maintenance mode...' : 'Disable maintenance mode'}
+              </button>
+              <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+              {maintenanceError && <p className="auth-form__error" role="alert">{maintenanceError}</p>}
+            </div>
+          )}
         </div>
       </main>
     </div>
@@ -138,6 +154,9 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
   const isSignUp = mode === 'signup'
   const testingMode = useAppStore((state) => state.testingMode)
   const setTestingMode = useAppStore((state) => state.setTestingMode)
+  const setAuthVerificationPending = useAppStore((state) => state.setAuthVerificationPending)
+  const setSession = useAppStore((state) => state.setSession)
+  const setProfile = useAppStore((state) => state.setProfile)
   const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '', university: '' })
   const [universities, setUniversities] = useState([])
   const [error, setError] = useState('')
@@ -148,7 +167,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
   const dismissSuccess = useCallback(() => setMessage(''), [])
 
   useEffect(() => {
-    if (type !== 'coordinator') return
+    if (coordinatorOnly || type !== 'coordinator') return
 
     supabase
       .from('partneruniversity')
@@ -159,7 +178,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
         if (universityError) setError(getDatabaseErrorMessage(universityError))
         setUniversities(data || [])
       })
-  }, [type])
+  }, [coordinatorOnly, type])
 
   const updateField = (event) => {
     setForm({ ...form, [event.target.name]: event.target.value })
@@ -209,6 +228,11 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
     }
 
     setIsSubmitting(true)
+    if (!isSignUp) {
+      setProfile(null)
+      setSession(null)
+      setAuthVerificationPending(true)
+    }
     const profileId = type === 'incoming'
       ? generateIncomingStudentId()
       : type === 'coordinator'
@@ -228,23 +252,30 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
         })
 
     if (result.error) {
-      setError(result.error.message)
+      setError(isSignUp ? result.error.message : 'Unable to sign in with those credentials.')
+      setAuthVerificationPending(false)
       setIsSubmitting(false)
       return
     }
 
-    if (coordinatorOnly && !isSignUp) {
-      const { data: coordinator, error: coordinatorError } = await supabase
-        .from('coordinator')
-        .select('coordinator_id, university, email')
+    let verifiedProfile
+    if (!isSignUp) {
+      const { data: profile, error: profileError } = await supabase
+        .from(options.table)
+        .select('*')
         .eq('user_id', result.data.user.id)
         .maybeSingle()
-      if (coordinatorError || !coordinator || !isKuCoordinatorProfile(coordinator, email)) {
+      const validProfile = !profileError && profile
+        && (!coordinatorOnly || isKuCoordinatorProfile(profile, email))
+
+      if (!validProfile) {
         const { error: signOutError } = await supabase.auth.signOut()
-        setError(signOutError?.message || (coordinatorError && getDatabaseErrorMessage(coordinatorError)) || 'Only authorized KU coordinators can sign in during maintenance.')
+        setError('Unable to sign in with those credentials.')
+        if (!signOutError) setAuthVerificationPending(false)
         setIsSubmitting(false)
         return
       }
+      verifiedProfile = profile
     }
 
     if (isSignUp) {
@@ -304,9 +335,14 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
         setIsSubmitting(false)
         return
       }
+
+      verifiedProfile = { ...profile, role: type }
     }
 
-    onAuthenticated(result.data.session)
+    onAuthenticated(
+      result.data.session,
+      verifiedProfile,
+    )
     setIsSubmitting(false)
   }
 
@@ -349,7 +385,11 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
                   name="userType"
                   value={userType}
                   checked={type === userType}
-                  onChange={() => onTypeChange(userType)}
+                  onChange={() => {
+                    setError('')
+                    setMessage('')
+                    onTypeChange(userType)
+                  }}
                 />
                 {userOptions.label}
               </label>
@@ -485,7 +525,7 @@ function validateCycleForm(form) {
   const dates = [
     ['nominations', form.nominationsOpen, form.nominationsClose],
     ['applications', form.applicationOpen, form.applicationClose],
-    ['exchange cycle', form.cycleStart, form.cycleEnd],
+    ['KU semester', form.cycleStart, form.cycleEnd],
   ]
   if (dates.some(([, open, close]) => !open || !close || Number.isNaN(new Date(open).getTime()) || Number.isNaN(new Date(close).getTime()))) {
     return 'Enter valid opening and closing dates for every cycle stage.'
@@ -548,10 +588,10 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel,
         <label htmlFor="cycle-application-close">Applications close
           <DateField id="cycle-application-close" name="applicationClose" type="datetime-local" value={form.applicationClose} onChange={updateField} required />
         </label>
-        <label htmlFor="cycle-start">Exchange cycle starts
+        <label htmlFor="cycle-start">KU semester begins
           <DateField id="cycle-start" name="cycleStart" type="datetime-local" value={form.cycleStart} onChange={updateField} required />
         </label>
-        <label htmlFor="cycle-end">Exchange cycle ends
+        <label htmlFor="cycle-end">KU semester ends
           <DateField id="cycle-end" name="cycleEnd" type="datetime-local" value={form.cycleEnd} onChange={updateField} required />
         </label>
       </div>
@@ -867,7 +907,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
     }
     if (existingCycle) {
       setStatus({
-        error: `A ${cycleForm.semester} ${cycleForm.academicYear} exchange cycle already exists.`,
+        error: `A ${cycleForm.semester} ${cycleForm.academicYear} KU semester already exists.`,
         message: '',
       })
       setIsStartingCycle(false)
@@ -895,7 +935,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
     } else {
       setCycleForm(emptyCycleForm)
       if (await loadCycles()) {
-        setStatus({ error: '', message: 'Exchange cycle started.' })
+        setStatus({ error: '', message: 'KU semester started.' })
         setToastId((currentId) => currentId + 1)
         setActiveView('manage')
       }
@@ -926,7 +966,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
     }
     if (existingCycle) {
       setStatus({
-        error: `A ${cycleForm.semester} ${cycleForm.academicYear} exchange cycle already exists.`,
+        error: `A ${cycleForm.semester} ${cycleForm.academicYear} KU semester already exists.`,
         message: '',
       })
       return
@@ -950,7 +990,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
     }
     if (await loadCycles()) {
       setEditingCycleId(null)
-      setStatus({ error: '', message: 'Exchange cycle updated.' })
+      setStatus({ error: '', message: 'KU semester updated.' })
       setToastId((currentId) => currentId + 1)
     }
   }
@@ -978,7 +1018,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
     setCycles((currentCycles) => currentCycles.filter(({ id }) => id !== cycle.id))
     if (editingCycleId === cycle.id) setEditingCycleId(null)
     setPendingDeleteCycle(null)
-    setStatus({ error: '', message: 'Exchange cycle deleted.' })
+    setStatus({ error: '', message: 'KU semester deleted.' })
     setToastId((currentId) => currentId + 1)
   }
 
@@ -1133,7 +1173,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
             }}
           >
             <span className="cycle-delete-dialog__icon" aria-hidden="true">!</span>
-            <h2 id="cycle-delete-heading">Delete exchange cycle?</h2>
+            <h2 id="cycle-delete-heading">Delete KU semester?</h2>
             <p id="cycle-delete-description">
               You’re about to permanently delete <strong>{pendingDeleteCycle.semester} {pendingDeleteCycle.academic_year}</strong>.
               Any student nominations linked to this cycle will also be deleted. This action cannot be undone.
@@ -1210,11 +1250,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
               setStatus({ error: '', message: '' })
               setActiveView('start')
             }}>
-              <span aria-hidden="true">＋</span> Start exchange cycle
+              <span aria-hidden="true">＋</span> Start KU semester
             </button>
           )}
           <button className={activeView === 'manage' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('manage')}>
-            <span aria-hidden="true">▦</span> Manage exchange cycle
+            <span aria-hidden="true">▦</span> Manage KU semester
           </button>
           <button className={activeView === 'nominations' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('nominations')}>
             <span aria-hidden="true">◌</span> Student nominations
@@ -1265,18 +1305,18 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         {isKuCoordinator && activeView === 'start' && (
           <>
             <span className="auth-card__eyebrow">New cycle</span>
-            <h2 id="portal-heading">Start an exchange cycle</h2>
+            <h2 id="portal-heading">Start a KU semester</h2>
             <p>Set the timetable for inbound nominations and exchange applications.</p>
-            <CycleForm form={cycleForm} setForm={setCycleForm} onSubmit={startExchangeCycle} isSubmitting={isStartingCycle} status={status} submitLabel="Start exchange cycle" />
+            <CycleForm form={cycleForm} setForm={setCycleForm} onSubmit={startExchangeCycle} isSubmitting={isStartingCycle} status={status} submitLabel="Start KU semester" />
           </>
         )}
         {activeView === 'manage' && (
           <>
             <span className="auth-card__eyebrow">Cycle dashboard</span>
-            <h2 id="portal-heading">Manage exchange cycles</h2>
+            <h2 id="portal-heading">Manage KU semesters</h2>
             <p>Review the schedules currently available to students and coordinators.</p>
             {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
-            {cycles.length === 0 ? <div className="portal-empty-state">No exchange cycles have been started yet.</div> : (
+            {cycles.length === 0 ? <div className="portal-empty-state">No KU semesters have been started yet.</div> : (
               <ul className="cycle-list">
                 {cycles.map((cycle) => (
                   <li key={cycle.id} className="cycle-list__item">
@@ -1299,7 +1339,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                         <dl>
                           <div><dt>Nominations</dt><dd>{formatCycleDate(cycle.nominations_o)} – {formatCycleDate(cycle.nominations_c)}</dd></div>
                           <div><dt>Applications</dt><dd>{formatCycleDate(cycle.application_o)} – {formatCycleDate(cycle.application_c)}</dd></div>
-                          <div><dt>Exchange cycle</dt><dd>{formatCycleDate(cycle.cycle_start)} – {formatCycleDate(cycle.cycle_end)}</dd></div>
+                          <div><dt>KU semester</dt><dd>{formatCycleDate(cycle.cycle_start)} – {formatCycleDate(cycle.cycle_end)}</dd></div>
                         </dl>
                         <div className="cycle-list__actions">
                           {isKuCoordinator ? (
@@ -1371,7 +1411,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                             <div><dt>Student ID</dt><dd>{application.student_id || 'Unavailable'}</dd></div>
                             <div><dt>Application status</dt><dd>{application.application_status}</dd></div>
                             <div><dt>Previous status</dt><dd>{application.withdrawal_previous_status || 'Unavailable'}</dd></div>
-                            <div><dt>Exchange cycle</dt><dd>{cycle ? `${cycle.semester} ${cycle.academic_year}` : `Cycle #${application.semester_applied_for || 'Unavailable'}`}</dd></div>
+                            <div><dt>KU semester</dt><dd>{cycle ? `${cycle.semester} ${cycle.academic_year}` : `Cycle #${application.semester_applied_for || 'Unavailable'}`}</dd></div>
                             <div><dt>Destination university</dt><dd>{university?.name || 'Unavailable'}</dd></div>
                             <div><dt>Submitted</dt><dd>{formatCycleDate(application.submitted_at)}</dd></div>
                             <div><dt>Withdrawal reason</dt><dd>{application.withdrawal_reason || 'No reason provided'}</dd></div>
@@ -1410,7 +1450,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
             <h2 id="progress-heading">Nominee application progress</h2>
             <p>Track application status for students you nominated.</p>
             <div className="progress-filter">
-              <label htmlFor="progress-cycle">Exchange cycle</label>
+              <label htmlFor="progress-cycle">KU semester</label>
               <select
                 id="progress-cycle"
                 value={progressCycle}
@@ -1428,7 +1468,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
               <p className="auth-form__error" role="alert">{progressError || status.error}</p>
             )}
             {isLoadingNominations || isLoadingProgress ? <p role="status">Loading nominee progress...</p>
-              : visibleProgressNominations.length === 0 ? <p>No nominations found for this exchange cycle.</p> : (
+              : visibleProgressNominations.length === 0 ? <p>No nominations found for this KU semester.</p> : (
                 <div className="nomination-table-wrap">
                   <table className="nomination-table">
                     <thead>
@@ -1470,9 +1510,9 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                 <h2 id="portal-heading">
                   Previous nominations for {selectedNominationCycle.semester} {selectedNominationCycle.academic_year}
                 </h2>
-                <p>These are the nominations submitted for this exchange cycle.</p>
+                <p>These are the nominations submitted for this KU semester.</p>
                 <button className="btn btn--secondary" type="button" onClick={() => setActiveView('manage')}>
-                  Back to exchange cycles
+                  Back to KU semesters
                 </button>
               </>
             ) : !isKuCoordinator && (
@@ -1560,7 +1600,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           </form>
         )}
         {isLoadingNominations ? <p role="status">Loading submitted nominations...</p>
-          : visibleNominations.length === 0 ? <p>{activeView === 'cycle-nominations' ? 'No nominations submitted for this exchange cycle.' : 'No nominations submitted yet.'}</p> : (
+          : visibleNominations.length === 0 ? <p>{activeView === 'cycle-nominations' ? 'No nominations submitted for this KU semester.' : 'No nominations submitted yet.'}</p> : (
             <div className="nomination-table-wrap">
               <table className="nomination-table">
                 <thead>
@@ -1841,33 +1881,33 @@ const partnerUniversityFlags = {
 }
 
 const partnerUniversityAirports = {
-  'Audencia Nantes School of Management': { name: 'Nantes Atlantique Airport', code: 'NTE', coordinates: [-1.61, 47.153], distanceKm: 9, driveMinutes: 18 },
-  'Bocconi University': { name: 'Milan Linate Airport', code: 'LIN', coordinates: [9.276, 45.445], distanceKm: 6, driveMinutes: 15 },
-  'EM Normandie Business School': { name: 'Deauville–Normandie Airport', code: 'DOL', coordinates: [0.16, 49.365], distanceKm: 76, driveMinutes: 65 },
-  'Esade Business School': { name: 'Barcelona–El Prat Airport', code: 'BCN', coordinates: [2.083, 41.297], distanceKm: 27, driveMinutes: 35 },
-  'ESC Rennes School of Business': { name: 'Rennes–Saint-Jacques Airport', code: 'RNS', coordinates: [-1.734, 48.069], distanceKm: 8, driveMinutes: 18 },
-  'Essec School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 32, driveMinutes: 42 },
-  'Goethe University': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 14, driveMinutes: 22 },
-  'Hanyang University': { name: 'Gimpo International Airport', code: 'GMP', coordinates: [126.79, 37.558], distanceKm: 20, driveMinutes: 35 },
-  'HEC School of Management': { name: 'Paris Orly Airport', code: 'ORY', coordinates: [2.359, 48.728], distanceKm: 25, driveMinutes: 35 },
-  'IE Business School': { name: 'Adolfo Suárez Madrid–Barajas Airport', code: 'MAD', coordinates: [-3.561, 40.472], distanceKm: 14, driveMinutes: 25 },
-  'Indian Institute of Management Bangalore': { name: 'Kempegowda International Airport', code: 'BLR', coordinates: [77.706, 13.198], distanceKm: 42, driveMinutes: 70 },
-  'KEDGE Business School': { name: 'Bordeaux–Mérignac Airport', code: 'BOD', coordinates: [-0.715, 44.828], distanceKm: 12, driveMinutes: 25 },
-  'Kogod School of Business': { name: 'Ronald Reagan Washington National Airport', code: 'DCA', coordinates: [-77.04, 38.852], distanceKm: 8, driveMinutes: 20 },
-  'National Chengchi University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 55 },
-  'National Taiwan University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 50 },
-  'Neoma Business School': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 140, driveMinutes: 95 },
-  'Paris School of Business': { name: 'Paris Orly Airport', code: 'ORY', coordinates: [2.359, 48.728], distanceKm: 18, driveMinutes: 30 },
-  'Rotterdam School of Management': { name: 'Rotterdam The Hague Airport', code: 'RTM', coordinates: [4.438, 51.948], distanceKm: 8, driveMinutes: 20 },
-  'Skema Business School': { name: 'Nice Côte d’Azur Airport', code: 'NCE', coordinates: [7.215, 43.665], distanceKm: 25, driveMinutes: 35 },
-  'Toulouse Business School': { name: 'Toulouse–Blagnac Airport', code: 'TLS', coordinates: [1.364, 43.629], distanceKm: 10, driveMinutes: 20 },
-  'University of Geneva': { name: 'Geneva Airport', code: 'GVA', coordinates: [6.109, 46.238], distanceKm: 7, driveMinutes: 15 },
-  'University of Manheim': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 75, driveMinutes: 50 },
-  'University of Maryland': { name: 'Baltimore/Washington International Airport', code: 'BWI', coordinates: [-76.668, 39.175], distanceKm: 45, driveMinutes: 45 },
-  'University of Rhode Island': { name: 'T. F. Green International Airport', code: 'PVD', coordinates: [-71.429, 41.724], distanceKm: 10, driveMinutes: 20 },
-  'University of San Diego': { name: 'San Diego International Airport', code: 'SAN', coordinates: [-117.19, 32.733], distanceKm: 6, driveMinutes: 15 },
-  'University of St.Gallen': { name: 'Zurich Airport', code: 'ZRH', coordinates: [8.555, 47.458], distanceKm: 80, driveMinutes: 70 },
-  'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD', coordinates: [151.177, -33.946], distanceKm: 7, driveMinutes: 15 },
+  'Audencia Nantes School of Management': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], route: 'Nonstop from Kuwait; continue by rail or road to Nantes.' },
+  'Bocconi University': { name: 'Milan Malpensa Airport', code: 'MXP', coordinates: [8.728, 45.63], distanceKm: 50, driveMinutes: 50, route: 'Nonstop from Kuwait; onward transfer to Milan.' },
+  'EM Normandie Business School': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], route: 'Nonstop from Kuwait; continue by rail or road to Le Havre.' },
+  'Esade Business School': { name: 'Barcelona–El Prat Airport', code: 'BCN', coordinates: [2.083, 41.297], distanceKm: 27, driveMinutes: 35, route: 'Nonstop from Kuwait.' },
+  'ESC Rennes School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], route: 'Nonstop from Kuwait; continue by rail to Rennes.' },
+  'Essec School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 40, driveMinutes: 40, route: 'Nonstop from Kuwait; onward transfer to Cergy.' },
+  'Goethe University': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 14, driveMinutes: 22, route: 'Nonstop from Kuwait.' },
+  'Hanyang University': { name: 'Incheon International Airport', code: 'ICN', coordinates: [126.451, 37.46], distanceKm: 65, driveMinutes: 70, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'HEC School of Management': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 45, driveMinutes: 45, route: 'Nonstop from Kuwait; onward transfer to Jouy-en-Josas.' },
+  'IE Business School': { name: 'Adolfo Suárez Madrid–Barajas Airport', code: 'MAD', coordinates: [-3.561, 40.472], distanceKm: 14, driveMinutes: 25, route: 'Nonstop service is schedule-dependent; confirm dates.' },
+  'Indian Institute of Management Bangalore': { name: 'Kempegowda International Airport', code: 'BLR', coordinates: [77.706, 13.198], distanceKm: 42, driveMinutes: 70, route: 'Nonstop from Kuwait.' },
+  'KEDGE Business School': { name: 'Bordeaux–Mérignac Airport', code: 'BOD', coordinates: [-0.715, 44.828], distanceKm: 12, driveMinutes: 25, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'Kogod School of Business': { name: 'Washington Dulles International Airport', code: 'IAD', coordinates: [-77.456, 38.953], distanceKm: 40, driveMinutes: 40, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'National Chengchi University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 55, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'National Taiwan University': { name: 'Taiwan Taoyuan International Airport', code: 'TPE', coordinates: [121.233, 25.077], distanceKm: 45, driveMinutes: 50, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'Neoma Business School': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], route: 'Nonstop from Kuwait; continue by rail or road to Reims.' },
+  'Paris School of Business': { name: 'Paris Charles de Gaulle Airport', code: 'CDG', coordinates: [2.55, 49.009], distanceKm: 35, driveMinutes: 40, route: 'Nonstop from Kuwait; onward transfer in Paris.' },
+  'Rotterdam School of Management': { name: 'Amsterdam Airport Schiphol', code: 'AMS', coordinates: [4.764, 52.309], distanceKm: 60, driveMinutes: 55, route: 'Nonstop from Kuwait; continue by rail to Rotterdam.' },
+  'Skema Business School': { name: 'Nice Côte d’Azur Airport', code: 'NCE', coordinates: [7.215, 43.665], distanceKm: 25, driveMinutes: 35, route: 'Nonstop service is seasonal; confirm dates.' },
+  'Toulouse Business School': { name: 'Toulouse–Blagnac Airport', code: 'TLS', coordinates: [1.364, 43.629], distanceKm: 10, driveMinutes: 20, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'University of Geneva': { name: 'Geneva Airport', code: 'GVA', coordinates: [6.109, 46.238], distanceKm: 7, driveMinutes: 15, route: 'Nonstop from Kuwait.' },
+  'University of Manheim': { name: 'Frankfurt Airport', code: 'FRA', coordinates: [8.562, 50.038], distanceKm: 75, driveMinutes: 50, route: 'Nonstop from Kuwait; continue by rail or road to Mannheim.' },
+  'University of Maryland': { name: 'Washington Dulles International Airport', code: 'IAD', coordinates: [-77.456, 38.953], distanceKm: 45, driveMinutes: 45, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'University of Rhode Island': { name: 'T. F. Green International Airport', code: 'PVD', coordinates: [-71.429, 41.724], distanceKm: 10, driveMinutes: 20, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'University of San Diego': { name: 'San Diego International Airport', code: 'SAN', coordinates: [-117.19, 32.733], distanceKm: 6, driveMinutes: 15, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+  'University of St.Gallen': { name: 'Zurich Airport', code: 'ZRH', coordinates: [8.555, 47.458], distanceKm: 80, driveMinutes: 70, route: 'Nonstop from Kuwait; continue by rail or road to St. Gallen.' },
+  'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD', coordinates: [151.177, -33.946], distanceKm: 7, driveMinutes: 15, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
 }
 
 function PartnerUniversitiesRoute() {
@@ -1996,14 +2036,19 @@ function PartnerUniversitiesRoute() {
                     {selectedUniversity && (
                       <div className="partner-directory__details-actions">
                         <button className="btn btn--secondary" type="button" onClick={() => setShowAirport((isVisible) => !isVisible)}>
-                          {showAirport ? 'Hide closest airport' : 'Closest airport'}
+                          {showAirport ? 'Hide airport recommendation' : 'Recommended arrival airport'}
                         </button>
                         {showAirport && (
                           <p className="partner-directory__airport" role="status">
                             {partnerUniversityAirports[selectedUniversity.name]?.name || 'Airport information is not available'} ({partnerUniversityAirports[selectedUniversity.name]?.code || '—'})
-                            <span>
-                              {partnerUniversityAirports[selectedUniversity.name]?.distanceKm ?? '—'} km by road · approximately {partnerUniversityAirports[selectedUniversity.name]?.driveMinutes ?? '—'} minutes by car
-                            </span>
+                            {partnerUniversityAirports[selectedUniversity.name]?.route && (
+                              <span>{partnerUniversityAirports[selectedUniversity.name].route}</span>
+                            )}
+                            {partnerUniversityAirports[selectedUniversity.name]?.distanceKm != null && (
+                              <span>
+                                {partnerUniversityAirports[selectedUniversity.name].distanceKm} km by road · approximately {partnerUniversityAirports[selectedUniversity.name].driveMinutes} minutes by car
+                              </span>
+                            )}
                           </p>
                         )}
                         <a className="btn btn--secondary" href={partnerUniversityWebsites[selectedUniversity.name]} target="_blank" rel="noopener noreferrer">
@@ -2134,6 +2179,8 @@ function App() {
   const [sessionWarningSeconds, setSessionWarningSeconds] = useState(null)
   const [sessionTimeoutError, setSessionTimeoutError] = useState('')
   const [sessionEndedMessage, setSessionEndedMessage] = useState('')
+  const [maintenanceControlError, setMaintenanceControlError] = useState('')
+  const [isUpdatingMaintenance, setIsUpdatingMaintenance] = useState(false)
   const resetInactivityTimer = useRef(null)
 
   const refreshMaintenanceStatus = useCallback(async () => {
@@ -2162,21 +2209,26 @@ function App() {
 
   useEffect(() => {
     const loadProfile = async (nextSession) => {
+      if (useAppStore.getState().authVerificationPending) return
       setSession(nextSession)
       if (!nextSession) {
         setProfile(null)
         return
       }
       const userType = nextSession.user.user_metadata?.user_type || nextSession.user.user_metadata?.student_type
-      const profileTables = userType === 'coordinator'
-        ? [['coordinator', 'coordinator_id']]
-        : userType === 'incoming'
-          ? [['incomingstudentauth', 'student_id']]
-          : userType === 'ku'
-            ? [['kustudentauth', 'student_id']]
-            : [['kustudentauth', 'student_id'], ['incomingstudentauth', 'student_id'], ['coordinator', 'coordinator_id']]
+      let profileTables
+      if (maintenanceMode === true || userType === 'coordinator') {
+        profileTables = [['coordinator', 'coordinator_id']]
+      } else if (userType === 'incoming') {
+        profileTables = [['incomingstudentauth', 'student_id']]
+      } else if (userType === 'ku') {
+        profileTables = [['kustudentauth', 'student_id']]
+      } else {
+        profileTables = [['kustudentauth', 'student_id'], ['incomingstudentauth', 'student_id'], ['coordinator', 'coordinator_id']]
+      }
       for (const [table] of profileTables) {
         const { data } = await supabase.from(table).select('*').eq('user_id', nextSession.user.id).maybeSingle()
+        if (useAppStore.getState().authVerificationPending) return
         if (data) {
           const role = table === 'coordinator' ? 'coordinator' : table === 'incomingstudentauth' ? 'incoming' : 'ku'
           setProfile({ ...data, role })
@@ -2193,7 +2245,7 @@ function App() {
     return () => {
       authListener.subscription.unsubscribe()
     }
-  }, [setProfile, setSession])
+  }, [maintenanceMode, setProfile, setSession])
 
   const signedInKuCoordinator = Boolean(
     session && profile && isKuCoordinatorProfile(profile, session.user.email),
@@ -2270,19 +2322,47 @@ function App() {
     if (error) window.alert(error.message)
   }
 
+  const handleDisableMaintenance = async () => {
+    if (isUpdatingMaintenance) return
+    setIsUpdatingMaintenance(true)
+    setMaintenanceControlError('')
+    const { data, error } = await supabase.rpc('set_maintenance_mode', {
+      requested_mode: false,
+    })
+    setIsUpdatingMaintenance(false)
+    if (error) {
+      setMaintenanceControlError(getDatabaseErrorMessage(error))
+      return
+    }
+    if (data !== false) {
+      setMaintenanceControlError('The database did not confirm that maintenance mode was disabled.')
+      return
+    }
+    setMaintenanceMode(false)
+    setMaintenanceStatusError('')
+  }
+
   const handleDeleted = () => {
     window.location.hash = '/auth/signin'
   }
 
-  // One gate for the whole website. Until the database confirms maintenance is off, nothing
-  // of the site renders: visitors see the status loader, then the maintenance screen, on every
-  // address. Coordinator sign-in stays reachable, and a signed-in KU coordinator gets through
-  // because the portal is where maintenance is switched off.
-  const siteOpen = maintenanceMode === false || signedInKuCoordinator
+  const siteOpen = maintenanceMode === false
+  if (maintenanceMode === true && signedInKuCoordinator) {
+    return (
+      <MaintenanceScreen
+        theme={theme}
+        isKuCoordinator
+        isUpdatingMaintenance={isUpdatingMaintenance}
+        maintenanceError={maintenanceControlError}
+        onDisableMaintenance={handleDisableMaintenance}
+        onSignOut={handleSignOut}
+      />
+    )
+  }
   if (!siteOpen && pathname !== '/auth/signin') {
     return maintenanceMode === null
       ? <StatusLoader theme={theme} error={maintenanceStatusError} onRetry={refreshMaintenanceStatus} />
-      : <MaintenanceScreen theme={theme} />
+      : <MaintenanceScreen theme={theme} isKuCoordinator={false} />
   }
 
   return (
@@ -2352,6 +2432,9 @@ function AuthRoute({ mode, coordinatorOnly = false, sessionEndedMessage, onSessi
   const navigate = useNavigate()
   const type = useAppStore((state) => state.authType)
   const setAuthType = useAppStore((state) => state.setAuthType)
+  const setSession = useAppStore((state) => state.setSession)
+  const setProfile = useAppStore((state) => state.setProfile)
+  const setAuthVerificationPending = useAppStore((state) => state.setAuthVerificationPending)
 
   return (
     <AuthPage
@@ -2359,7 +2442,10 @@ function AuthRoute({ mode, coordinatorOnly = false, sessionEndedMessage, onSessi
       mode={mode}
       onTypeChange={setAuthType}
       onModeChange={(nextMode) => navigate(`/auth/${nextMode}`)}
-      onAuthenticated={() => {
+      onAuthenticated={(session, profile) => {
+        setSession(session)
+        if (profile) setProfile(profile)
+        setAuthVerificationPending(false)
         onSessionNoticeDismiss?.()
         navigate('/portal')
       }}

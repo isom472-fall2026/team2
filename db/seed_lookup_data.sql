@@ -451,8 +451,7 @@ INSERT INTO public.outboundapplication (
     application_id, update_id, first_name, last_name, gender, birthdate,
     passport_number, passport_expiry_date, civil_id_number, civil_id_expiry,
     gpa, expected_graduation_semester, credits_passed, phone_number,
-    is_whatsapp_available, major, english_test_type, english_test_meets_requirement,
-    english_106_completed, current_year_of_study, tos, university_id, nationality,
+    is_whatsapp_available, major, current_year_of_study, tos, university_id, nationality,
     passport_issuing_country, semester_applied_for, student_id, submitted_at,
     application_status
 )
@@ -462,7 +461,7 @@ VALUES
         (CURRENT_DATE - interval '21 years')::date, 'TEST-OUT-990001',
         (CURRENT_DATE + interval '5 years')::date, 299001000001, (CURRENT_DATE + interval '5 years')::date,
         3.5, (CURRENT_DATE + interval '2 years')::date, 90, '+965 5555 0102',
-        FALSE, 'Finance', 'IELTS', TRUE, NULL, 'Third year', TRUE,
+        FALSE, 'Finance', 'Third year', TRUE,
         1, 89, 89, 990001, 990001, now() - interval '5 days', 'Submitted'
     ),
     (
@@ -470,7 +469,7 @@ VALUES
         (CURRENT_DATE - interval '21 years')::date, 'TEST-OUT-990002',
         (CURRENT_DATE + interval '5 years')::date, 299001000001, (CURRENT_DATE + interval '5 years')::date,
         3.5, (CURRENT_DATE + interval '3 years')::date, 90, '+965 5555 0102',
-        FALSE, 'Finance', 'None', NULL, TRUE, 'Third year', FALSE,
+        FALSE, 'Finance', 'Third year', FALSE,
         1, 89, 89, 990002, 990001, NULL, 'Draft'
     )
 ON CONFLICT (application_id) DO UPDATE SET
@@ -489,9 +488,6 @@ ON CONFLICT (application_id) DO UPDATE SET
     phone_number = EXCLUDED.phone_number,
     is_whatsapp_available = EXCLUDED.is_whatsapp_available,
     major = EXCLUDED.major,
-    english_test_type = EXCLUDED.english_test_type,
-    english_test_meets_requirement = EXCLUDED.english_test_meets_requirement,
-    english_106_completed = EXCLUDED.english_106_completed,
     current_year_of_study = EXCLUDED.current_year_of_study,
     tos = EXCLUDED.tos,
     university_id = EXCLUDED.university_id,

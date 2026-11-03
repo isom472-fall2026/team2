@@ -304,44 +304,6 @@
   font-size: 0.86rem;
 }
 
-.outbound-form__section-heading,
-.outbound-english-ineligible {
-  grid-column: 1 / -1;
-}
-
-.outbound-form__section-heading h2 {
-  margin: 0 0 6px;
-  color: var(--text-strong);
-}
-
-.outbound-form__section-heading p {
-  margin: 0;
-  color: var(--text);
-}
-
-.outbound-english-ineligible {
-  padding: 16px;
-  border: 1px solid #c62828;
-  border-radius: var(--radius-sm);
-  color: #8f1717;
-  background: rgba(198, 40, 40, 0.1);
-}
-
-.outbound-english-ineligible h3 {
-  margin: 0 0 8px;
-  color: inherit;
-}
-
-.outbound-english-ineligible p {
-  margin: 0 0 14px;
-  color: inherit;
-}
-
-:root[data-theme='dark'] .outbound-english-ineligible {
-  color: #ff9a9a;
-  background: rgba(198, 40, 40, 0.16);
-}
-
 .outbound-form__field input:focus,
 .outbound-form__field select:focus,
 .outbound-form__checkbox input:focus-visible {

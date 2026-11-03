@@ -25,7 +25,7 @@ const features = [
   {
     icon: 'check',
     title: 'Check your eligibility',
-    description: 'Use your academic details and English proficiency to check the current outbound criteria.',
+    description: 'Use your academic details to check the current outbound criteria.',
     href: '#eligibility',
     link: 'Check eligibility',
   },
@@ -160,7 +160,7 @@ export default function AscendHome() {
             <div className="exchange-section-head">
               <span className="exchange-eyebrow">Before you apply</span>
               <h2>Student eligibility checker</h2>
-              <p>Answer a few questions to check your academic and English proficiency eligibility for outbound exchange.</p>
+              <p>Answer a few questions to check your academic eligibility for outbound exchange.</p>
             </div>
             <div className="exchange-tool-card">
               <EligibilityChecker />

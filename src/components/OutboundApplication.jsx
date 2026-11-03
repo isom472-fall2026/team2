@@ -4,15 +4,7 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
-import {
-  getAcademicFieldError,
-  getEnglishEligibilityError,
-  isCurrentlyIneligible,
-  majors,
-  needsEnglish106,
-  otherMajor,
-  requiresEnglishTestProof,
-} from '../studentExchangeEligibility'
+import { getAcademicFieldError, majors, otherMajor } from '../studentExchangeEligibility'
 import DateField from './DateField'
 import './OutboundApplication.css'
 
@@ -57,10 +49,6 @@ const emptyForm = {
   major_other: '',
   transcript: '',
   current_year_of_study: '',
-  english_test_type: '',
-  english_test_meets_requirement: '',
-  english_106_completed: '',
-  language_proficiency: '',
   university_id: '',
   nationality: '',
   passport_issuing_country: '',
@@ -124,14 +112,6 @@ function formFromApplication(application) {
     expected_graduation_semester: monthValue(application.expected_graduation_semester),
     gpa: application.gpa ?? '',
     credits_passed: application.credits_passed ?? '',
-    english_test_type: application.english_test_type ?? '',
-    english_test_meets_requirement: application.english_test_meets_requirement === true
-      ? 'yes'
-      : application.english_test_meets_requirement === false ? 'no' : '',
-    english_106_completed: application.english_106_completed === true
-      ? 'yes'
-      : application.english_106_completed === false ? 'no' : '',
-    language_proficiency: application.language_proficiency ?? '',
     university_id: application.university_id ?? '',
     nationality: application.nationality ?? '',
     passport_issuing_country: application.passport_issuing_country ?? '',
@@ -294,17 +274,10 @@ function PersonalInformationPage({ form, onChange, onBlur, fieldErrors, countrie
 function AcademicInformationPage({
   form,
   onChange,
-  onEnglishChange,
   onBlur,
   fieldErrors,
   showCreditsWarning,
-  onUpload,
-  uploading,
-  onDeleteIneligibleDraft,
-  saving,
 }) {
-  const hasEnglishTest = ['IELTS', 'TOEFL iBT'].includes(form.english_test_type)
-
   return (
     <div className="outbound-form__grid">
       <SelectField label="Major" name="major" value={form.major} onChange={onChange} onBlur={onBlur} error={fieldErrors.major} required>
@@ -351,67 +324,6 @@ function AcademicInformationPage({
         )}
       </div>
       <InputField label="Expected graduation month and year" name="expected_graduation_semester" value={form.expected_graduation_semester} onChange={onChange} onBlur={onBlur} error={fieldErrors.expected_graduation_semester} type="month" required />
-      <div className="outbound-form__section-heading">
-        <h2>English proficiency</h2>
-        <p>Meet the English proficiency requirement with a qualifying test score or English 106 (course code 9988106).</p>
-      </div>
-      <SelectField label="Have you taken IELTS or TOEFL?" name="english_test_type" value={form.english_test_type} onChange={onEnglishChange} required>
-        <option value="">Choose an answer</option>
-        <option value="IELTS">Yes, IELTS</option>
-        <option value="TOEFL iBT">Yes, TOEFL iBT</option>
-        <option value="None">No</option>
-      </SelectField>
-      {hasEnglishTest && (
-        <SelectField
-          label="Is your IELTS score greater than 6.0 or your TOEFL iBT score at least 60?"
-          name="english_test_meets_requirement"
-          value={form.english_test_meets_requirement}
-          onChange={onEnglishChange}
-          required
-        >
-          <option value="">Choose an answer</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
-        </SelectField>
-      )}
-      {requiresEnglishTestProof(form) && (
-        <div className="outbound-form__upload">
-          <label className="outbound-form__field">
-            <span>Upload your IELTS or TOEFL score report <span className="outbound-form__required" aria-hidden="true">*</span></span>
-            <input
-              type="file"
-              accept="application/pdf,image/jpeg,image/png"
-              onChange={(event) => onUpload('language_proficiency', event)}
-              disabled={uploading.language_proficiency}
-              required={!form.language_proficiency}
-            />
-          </label>
-          {uploading.language_proficiency && <p role="status">Uploading score report…</p>}
-          {form.language_proficiency && <p className="outbound-form__upload-success" role="status">{uploadedFileName(form.language_proficiency)} uploaded successfully.</p>}
-        </div>
-      )}
-      {needsEnglish106(form) && (
-        <SelectField
-          label="Have you taken English 106 (course code 9988106)?"
-          name="english_106_completed"
-          value={form.english_106_completed}
-          onChange={onEnglishChange}
-          required
-        >
-          <option value="">Choose an answer</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
-        </SelectField>
-      )}
-      {isCurrentlyIneligible(form) && (
-        <section className="outbound-english-ineligible" role="alert">
-          <h3>You are not currently eligible for the student exchange program.</h3>
-          <p>You may delete this draft application and its uploaded files.</p>
-          <button className="btn btn--danger" type="button" onClick={onDeleteIneligibleDraft} disabled={saving}>
-            {saving ? 'Deleting…' : 'Delete application'}
-          </button>
-        </section>
-      )}
     </div>
   )
 }
@@ -419,7 +331,7 @@ function AcademicInformationPage({
 function ExchangeDocumentsPage({ form, onChange, cycles, universities, onUpload, uploading }) {
   return (
     <div className="outbound-form__grid">
-      <SelectField label="Exchange cycle" name="semester_applied_for" value={form.semester_applied_for || ''} onChange={onChange} required>
+      <SelectField label="KU semester" name="semester_applied_for" value={form.semester_applied_for || ''} onChange={onChange} required>
         <option value="">Select an open cycle</option>
         {cycles.map((cycle) => (
           <option key={cycle.id} value={cycle.id}>{cycle.semester} {cycle.academic_year}</option>
@@ -476,7 +388,7 @@ function ExchangeDocumentsPage({ form, onChange, cycles, universities, onUpload,
       </div>
       <div className="outbound-form__upload">
         <label className="outbound-form__field">
-          <span>Profile photo (optional)</span>
+          <span>Personal photo (optional)</span>
           <input
             type="file"
             accept="image/jpeg,image/png"
@@ -484,7 +396,7 @@ function ExchangeDocumentsPage({ form, onChange, cycles, universities, onUpload,
             disabled={uploading.profile_photo}
           />
         </label>
-        {uploading.profile_photo && <p role="status">Uploading profile photo…</p>}
+        {uploading.profile_photo && <p role="status">Uploading personal photo…</p>}
         {form.profile_photo && <p className="outbound-form__upload-success" role="status">{uploadedFileName(form.profile_photo)} uploaded successfully.</p>}
       </div>
     </div>
@@ -537,18 +449,14 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
     ['Passport issuing country', countryName(application.passport_issuing_country)],
     ['Major', application.major],
     ['Current year of study', application.current_year_of_study],
-    ['English test', application.english_test_type],
-    ['English test meets requirement', application.english_test_meets_requirement === true ? 'Yes' : application.english_test_meets_requirement === false ? 'No' : ''],
-    ['English 106 completed', application.english_106_completed === true ? 'Yes' : application.english_106_completed === false ? 'No' : ''],
-    ['English score report', uploadedFileName(application.language_proficiency)],
     ['GPA', application.gpa],
     ['Credits passed', application.credits_passed],
     ['Expected graduation', displayMonth(application.expected_graduation_semester)],
-    ['Exchange cycle', cycleName ? `${cycleName.semester} ${cycleName.academic_year}` : application.semester_applied_for],
+    ['KU semester', cycleName ? `${cycleName.semester} ${cycleName.academic_year}` : application.semester_applied_for],
     ['Preferred partner university', universityName || application.university_id],
     ['Passport copy', uploadedFileName(application.passport_copy)],
     ['Academic transcript', uploadedFileName(application.transcript)],
-    ['Profile photo', uploadedFileName(application.profile_photo)],
+    ['Personal photo', uploadedFileName(application.profile_photo)],
     ['Terms and conditions accepted', application.tos ? 'Yes' : 'No'],
   ].filter(([, value]) => value !== null && value !== undefined && value !== '')
 
@@ -563,8 +471,7 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
         ['Civil ID copy', application.civil_id_copy],
         ['Passport copy', application.passport_copy],
         ['Academic transcript', application.transcript],
-        ['Profile photo', application.profile_photo],
-        ['English score report', application.language_proficiency],
+        ['Personal photo', application.profile_photo],
       ].filter(([, path]) => Boolean(path))
       const results = await Promise.all(files.map(async ([label, path]) => {
         const storage = supabase.storage.from(storageBucket)
@@ -637,7 +544,7 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
       }
     })
     return () => { current = false }
-  }, [application.application_id, application.civil_id_copy, application.language_proficiency, application.passport_copy, application.transcript, application.profile_photo])
+  }, [application.application_id, application.civil_id_copy, application.passport_copy, application.transcript, application.profile_photo])
 
   useEffect(() => {
     if (!viewingImage) return undefined
@@ -1085,70 +992,6 @@ function OutboundApplication() {
     setMessage('')
   }
 
-  const clearEnglishScoreFile = async () => {
-    const previousPath = form.language_proficiency
-    if (!previousPath) return true
-    if (!applicationId) {
-      setError('Save this draft before changing its English score report.')
-      return false
-    }
-
-    setUploading((current) => ({ ...current, language_proficiency: true }))
-    const { data, error: updateError } = await supabase
-      .from('outboundapplication')
-      .update({ language_proficiency: null })
-      .eq('application_id', applicationId)
-      .eq('student_id', student.student_id)
-      .select('application_id')
-      .maybeSingle()
-    if (updateError || !data) {
-      setError(updateError
-        ? getDatabaseErrorMessage(updateError)
-        : 'The English score report could not be cleared from the application.')
-      setUploading((current) => ({ ...current, language_proficiency: false }))
-      return false
-    }
-
-    setForm((current) => ({ ...current, language_proficiency: '' }))
-    const { error: removeError } = await supabase.storage.from(storageBucket).remove([previousPath])
-    if (removeError) {
-      setError(`The score report was cleared from the application, but its file could not be deleted: ${getDatabaseErrorMessage(removeError)}`)
-      setUploading((current) => ({ ...current, language_proficiency: false }))
-      return false
-    }
-    setUploading((current) => ({ ...current, language_proficiency: false }))
-    return true
-  }
-
-  const updateEnglishField = async (event) => {
-    const { name, value } = event.target
-    if (name === 'english_test_type') {
-      setForm((current) => ({
-        ...current,
-        english_test_type: value,
-        english_test_meets_requirement: '',
-        english_106_completed: '',
-      }))
-    } else if (name === 'english_test_meets_requirement') {
-      setForm((current) => ({
-        ...current,
-        english_test_meets_requirement: value,
-        english_106_completed: '',
-      }))
-    } else {
-      setForm((current) => ({ ...current, english_106_completed: value }))
-    }
-    setError('')
-    setMessage('')
-
-    const testChanged = name === 'english_test_type' && value !== form.english_test_type
-    const testNoLongerQualifies = name === 'english_test_meets_requirement' && value !== 'yes'
-    const coursePathSelected = name === 'english_106_completed' && value === 'yes'
-    if (form.language_proficiency && (testChanged || testNoLongerQualifies || coursePathSelected)) {
-      await clearEnglishScoreFile()
-    }
-  }
-
   const validatePersonalFieldOnBlur = (event) => {
     const { name } = event.target
     if (!editedPersonalFields[name]) return
@@ -1180,10 +1023,9 @@ function OutboundApplication() {
       ]
       const academicError = academicFields.map((field) => getAcademicFieldError(field, form)).find(Boolean)
       if (academicError) return academicError
-      return getEnglishEligibilityError(form, { requireTestProof: true })
     }
     if (stepToValidate === 2) {
-      if (!form.university_id || !form.semester_applied_for) return 'Choose a partner university and an open exchange cycle.'
+      if (!form.university_id || !form.semester_applied_for) return 'Choose a partner university and an open KU semester.'
       if (!form.civil_id_copy || !form.passport_copy || !form.transcript) {
         return 'Upload your Civil ID copy, passport copy, and academic transcript.'
       }
@@ -1216,14 +1058,6 @@ function OutboundApplication() {
     major: optionalText(form.major === otherMajor ? form.major_other : form.major),
     transcript: form.transcript || null,
     current_year_of_study: form.current_year_of_study || null,
-    english_test_type: form.english_test_type || null,
-    english_test_meets_requirement: form.english_test_meets_requirement === 'yes'
-      ? true
-      : form.english_test_meets_requirement === 'no' ? false : null,
-    english_106_completed: form.english_106_completed === 'yes'
-      ? true
-      : form.english_106_completed === 'no' ? false : null,
-    language_proficiency: requiresEnglishTestProof(form) ? form.language_proficiency || null : null,
     tos,
     university_id: form.university_id ? Number(form.university_id) : null,
     nationality: form.nationality ? Number(form.nationality) : null,
@@ -1240,7 +1074,7 @@ function OutboundApplication() {
       return false
     }
     if (!form.semester_applied_for) {
-      setError('Select an exchange cycle before saving this application.')
+      setError('Select a KU semester before saving this application.')
       if (status === 'Draft') setDraftSaveStatus('error')
       return false
     }
@@ -1351,7 +1185,7 @@ function OutboundApplication() {
 
   const startNewApplication = () => {
     if (!form.semester_applied_for) {
-      setError('Select an open exchange cycle to start an application.')
+      setError('Select an open KU semester to start an application.')
       return
     }
     const cycleAlreadyUsed = applications.some((application) => (
@@ -1419,55 +1253,6 @@ function OutboundApplication() {
     }
   }
 
-  const deleteIneligibleDraft = async () => {
-    if (!applicationId || !window.confirm('Delete this draft application and all of its uploaded files? This cannot be undone.')) return
-
-    setSaving(true)
-    setError('')
-    const filePaths = [
-      form.civil_id_copy,
-      form.passport_copy,
-      form.transcript,
-      form.profile_photo,
-      form.language_proficiency,
-    ].filter(Boolean)
-    if (filePaths.length > 0) {
-      const { error: removeError } = await supabase.storage.from(storageBucket).remove(filePaths)
-      if (removeError) {
-        setError(`The draft was not deleted because its uploaded files could not be removed: ${getDatabaseErrorMessage(removeError)}`)
-        setSaving(false)
-        return
-      }
-    }
-
-    const { data, error: deleteError } = await supabase
-      .from('outboundapplication')
-      .delete()
-      .eq('application_id', applicationId)
-      .eq('student_id', student.student_id)
-      .eq('application_status', 'Draft')
-      .select('application_id')
-      .maybeSingle()
-    if (deleteError || !data) {
-      setError(deleteError
-        ? getDatabaseErrorMessage(deleteError)
-        : 'The draft could not be deleted. It may no longer be a draft.')
-      setSaving(false)
-      return
-    }
-
-    setApplications((current) => current.filter((application) => application.application_id !== applicationId))
-    setApplicationId(null)
-    setForm(emptyForm)
-    lastSavedFormRef.current = JSON.stringify(emptyForm)
-    lastAutosaveAttemptedFormRef.current = ''
-    setDraftSaveStatus('')
-    setStep(0)
-    setSaving(false)
-    setMessage('The ineligible draft application was deleted.')
-    navigate('/portal/outbound-application')
-  }
-
   const handleNext = async (event) => {
     event.preventDefault()
     const validationError = validateStep(activeStep)
@@ -1510,7 +1295,7 @@ function OutboundApplication() {
       ? ['image/jpeg', 'image/png']
       : ['application/pdf', 'image/jpeg', 'image/png']
     if (!allowedTypes.includes(file.type)) {
-      setError('Choose a PDF, JPEG, or PNG file. Profile photos must be JPEG or PNG.')
+      setError('Choose a PDF, JPEG, or PNG file. Personal photos must be JPEG or PNG.')
       return
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -1579,10 +1364,10 @@ function OutboundApplication() {
   const renderApplicationsPage = (
     <>
       <h1 id="outbound-heading">Your outbound applications</h1>
-      <p>Start an application for an open exchange cycle or continue a saved draft.</p>
+      <p>Start an application for an open KU semester or continue a saved draft.</p>
       <div className="outbound-new-application">
         <label className="outbound-form__field">
-          <span>Open exchange cycle</span>
+          <span>Open KU semester</span>
           <select
             value={form.semester_applied_for || ''}
             onChange={(event) => {
@@ -1600,7 +1385,7 @@ function OutboundApplication() {
           Start new application
         </button>
       </div>
-      {openCycles.length === 0 && <p>No exchange cycle is currently accepting applications.</p>}
+      {openCycles.length === 0 && <p>No KU semester is currently accepting applications.</p>}
       {applications.length > 0 ? (
         <div className="outbound-application-list">
           <h2 className="portal-section-heading">Your applications</h2>
@@ -1610,7 +1395,7 @@ function OutboundApplication() {
             return (
               <article className="outbound-application-list__item" key={application.application_id}>
                 <div>
-                  <h3>{cycle ? `${cycle.semester} ${cycle.academic_year}` : 'Exchange cycle'}</h3>
+                  <h3>{cycle ? `${cycle.semester} ${cycle.academic_year}` : 'KU semester'}</h3>
                   <p>Application #{application.application_id}{university ? ` · ${university.name}` : ''}</p>
                 </div>
                 <span className={`outbound-application-list__status outbound-application-list__status--${application.application_status?.toLowerCase()}`}>
@@ -1677,14 +1462,9 @@ function OutboundApplication() {
             <AcademicInformationPage
               form={form}
               onChange={updateField}
-              onEnglishChange={updateEnglishField}
               onBlur={validateAcademicFieldOnBlur}
               fieldErrors={academicFieldErrors}
               showCreditsWarning={Boolean(getCreditsWarning(form))}
-              onUpload={uploadFile}
-              uploading={uploading}
-              onDeleteIneligibleDraft={deleteIneligibleDraft}
-              saving={saving}
             />
           )}
           {pageIndex === 2 && (

@@ -176,7 +176,29 @@ function addMotes(THREE, scene, camera, resolution) {
   return material
 }
 
-function addPlanetShader(THREE, mesh, nightTexture, waterTexture, planetTime, nightAmount, nightLights, surfaceBrightness, nightSurfaceColor, lightsAmount, dayMode, lowPower) {
+// The ocean and cloud noise never moves (it has no time input), so it is drawn once into a
+// texture at startup; the shaders read it instead of evaluating simplex noise per pixel
+// every frame, which was most of the globe's GPU cost.
+function bakeNoise(THREE, renderer, width, height, body) {
+  const target = new THREE.WebGLRenderTarget(width, height, { depthBuffer: false })
+  target.texture.generateMipmaps = true
+  target.texture.minFilter = THREE.LinearMipmapLinearFilter
+  const material = new THREE.ShaderMaterial({
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: `varying vec2 vUv;${SNOISE}\nvoid main(){ ${body} }`,
+  })
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material)
+  const scene = new THREE.Scene()
+  scene.add(quad)
+  renderer.setRenderTarget(target)
+  renderer.render(scene, new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1))
+  renderer.setRenderTarget(null)
+  material.dispose()
+  quad.geometry.dispose()
+  return target
+}
+
+function addPlanetShader(THREE, mesh, nightTexture, waterTexture, noiseTexture, nightAmount, nightLights, surfaceBrightness, nightSurfaceColor, lightsAmount, dayMode, lowPower) {
   const source = mesh.material.clone()
   if (lowPower) source.defines = { ...source.defines, LOW_POWER: '' }
   source.metalness = 0
@@ -184,21 +206,20 @@ function addPlanetShader(THREE, mesh, nightTexture, waterTexture, planetTime, ni
   source.envMapIntensity = 0
   source.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
-      time: planetTime, noiseScale: { value: 30 }, speedX: { value: 1.5 }, speedY: { value: 2 }, speedZ: { value: 2.5 },
+      noiseTexture: { value: noiseTexture },
       rimColor: { value: hexToVec3(THREE, CONFIG.rimColor) }, rimPower: { value: CONFIG.rimPower },
       nightBlendTexture: { value: nightTexture }, waterMaskTexture: { value: waterTexture }, nightLights, surfaceBrightness, nightSurfaceColor,
       nightAmount, lightsAmount, dayMode,
       terrainDepth: { value: CONFIG.terrainDepth }, terrainShade: { value: CONFIG.terrainShade },
       oceanGlint: { value: CONFIG.oceanGlint }, oceanDeep: { value: CONFIG.oceanDeep },
-      oceanFlow: { value: CONFIG.oceanFlow }, oceanFlowSpeed: { value: CONFIG.oceanFlowSpeed }, oceanFlowScale: { value: CONFIG.oceanFlowScale },
+      oceanFlow: { value: CONFIG.oceanFlow },
     })
     shader.vertexShader = `varying vec2 vCustomUv;\n${shader.vertexShader}`.replace('void main() {', 'void main() {\n vCustomUv = uv;')
     shader.fragmentShader = `
-      uniform float time;uniform float noiseScale;uniform float speedX;uniform float speedY;uniform float speedZ;
+      uniform sampler2D noiseTexture;
       uniform vec3 rimColor;uniform float rimPower;uniform sampler2D nightBlendTexture;uniform sampler2D waterMaskTexture;uniform float nightLights;uniform float nightAmount;uniform float lightsAmount;uniform float dayMode;uniform float surfaceBrightness;uniform vec3 nightSurfaceColor;
       uniform float terrainDepth;uniform float terrainShade;uniform float oceanGlint;uniform float oceanDeep;
-      uniform float oceanFlow;uniform float oceanFlowSpeed;uniform float oceanFlowScale;varying vec2 vCustomUv;
-      ${SNOISE}
+      uniform float oceanFlow;varying vec2 vCustomUv;
       ${shader.fragmentShader}`
     shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>', `
       #include <dithering_fragment>
@@ -207,16 +228,14 @@ function addPlanetShader(THREE, mesh, nightTexture, waterTexture, planetTime, ni
       // The Blue Marble's deep oceans are too dark to tell from land by colour, so water comes
       // from its own mask (white is water).
       float waterMask=texture2D(waterMaskTexture,vCustomUv).r;
+      // Baked noise: r is the ocean shimmer, g the ocean flow and b the glint ripple.
+      vec3 noise=texture2D(noiseTexture,vCustomUv).rgb*2.0-1.0;
       // LOW_POWER (phones) skips the faint shimmer and the glint ripple: both are too fine to
-      // see on a small screen but cost a noise lookup per pixel every frame.
+      // see on a small screen.
       #ifndef LOW_POWER
-      float shimmer=snoise(vec3(vCustomUv.x*noiseScale+time*speedX,vCustomUv.y*noiseScale-time*speedY,time*speedZ));
-      gl_FragColor.rgb+=waterMask*shimmer*0.025;
+      gl_FragColor.rgb+=waterMask*noise.r*0.025;
       #endif
-      float fT=time*oceanFlowSpeed*4.0;float fS=4.0*oceanFlowScale;
-      float warp=snoise(vec3(vCustomUv.x*fS-fT*0.5,vCustomUv.y*fS+fT*0.4,fT*0.5));
-      float flow=snoise(vec3(vCustomUv.x*fS*2.0+fT*0.6+warp,vCustomUv.y*fS*2.0-fT*0.5,fT*0.7));
-      flow=warp*0.6+flow*0.4;gl_FragColor.rgb+=waterMask*flow*0.12*oceanFlow*(1.0-0.85*dayMode);
+      gl_FragColor.rgb+=waterMask*noise.g*0.12*oceanFlow*(1.0-0.85*dayMode);
       gl_FragColor.rgb=mix(gl_FragColor.rgb,vec3(0.01,0.06,0.16),waterMask*oceanDeep);
       vec3 finalColor=mix(gl_FragColor.rgb,rimColor,rim);gl_FragColor=vec4(finalColor,1.0);
       vec3 surfPos=-vViewPosition;float terrH=dot(texture2D(map,vCustomUv).rgb,vec3(0.299,0.587,0.114));
@@ -251,43 +270,46 @@ function addPlanetShader(THREE, mesh, nightTexture, waterTexture, planetTime, ni
       #ifdef LOW_POWER
       float ndh=max(dot(normalizedNormal,halfDir),0.0);
       #else
-      float ripple=snoise(vec3(vCustomUv*240.0,time*4.0));float ndh=max(dot(normalizedNormal,halfDir)+ripple*0.02,0.0);
+      float ndh=max(dot(normalizedNormal,halfDir)+noise.b*0.02,0.0);
       #endif
       float glint=pow(ndh,140.0);      gl_FragColor.rgb+=glint*waterMask*dayAmt*oceanGlint*(1.0-0.7*dayMode)*vec3(1.0,0.97,0.88);gl_FragColor.rgb*=surfaceBrightness;
+      // The render target has no multisampling (on integrated GPUs it cost about half the
+      // frame), so the rim is antialiased here: coverage fades out over the last pixel as the
+      // surface turns edge-on. The colour is premultiplied because the final pass composites
+      // the frame over the sky with its alpha.
+      float edgeNdv=max(dot(normalizedNormal,viewDir),0.0);
+      float edgeCoverage=clamp(edgeNdv/max(fwidth(edgeNdv),1e-4),0.0,1.0);
+      gl_FragColor=vec4(gl_FragColor.rgb*edgeCoverage,edgeCoverage);
     `)
   }
   mesh.material = source
   return source
 }
 
-function addCloudLayers(THREE, texture, cloudGroup, cloudTime, dayMode, layerCount) {
+function addCloudLayers(THREE, texture, cloudGroup, cloudNoiseTexture, dayMode, layerCount) {
   const layers = [
-    { height: CONFIG.cloud1Height, opacity: CONFIG.cloud1Opacity, spin: CONFIG.cloud1Spin, ry: 0, phase: 0 },
-    { height: CONFIG.cloud2Height, opacity: CONFIG.cloud2Opacity, spin: CONFIG.cloud2Spin, ry: 2.2, phase: 13 },
-    { height: CONFIG.cloud3Height, opacity: CONFIG.cloud3Opacity, spin: CONFIG.cloud3Spin, ry: 4.3, phase: 27 },
+    { height: CONFIG.cloud1Height, opacity: CONFIG.cloud1Opacity, spin: CONFIG.cloud1Spin, ry: 0, channel: [1, 0, 0, 0] },
+    { height: CONFIG.cloud2Height, opacity: CONFIG.cloud2Opacity, spin: CONFIG.cloud2Spin, ry: 2.2, channel: [0, 1, 0, 0] },
+    { height: CONFIG.cloud3Height, opacity: CONFIG.cloud3Opacity, spin: CONFIG.cloud3Spin, ry: 4.3, channel: [0, 0, 1, 0] },
   ]
   return layers.slice(0, layerCount).map((layer) => {
     const material = new THREE.MeshStandardMaterial({ map: texture, transparent: true, depthWrite: false })
     material.onBeforeCompile = (shader) => {
-      shader.uniforms.uTime = cloudTime
-      shader.uniforms.noiseScale = { value: 20 }
-      shader.uniforms.uSpeedX = { value: 1 }
-      shader.uniforms.uSpeedY = { value: 2 }
-      shader.uniforms.uSpeedZ = { value: 2 }
+      shader.uniforms.uCloudNoise = { value: cloudNoiseTexture }
+      shader.uniforms.uChannel = { value: new THREE.Vector4(...layer.channel) }
       shader.uniforms.uOpacity = { value: layer.opacity }
-      shader.uniforms.uPhase = { value: layer.phase }
       shader.uniforms.uDay = dayMode
       shader.vertexShader = `varying vec2 vCloudUv;\n${shader.vertexShader}`.replace('void main() {', 'void main() {\n vCloudUv = uv;')
-      shader.fragmentShader = `uniform float uTime;uniform float noiseScale;uniform float uSpeedX;uniform float uSpeedY;uniform float uSpeedZ;uniform float uOpacity;uniform float uPhase;uniform float uDay;varying vec2 vCloudUv;${SNOISE}\n${shader.fragmentShader}`
+      shader.fragmentShader = `uniform sampler2D uCloudNoise;uniform vec4 uChannel;uniform float uOpacity;uniform float uDay;varying vec2 vCloudUv;\n${shader.fragmentShader}`
       shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>', `
         #include <dithering_fragment>
         gl_FragColor.rgb=vec3(1.0);
-        float cloudNoise=snoise(vec3(vCloudUv.x*noiseScale+uTime*uSpeedX+uPhase,vCloudUv.y*noiseScale-uTime*uSpeedY+uPhase,uTime*uSpeedZ+uPhase));
+        float cloudNoise=dot(texture2D(uCloudNoise,vCloudUv),uChannel)*2.0-1.0;
         float cloudNdv=max(dot(normalize(vNormal),normalize(vViewPosition)),0.0);
         float cloudEdge=pow(1.0-cloudNdv,3.0);float cloudMod=mix(cloudNoise,1.0,cloudEdge);
         float cloudNdl=dot(normalize(vNormal),normalize(vec3(-0.9,0.18,0.4)));
         float cloudNight=(1.0-smoothstep(-0.30,0.30,cloudNdl))*(1.0-uDay);float cloudDay=1.0-cloudNight*0.9;
-        gl_FragColor.a*=cloudMod*uOpacity*cloudDay;
+        gl_FragColor.a*=cloudMod*uOpacity*cloudDay*clamp(cloudNdv/max(fwidth(cloudNdv),1e-4),0.0,1.0);
       `)
     }
     const cloud = new THREE.Mesh(
@@ -344,7 +366,10 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         // every frame. renderScale lowers it further on devices that cannot keep up.
         let renderScale = 1
         const pixelRatio = () => Math.max(1, Math.min(window.devicePixelRatio, lowPower ? 1.5 : 2) * renderScale)
-        renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false })
+        // The scene is drawn into the composer's own multisampled target and only a flat
+        // full-screen pass reaches the canvas, so the canvas needs no antialiasing, depth or
+        // stencil buffer of its own; each would be allocated and resolved every frame for nothing.
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance' })
         renderer.setPixelRatio(pixelRatio())
         renderer.outputEncoding = THREE.sRGBEncoding
         // A transparent clear lets the final pass use the frame's alpha as the globe's outline.
@@ -361,9 +386,9 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         scene.add(directional)
         const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight)
 
-        // The canvas's antialias flag does not reach the composer's render target, so it
-        // needs its own multisampling or the planet's edge renders jagged.
-        composer = new composerModule.EffectComposer(renderer, new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: lowPower ? 2 : 4 }))
+        // No multisampling: resolving it cost about as much as drawing the whole scene. The globe
+        // and clouds antialias their own rims in their shaders, and stars and motes are soft dots.
+        composer = new composerModule.EffectComposer(renderer, new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight))
         composer.setPixelRatio(pixelRatio())
         composer.setSize(window.innerWidth, window.innerHeight)
         FinalPass.uniforms.uBg.value = hexToVec3(THREE, CONFIG.bgColor)
@@ -381,8 +406,6 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         worldGroup.position.set(STOPS_X[0].v, STOPS_Y[0].v, 0)
         worldGroup.scale.setScalar(STOPS_S[0].v)
         scene.add(worldGroup)
-        const planetTime = { value: 0 }
-        const cloudTime = { value: 0 }
         const planetBrightness = { value: 1.35 }
         const planetNightSurfaceColor = { value: hexToVec3(THREE, '#18263f') }
         const dayMode = { value: 0 }
@@ -407,7 +430,8 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
         ])
         if (cancelled) return
         dayTexture.encoding = THREE.sRGBEncoding
-        const anisotropy = renderer.capabilities.getMaxAnisotropy()
+        // Past 8x the extra filtering is not visible on the globe but is paid on every sample.
+        const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
         nightTexture.anisotropy = anisotropy
         cloudsTexture.wrapS = THREE.RepeatWrapping
         cloudsTexture.wrapT = THREE.RepeatWrapping
@@ -417,14 +441,30 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
           new THREE.MeshStandardMaterial({ map: dayTexture }),
         )
         planetMesh.layers.set(LAYERS.ENTIRE_SCENE)
+        // The same noise the shaders used to evaluate per pixel, with time fixed at zero as it
+        // always was. Sizes keep the finest pattern (the glint ripple, 240 cells across) above
+        // four texels per cell.
+        const planetNoise = bakeNoise(THREE, renderer, lowPower ? 1024 : 2048, lowPower ? 512 : 1024, `
+          float shimmer=snoise(vec3(vUv*30.0,0.0));
+          float warp=snoise(vec3(vUv*${(4 * CONFIG.oceanFlowScale).toFixed(2)},0.0));
+          float flow=warp*0.6+snoise(vec3(vUv.x*${(8 * CONFIG.oceanFlowScale).toFixed(2)}+warp,vUv.y*${(8 * CONFIG.oceanFlowScale).toFixed(2)},0.0))*0.4;
+          float ripple=snoise(vec3(vUv*240.0,0.0));
+          gl_FragColor=vec4(clamp(vec3(shimmer,flow,ripple)*0.5+0.5,0.0,1.0),1.0);`)
+        const cloudNoise = bakeNoise(THREE, renderer, 1024, 512, `
+          vec3 phase=vec3(0.0,13.0,27.0);
+          gl_FragColor=vec4(
+            snoise(vec3(vUv*20.0+phase.x,phase.x)),
+            snoise(vec3(vUv*20.0+phase.y,phase.y)),
+            snoise(vec3(vUv*20.0+phase.z,phase.z)),
+            0.0)*0.5+0.5;`)
         const planetNight = { value: 0 }
         const planetNightLights = { value: CONFIG.nightLights }
         const planetLightsAmount = { value: 0.15 }
-        const planetMaterial = addPlanetShader(THREE, planetMesh, nightTexture, waterTexture, planetTime, planetNight, planetNightLights, planetBrightness, planetNightSurfaceColor, planetLightsAmount, dayMode, lowPower)
+        const planetMaterial = addPlanetShader(THREE, planetMesh, nightTexture, waterTexture, planetNoise.texture, planetNight, planetNightLights, planetBrightness, planetNightSurfaceColor, planetLightsAmount, dayMode, lowPower)
         if (planetMaterial.map) planetMaterial.map.anisotropy = anisotropy
         planetGroup.add(planetMesh)
-        const cloudMeshes = addCloudLayers(THREE, cloudsTexture, cloudGroup, cloudTime, dayMode, lowPower ? 2 : 3)
-        cleanupResources.push(planetMaterial, dayTexture, nightTexture, waterTexture, cloudsTexture, planetMesh.geometry, ...cloudMeshes.flatMap((mesh) => [mesh.geometry, mesh.material]))
+        const cloudMeshes = addCloudLayers(THREE, cloudsTexture, cloudGroup, cloudNoise.texture, dayMode, lowPower ? 2 : 3)
+        cleanupResources.push(planetMaterial, dayTexture, nightTexture, waterTexture, planetNoise, cloudNoise, cloudsTexture, planetMesh.geometry, ...cloudMeshes.flatMap((mesh) => [mesh.geometry, mesh.material]))
         cloudGroup.visible = true
 
         let currentProgress = 0
@@ -471,9 +511,11 @@ export default function PlanetScene({ canvasRef, theme, onReady, onError }) {
           previousTime = time
           adaptResolution(elapsed)
           const targetProgress = Math.max(0, Math.min(1, scrollable ? window.scrollY / scrollable : 0))
-          currentProgress += (targetProgress - currentProgress) * Math.min(1, dt * 4.5)
+          // Exponential easing gives the same motion at any frame rate (60, 120, 144 Hz) and
+          // through uneven frames, where a linear step per frame would speed up and slow down.
+          currentProgress += (targetProgress - currentProgress) * (1 - Math.exp(-dt * 4.5))
           const sideScale = Math.max(0.5, Math.min(1, window.innerWidth / 1200))
-          const damping = Math.min(1, dt * 3.2)
+          const damping = 1 - Math.exp(-dt * 3.2)
           currentX += (sample(STOPS_X, currentProgress) * sideScale - currentX) * damping
           currentY += (sample(STOPS_Y, currentProgress) - currentY) * damping
           currentScale += (sample(STOPS_S, currentProgress) - currentScale) * damping

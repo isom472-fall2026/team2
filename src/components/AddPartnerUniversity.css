@@ -1,0 +1,42 @@
+.add-university textarea,
+.add-university input[type='file'] {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: rgba(3, 8, 15, 0.7);
+  font: inherit;
+}
+
+/* Matches App.css, where light-theme portal inputs are white. */
+:root[data-theme='light'] .add-university textarea { background: #ffffff; }
+.add-university textarea { resize: vertical; }
+.add-university textarea:focus { outline: 2px solid var(--neon); outline-offset: 1px; }
+.add-university [aria-invalid='true'] { border-color: #ff8f9d; }
+.add-university__wide { grid-column: 1 / -1; }
+.add-university__field-error { color: #ff8f9d; font-size: 0.8rem; font-weight: 500; }
+
+.add-university__locations { display: grid; min-width: 0; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.add-university__locations legend { padding: 0 6px; color: var(--text-strong); font-weight: 700; }
+.add-university__hint { margin: 0; color: var(--text); font-size: 0.86rem; }
+.add-university__placing { display: flex; flex-wrap: wrap; gap: 10px; }
+/* The radio buttons are drawn as pills; the input stays in place for keyboard and screen readers. */
+.add-university .add-university__placing-option { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; font-weight: 600; }
+.add-university .add-university__placing-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.add-university .add-university__placing-option:focus-within { outline: 2px solid var(--neon); outline-offset: 2px; }
+.add-university .add-university__placing-option--active { border-color: var(--neon); }
+.add-university__pin { width: 12px; height: 12px; border-radius: 50%; }
+.add-university__pin--university { background: #00d4ff; }
+.add-university__pin--airport { background: #f0a500; }
+.add-university__map { width: 100%; height: clamp(260px, 42vh, 420px); border-radius: var(--radius-sm); overflow: hidden; }
+
+.add-university__saved { margin: 0; padding: 12px 14px; border: 1px solid rgba(58, 156, 116, 0.6); border-radius: var(--radius-sm); color: var(--text-strong); }
+.add-university__saved a { color: var(--neon); text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .add-university .cycle-form__grid { grid-template-columns: 1fr; }
+}
+
+.add-university__logo { display: grid; min-width: 0; gap: 12px; margin: 0; padding: 0; border: 0; }
+.add-university__logo legend { margin-bottom: 7px; padding: 0; color: var(--text-strong); font-size: 0.86rem; font-weight: 600; }

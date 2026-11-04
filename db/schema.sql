@@ -89,14 +89,28 @@ CREATE TABLE public.partneruniversity (
     logo_url VARCHAR(255) CHECK (
         logo_url IS NULL OR logo_url ~* '^https?://[^[:space:]]+$'
     ),
-    latitude DECIMAL(9, 6),
-    longitude DECIMAL(9, 6),
+    latitude DECIMAL(9, 6) CONSTRAINT partneruniversity_latitude_range
+        CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
+    longitude DECIMAL(9, 6) CONSTRAINT partneruniversity_longitude_range
+        CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180),
     available BOOLEAN NOT NULL DEFAULT TRUE,
     location INT REFERENCES public.country(id) ON DELETE SET NULL,
     details TEXT CHECK (
         details IS NULL OR length(btrim(details)) > 0
-    )
+    ),
+    airport_name VARCHAR(255) CONSTRAINT partneruniversity_airport_name_check
+        CHECK (airport_name IS NULL OR length(btrim(airport_name)) > 0),
+    airport_code CHAR(3) CONSTRAINT partneruniversity_airport_code_check
+        CHECK (airport_code IS NULL OR airport_code ~ '^[A-Z]{3}$'),
+    airport_latitude DECIMAL(9, 6) CONSTRAINT partneruniversity_airport_latitude_range
+        CHECK (airport_latitude IS NULL OR airport_latitude BETWEEN -90 AND 90),
+    airport_longitude DECIMAL(9, 6) CONSTRAINT partneruniversity_airport_longitude_range
+        CHECK (airport_longitude IS NULL OR airport_longitude BETWEEN -180 AND 180)
 );
+
+-- Two universities whose names differ only in case or surrounding spaces are the same one.
+CREATE UNIQUE INDEX partneruniversity_name_unique
+    ON public.partneruniversity (lower(btrim(name)));
 
 CREATE TABLE public.coordinator (
     coordinator_id INT PRIMARY KEY CHECK (coordinator_id > 0),
@@ -1257,6 +1271,12 @@ ON public.partneruniversity
 FOR SELECT
 TO anon, authenticated
 USING (available IS TRUE);
+
+CREATE POLICY "KU coordinators can add partner universities"
+ON public.partneruniversity
+FOR INSERT
+TO authenticated
+WITH CHECK (public.is_ku_coordinator());
 
 CREATE POLICY "KU coordinators can read emergency contacts"
 ON public.emergency_contact
@@ -2735,6 +2755,8 @@ DROP POLICY IF EXISTS "Incoming students can read their inbound application file
 ON storage.objects;
 DROP POLICY IF EXISTS "Incoming students can delete their inbound application files"
 ON storage.objects;
+DROP POLICY IF EXISTS "KU coordinators can upload partner university logos"
+ON storage.objects;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -2864,4 +2886,28 @@ USING (
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
     )
+);
+
+-- Logos are shown on the public directory, so the bucket is public to read; only KU
+-- coordinators can upload, and the bucket itself enforces the 2 MB PNG/JPG rule.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'partner-university-logos',
+    'partner-university-logos',
+    TRUE,
+    2097152,
+    ARRAY['image/png', 'image/jpeg']
+)
+ON CONFLICT (id) DO UPDATE
+SET public = TRUE,
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+CREATE POLICY "KU coordinators can upload partner university logos"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+    bucket_id = 'partner-university-logos'
+    AND public.is_ku_coordinator()
 );

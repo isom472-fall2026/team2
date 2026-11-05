@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AscendHome from './components/AscendHome'
 import SiteLoader from './components/SiteLoader'
@@ -21,6 +21,7 @@ const CoordinatorAccountSettings = lazy(() => import('./components/CoordinatorAc
 const CoordinatorPasswordPage = lazy(() => import('./components/CoordinatorAccount').then((module) => ({ default: module.CoordinatorPasswordPage })))
 const TestingMode = lazy(() => import('./components/TestingMode'))
 const PartnerUniversityMap = lazy(() => import('./components/PartnerUniversityMap'))
+const AddPartnerUniversity = lazy(() => import('./components/AddPartnerUniversity'))
 
 const authOptions = {
   ku: {
@@ -1278,6 +1279,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
             </button>
           )}
           {isKuCoordinator && (
+            <button className={activeView === 'add-university' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('add-university')}>
+              <span aria-hidden="true">⌖</span> Add university
+            </button>
+          )}
+          {isKuCoordinator && (
             <button className={activeView === 'coordinators' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('coordinators')}>
               <span aria-hidden="true">♙</span> Coordinator access
             </button>
@@ -1302,6 +1308,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
         {activeView === 'account' && <Suspense fallback={null}><CoordinatorAccountSettings profile={profile} /></Suspense>}
+        {isKuCoordinator && activeView === 'add-university' && <Suspense fallback={null}><AddPartnerUniversity /></Suspense>}
         {isKuCoordinator && activeView === 'start' && (
           <>
             <span className="auth-card__eyebrow">New cycle</span>
@@ -1923,8 +1930,15 @@ function PartnerUniversitiesRoute() {
     const loadUniversities = async () => {
       let result = await supabase
         .from('partneruniversity')
-        .select('university_id, name, logo_url, details, latitude, longitude')
+        .select('university_id, name, logo_url, details, latitude, longitude, airport_name, airport_code, airport_latitude, airport_longitude')
         .order('name')
+      // Until the #114 migration has run, the airport columns do not exist yet.
+      if (result.error?.message.includes('airport')) {
+        result = await supabase
+          .from('partneruniversity')
+          .select('university_id, name, logo_url, details, latitude, longitude')
+          .order('name')
+      }
       if (result.error?.message.includes('latitude') || result.error?.message.includes('longitude')) {
         result = await supabase
           .from('partneruniversity')
@@ -1957,6 +1971,18 @@ function PartnerUniversitiesRoute() {
     }
   }, [])
 
+  // Universities added from the portal carry their airport in the database; the original
+  // ones still use the researched list above.
+  const airports = useMemo(() => ({
+    ...partnerUniversityAirports,
+    ...Object.fromEntries(universities
+      .filter((university) => university.airport_code && university.airport_latitude != null && university.airport_longitude != null)
+      .map((university) => [university.name, {
+        name: university.airport_name,
+        code: university.airport_code,
+        coordinates: [Number(university.airport_longitude), Number(university.airport_latitude)],
+      }])),
+  }), [universities])
   const selectedUniversity = universities.find((university) => university.university_id === selectedUniversityId)
   const detailsUniversity = selectedUniversity || homeUniversity
   const selectUniversity = useCallback((universityId) => {
@@ -2040,13 +2066,13 @@ function PartnerUniversitiesRoute() {
                         </button>
                         {showAirport && (
                           <p className="partner-directory__airport" role="status">
-                            {partnerUniversityAirports[selectedUniversity.name]?.name || 'Airport information is not available'} ({partnerUniversityAirports[selectedUniversity.name]?.code || '—'})
-                            {partnerUniversityAirports[selectedUniversity.name]?.route && (
-                              <span>{partnerUniversityAirports[selectedUniversity.name].route}</span>
+                            {airports[selectedUniversity.name]?.name || 'Airport information is not available'} ({airports[selectedUniversity.name]?.code || '—'})
+                            {airports[selectedUniversity.name]?.route && (
+                              <span>{airports[selectedUniversity.name].route}</span>
                             )}
-                            {partnerUniversityAirports[selectedUniversity.name]?.distanceKm != null && (
+                            {airports[selectedUniversity.name]?.distanceKm != null && (
                               <span>
-                                {partnerUniversityAirports[selectedUniversity.name].distanceKm} km by road · approximately {partnerUniversityAirports[selectedUniversity.name].driveMinutes} minutes by car
+                                {airports[selectedUniversity.name].distanceKm} km by road · approximately {airports[selectedUniversity.name].driveMinutes} minutes by car
                               </span>
                             )}
                           </p>
@@ -2059,7 +2085,7 @@ function PartnerUniversitiesRoute() {
                   </div>
                   <Suspense fallback={<div className="partner-directory__map-shell" />}>
                     <PartnerUniversityMap
-                      airports={partnerUniversityAirports}
+                      airports={airports}
                       universities={universities}
                       homeUniversity={homeUniversity}
                       selectedUniversity={selectedUniversity}

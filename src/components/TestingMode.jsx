@@ -187,7 +187,6 @@ async function createTestingNomination(coordinatorClient, coordinatorId, cycleId
       coordinator_id: coordinatorId,
       student_name: student.name,
       student_email: student.email,
-      student_nationality: 'Test Nationality',
       semester: cycleId,
     }
     const { error } = await coordinatorClient.from('studentnominations').insert(nomination)

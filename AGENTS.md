@@ -49,7 +49,7 @@ say so before making the change.
    not past them.
 2. If there is no issue, or the criteria are unclear, **stop and say so.** Do not guess.
 3. **Exception:** the proposal, the prototype, personas, the team agreement and delivery
-   notes do not need an issue.
+   notes do not need an issue. 
 
 ## Scope
 

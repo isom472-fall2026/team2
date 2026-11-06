@@ -78,6 +78,8 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |
 |---|---|---|---|---|
+| KU coordinator reviews outgoing students applications [#140](https://github.com/isom472-fall2026/team2/issues/140) | VS agents | 120K Tokens | Story description, outboundapplication table, application_status_log, updates table, outbound storage bucket and RLS policies | none |
+| KU Coordinator Reviews Incoming Student Applications [#141](https://github.com/isom472-fall2026/team2/issues/141) | VS agents | 20.2K Tokens | Story description, inboundapplication table, application_status_log, inbound storage bucket and RLS policies, the #140 manage page as a reference | none |
 |  |  |  |  |  |
 
 ## Phase 5

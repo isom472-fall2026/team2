@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { jsPDF } from 'jspdf'
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { useAppStore } from '../stores/appStore'
 import './CoordinatorApplications.css'
@@ -97,49 +99,167 @@ function getApplicationFields(application, data) {
     })
 }
 
-function downloadApplicationPdf(application, applicationType, data, coordinatorName) {
+// The same colours as the student receipt's printed badges (OutboundApplication.css).
+const statusColors = {
+  submitted: { border: [22, 128, 74], text: [8, 116, 67], fill: [232, 243, 237] },
+  accepted: { border: [22, 128, 74], text: [8, 116, 67], fill: [232, 243, 237] },
+  rejected: { border: [198, 40, 40], text: [180, 35, 24], fill: [249, 234, 234] },
+  'in-review': { border: [183, 121, 31], text: [138, 87, 0], fill: [247, 241, 233] },
+}
+const neutralStatusColors = { border: [180, 190, 200], text: [70, 80, 90], fill: [244, 246, 248] }
+const textColor = [17, 17, 17]
+const mutedColor = [95, 110, 125]
+const accentColor = [43, 170, 226]
+const ruleColor = [214, 236, 246]
+
+let logosPromise
+function loadLogos() {
+  const readAsDataUrl = async (fileName) => {
+    const response = await fetch(`${import.meta.env.BASE_URL}images/${fileName}`)
+    if (!response.ok) throw new Error(`Could not load ${fileName}`)
+    const blob = await response.blob()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(blob)
+    })
+  }
+  // A missing logo should not stop a coordinator from exporting the record itself.
+  logosPromise ??= Promise.all([
+    readAsDataUrl('kulogolightmode.png'),
+    readAsDataUrl('exchangelogoeng.png'),
+  ]).catch(() => {
+    logosPromise = undefined
+    return null
+  })
+  return logosPromise
+}
+
+async function downloadApplicationPdf(application, applicationType, data, coordinatorName) {
   const studentId = application.student_id || 'unknown'
   const cycle = getCycleLabel(application, data.cycles)
   const university = data.universities.find(
     ({ university_id }) => Number(university_id) === Number(application.university_id),
   )?.name || 'University unavailable'
-  const doc = new jsPDF()
+  const logos = await loadLogos()
+  const doc = new jsPDF({ format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 16
-  const lineHeight = 6
-  let cursorY = 18
+  const contentWidth = pageWidth - margin * 2
+  const labelWidth = contentWidth / 3
+  const valueX = margin + labelWidth + 4
+  const valueWidth = contentWidth - labelWidth - 4
+  const lineHeight = (fontSize) => fontSize * 0.3528 * 1.35
+  let cursorY = margin
 
-  const writeLine = (text, bold = false) => {
-    doc.setFont('helvetica', bold ? 'bold' : 'normal')
-    const wrapped = doc.splitTextToSize(String(text), pageWidth - margin * 2)
-    if (cursorY + wrapped.length * lineHeight > pageHeight - margin) {
+  const ensureSpace = (height) => {
+    if (cursorY + height > pageHeight - margin - 6) {
       doc.addPage()
       cursorY = margin
     }
-    doc.text(wrapped, margin, cursorY)
-    cursorY += wrapped.length * lineHeight
   }
 
-  writeLine(`${applicationType === 'inbound' ? 'Inbound' : 'Outbound'} application`, true)
-  writeLine(`Student ID: ${studentId}`)
-  writeLine(`Student: ${getStudentName(application, data.profiles[applicationType])}`)
-  writeLine(`Destination university: ${university}`)
-  writeLine(`Cycle: ${cycle}`)
-  writeLine(`Current status: ${application.application_status}`)
-  writeLine(`Export date: ${new Date().toLocaleDateString()}`)
-  writeLine(`Exported by: ${coordinatorName || 'KU coordinator'}`)
-  cursorY += lineHeight
+  const rule = () => {
+    doc.setDrawColor(...ruleColor)
+    doc.setLineWidth(0.3)
+    doc.line(margin, cursorY, pageWidth - margin, cursorY)
+  }
 
-  getApplicationFields(application, data).forEach(([label, value]) => {
-    writeLine(`${label}: ${value}`)
-  })
+  const heading = (text, fontSize, gapAfter) => {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(fontSize)
+    doc.setTextColor(...textColor)
+    const wrapped = doc.splitTextToSize(text, contentWidth)
+    ensureSpace(wrapped.length * lineHeight(fontSize) + gapAfter)
+    doc.text(wrapped, margin, cursorY, { baseline: 'top' })
+    cursorY += wrapped.length * lineHeight(fontSize) + gapAfter
+  }
+
+  const row = (label, value, statusBadge = false) => {
+    const fontSize = 10
+    doc.setFontSize(fontSize)
+    doc.setFont('helvetica', 'bold')
+    const labelLines = doc.splitTextToSize(label, labelWidth)
+    doc.setFont('helvetica', statusBadge ? 'bold' : 'normal')
+    const valueLines = statusBadge ? [value] : doc.splitTextToSize(String(value), valueWidth)
+    const padding = 3.2
+    const textHeight = Math.max(labelLines.length, valueLines.length) * lineHeight(fontSize)
+    const rowHeight = textHeight + padding * 2 + (statusBadge ? 2 : 0)
+    ensureSpace(rowHeight)
+    const textY = cursorY + padding + (statusBadge ? 1 : 0)
+
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...textColor)
+    doc.text(labelLines, margin, textY, { baseline: 'top' })
+
+    if (statusBadge) {
+      const statusKey = String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const colors = statusColors[statusKey] || neutralStatusColors
+      const badgeWidth = doc.getTextWidth(value) + 7
+      const badgeHeight = lineHeight(fontSize) + 2.4
+      doc.setFillColor(...colors.fill)
+      doc.setDrawColor(...colors.border)
+      doc.setLineWidth(0.3)
+      doc.roundedRect(valueX, textY - 1.2, badgeWidth, badgeHeight, badgeHeight / 2, badgeHeight / 2, 'FD')
+      doc.setTextColor(...colors.text)
+      doc.text(String(value), valueX + 3.5, textY, { baseline: 'top' })
+    } else {
+      doc.setFont('helvetica', 'normal')
+      doc.text(valueLines, valueX, textY, { baseline: 'top' })
+    }
+
+    cursorY += rowHeight
+    rule()
+  }
+
+  if (logos) {
+    const logoHeight = 18
+    const [kuLogo, exchangeLogo] = logos.map((image) => {
+      const { width, height } = doc.getImageProperties(image)
+      return { image, width: Math.min((width / height) * logoHeight, contentWidth * 0.48) }
+    })
+    doc.addImage(kuLogo.image, 'PNG', margin, cursorY, kuLogo.width, logoHeight)
+    doc.addImage(exchangeLogo.image, 'PNG', pageWidth - margin - exchangeLogo.width, cursorY, exchangeLogo.width, logoHeight)
+    cursorY += logoHeight + 6
+    rule()
+    cursorY += 8
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...accentColor)
+  doc.setCharSpace(0.4)
+  doc.text(`${applicationType === 'inbound' ? 'Inbound' : 'Outbound'} application`.toUpperCase(), margin, cursorY, { baseline: 'top' })
+  doc.setCharSpace(0)
+  cursorY += 6
+
+  heading(getStudentName(application, data.profiles[applicationType]), 20, 3)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...mutedColor)
+  doc.text(`Exported by ${coordinatorName || 'KU coordinator'} on ${new Date().toLocaleDateString()}`, margin, cursorY, { baseline: 'top' })
+  cursorY += 9
+  rule()
+
+  row('Student ID', studentId)
+  row('Destination university', university)
+  row('Cycle', cycle)
+  row('Current status', application.application_status || 'Unknown', true)
+  cursorY += 10
+
+  heading('Application summary', 15, 3)
+  rule()
+  getApplicationFields(application, data).forEach(([label, value]) => row(label, value))
 
   const pageCount = doc.getNumberOfPages()
   for (let page = 1; page <= pageCount; page += 1) {
     doc.setPage(page)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
+    doc.setTextColor(...mutedColor)
     doc.text(`Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: 'right' })
   }
 
@@ -147,7 +267,9 @@ function downloadApplicationPdf(application, applicationType, data, coordinatorN
   doc.save(`${studentId}-${safeCycle || 'cycle'}.pdf`)
 }
 
-function ApplicationList({ applications, profiles, cycles, universities, countries, contacts, selected, onSelect, onExport, loading, emptyMessage }) {
+const decidableStatuses = ['Submitted', 'In Review', 'Pending Interview', 'Modified']
+
+function ApplicationList({ applications, profiles, cycles, universities, countries, contacts, onManage, onExport, loading, emptyMessage }) {
   if (loading) return <p role="status">Loading applications...</p>
   if (applications.length === 0) return <div className="portal-empty-state">{emptyMessage}</div>
 
@@ -181,8 +303,8 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
                 <td>{application.application_status}</td>
                 <td>
                   <div className="nomination-table__actions">
-                    <button className="btn btn--secondary" type="button" onClick={() => onSelect(application)}>
-                      View details
+                    <button className="btn btn--secondary" type="button" onClick={() => onManage(application)}>
+                      Manage
                     </button>
                     <button className="btn btn--secondary" type="button" onClick={() => onExport(application)}>
                       Export PDF
@@ -194,54 +316,14 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
           })}
         </tbody>
       </table>
-      {selected && (
-        <ApplicationDetails
-          application={selected}
-          profiles={profiles[selected.type]}
-          cycles={cycles}
-          universities={universities}
-          countries={countries}
-          contacts={contacts}
-          onClose={() => onSelect(null)}
-          onExport={() => onExport(selected)}
-        />
-      )}
     </div>
-  )
-}
-
-function ApplicationDetails({ application, profiles, cycles, universities, countries, contacts, onClose, onExport }) {
-  const data = { cycles, universities, countries, contacts }
-  const profile = profiles.get(String(application.student_id))
-
-  return (
-    <section className="coordinator-applications__details" aria-labelledby="application-details-heading">
-      <div className="coordinator-applications__detail-heading">
-        <div>
-          <span className="auth-card__eyebrow">{application.type} application</span>
-          <h3 id="application-details-heading">{getStudentName(application, profiles)}</h3>
-          <p>Student ID: {application.student_id || 'Unavailable'} · {getCycleLabel(application, cycles)} · {application.application_status}</p>
-          {profile?.student_email && <p>{profile.student_email}</p>}
-        </div>
-        <div className="nomination-table__actions">
-          <button className="btn btn--primary" type="button" onClick={onExport}>Export PDF</button>
-          <button className="btn btn--secondary" type="button" onClick={onClose}>Close details</button>
-        </div>
-      </div>
-      <dl className="coordinator-applications__fields">
-        {getApplicationFields(application, data).map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{formatValue(value)}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
   )
 }
 
 export default function CoordinatorApplications() {
   const coordinatorName = useAppStore((state) => state.profile?.name)
+  const navigate = useNavigate()
+  const returnState = useLocation().state
   const [data, setData] = useState({
     inbound: [],
     outbound: [],
@@ -255,14 +337,14 @@ export default function CoordinatorApplications() {
   const [isLoading, setIsLoading] = useState(true)
   const [now, setNow] = useState(null)
   const [error, setError] = useState('')
-  const [section, setSection] = useState('current')
-  const [applicationType, setApplicationType] = useState('outbound')
+  const [section, setSection] = useState(returnState?.applicationsSection === 'history' ? 'history' : 'current')
+  const [applicationType, setApplicationType] = useState(returnState?.applicationType === 'inbound' ? 'inbound' : 'outbound')
   const [search, setSearch] = useState('')
   const [nationalityFilter, setNationalityFilter] = useState('')
   const [universityFilter, setUniversityFilter] = useState('')
   const [semesterOrder, setSemesterOrder] = useState('descending')
-  const [selected, setSelected] = useState(null)
   const [exportError, setExportError] = useState('')
+  const sectionRef = useRef(null)
 
   useEffect(() => {
     let isCurrent = true
@@ -310,11 +392,17 @@ export default function CoordinatorApplications() {
 
   const currentCycle = useMemo(() => {
     if (now === null) return null
-    return data.cycles
+    const openCycle = data.cycles
       .filter((cycle) => cycle.application_o && cycle.application_c
         && new Date(cycle.application_o).getTime() <= now
         && new Date(cycle.application_c).getTime() >= now)
-      .sort((left, right) => new Date(right.application_o) - new Date(left.application_o))[0] || null
+      .sort((left, right) => new Date(right.application_o) - new Date(left.application_o))[0]
+    if (openCycle) return openCycle
+    // Between application windows, coordinators are still reviewing the semester that has not
+    // started yet, so it stays the current table instead of dropping into the history.
+    return data.cycles
+      .filter((cycle) => cycle.cycle_start && new Date(cycle.cycle_start).getTime() > now)
+      .sort((left, right) => new Date(left.cycle_start) - new Date(right.cycle_start))[0] || null
   }, [data.cycles, now])
 
   const profiles = {
@@ -330,25 +418,45 @@ export default function CoordinatorApplications() {
       && (!currentCycle || Number(application.semester_applied_for) !== Number(currentCycle.id)),
   )
 
-  const visibleApplications = (section === 'current' ? currentApplications : historicalApplications)
-    .filter((application) => {
-      const name = getStudentName(application, profiles[applicationType]).toLowerCase()
-      const studentId = String(application.student_id || '')
-      const query = search.trim().toLowerCase()
-      return (!query || name.includes(query) || studentId.includes(query))
-        && (!nationalityFilter || String(application.nationality) === nationalityFilter)
-        && (!universityFilter || String(application.university_id) === universityFilter)
-    })
-    .sort((left, right) => {
-      const cycleSort = compareCycles(left, right, data.cycles)
-      if (cycleSort !== 0) return semesterOrder === 'ascending' ? cycleSort : -cycleSort
-      return getStudentName(left, profiles[applicationType]).localeCompare(getStudentName(right, profiles[applicationType]))
-    })
+  const isHistory = section === 'history'
+  const byStudentName = (left, right) => getStudentName(left, profiles[applicationType])
+    .localeCompare(getStudentName(right, profiles[applicationType]))
+  const visibleApplications = isHistory
+    ? historicalApplications
+      .filter((application) => {
+        const name = getStudentName(application, profiles[applicationType]).toLowerCase()
+        const studentId = String(application.student_id || '')
+        const query = search.trim().toLowerCase()
+        return (!query || name.includes(query) || studentId.includes(query))
+          && (!nationalityFilter || String(application.nationality) === nationalityFilter)
+          && (!universityFilter || String(application.university_id) === universityFilter)
+      })
+      .sort((left, right) => {
+        const cycleSort = compareCycles(left, right, data.cycles)
+        if (cycleSort !== 0) return semesterOrder === 'ascending' ? cycleSort : -cycleSort
+        return byStudentName(left, right)
+      })
+    : [...currentApplications].sort(byStudentName)
 
-  const exportPdf = (application) => {
+  const showSection = (nextSection) => {
+    setSection(nextSection)
+    sectionRef.current?.scrollIntoView({ block: 'start' })
+  }
+
+  const manageApplication = (application) => {
+    // Recording where the coordinator was on the portal entry itself means the browser's
+    // back button returns to this table, not to the portal's default view.
+    navigate('/portal', {
+      replace: true,
+      state: { view: 'applications', applicationsSection: section, applicationType },
+    })
+    navigate(`/portal/applications/${application.type}/${application.application_id}`)
+  }
+
+  const exportPdf = async (application) => {
     try {
       setExportError('')
-      downloadApplicationPdf(
+      await downloadApplicationPdf(
         application,
         applicationType,
         { ...data, profiles },
@@ -360,32 +468,36 @@ export default function CoordinatorApplications() {
   }
 
   return (
-    <section className="coordinator-applications" aria-labelledby="portal-heading">
+    <section ref={sectionRef} className="coordinator-applications" aria-labelledby="portal-heading">
       <span className="auth-card__eyebrow">Application records</span>
-      <h2 id="portal-heading">Current cycle and historical applications</h2>
-      <p>Review current-cycle applications, including drafts, and approved applications from previous cycles.</p>
-      <div className="coordinator-applications__section-tabs" role="group" aria-label="Application period">
-        <button className={section === 'current' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => { setSection('current'); setSelected(null) }}>
-          Current cycle
-        </button>
-        <button className={section === 'history' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => { setSection('history'); setSelected(null) }}>
-          Historical applications
-        </button>
-      </div>
-      {section === 'current' && (
-        <p className="coordinator-applications__cycle">
-          {currentCycle ? `Application window: ${currentCycle.semester} ${currentCycle.academic_year}` : 'There is no KU semester in its application window right now.'}
-        </p>
+      {isHistory ? (
+        <>
+          <h2 id="portal-heading">Historical applications</h2>
+          <p>Approved applications from previous KU semesters.</p>
+          <div className="coordinator-applications__history-link">
+            <button className="btn btn--secondary" type="button" onClick={() => showSection('current')}>
+              Back to current applications
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <h2 id="portal-heading">Current semester applications</h2>
+          <p>Review applications for the current or upcoming KU semester, including drafts.</p>
+          <p className="coordinator-applications__cycle">
+            {currentCycle ? `KU semester: ${currentCycle.semester} ${currentCycle.academic_year}` : 'There is no current or upcoming KU semester.'}
+          </p>
+        </>
       )}
       <div className="coordinator-applications__type-tabs" role="group" aria-label="Application type">
-        <button className={applicationType === 'outbound' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => { setApplicationType('outbound'); setSelected(null) }}>
+        <button className={applicationType === 'outbound' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => setApplicationType('outbound')}>
           Outbound
         </button>
-        <button className={applicationType === 'inbound' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => { setApplicationType('inbound'); setSelected(null) }}>
+        <button className={applicationType === 'inbound' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => setApplicationType('inbound')}>
           Inbound
         </button>
       </div>
-      <div className="coordinator-applications__filters">
+      {isHistory && <div className="coordinator-applications__filters">
         <label>
           Search by student {applicationType === 'outbound' ? 'name or ID' : 'name'}
           <input value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -411,7 +523,7 @@ export default function CoordinatorApplications() {
             <option value="ascending">Oldest first</option>
           </select>
         </label>
-      </div>
+      </div>}
       {error && <p className="auth-form__error" role="alert">{error}</p>}
       {exportError && <p className="auth-form__error" role="alert">{exportError}</p>}
       <p className="coordinator-applications__count" aria-live="polite">{visibleApplications.length} application(s)</p>
@@ -422,14 +534,517 @@ export default function CoordinatorApplications() {
         universities={data.universities}
         countries={data.countries}
         contacts={data.contacts}
-        selected={selected}
-        onSelect={setSelected}
         onExport={exportPdf}
+        onManage={manageApplication}
         loading={isLoading}
-        emptyMessage={section === 'history'
+        emptyMessage={isHistory
           ? 'No approved applications from previous cycles match these filters.'
-          : 'No applications in the current application cycle match these filters.'}
+          : 'There are no applications for this KU semester yet.'}
       />
+      {!isHistory && (
+        <div className="coordinator-applications__history-link">
+          <button className="btn btn--secondary" type="button" onClick={() => showSection('history')}>
+            Historical applications
+          </button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+const reviewTypes = {
+  outbound: {
+    label: 'outbound',
+    table: 'outboundapplication',
+    bucket: 'outbound-application-files',
+    profileTable: 'kustudentauth',
+    reviewFunction: 'review_outbound_application',
+    attachments: [
+      ['civil_id_copy', 'Civil ID copy'],
+      ['passport_copy', 'Passport copy'],
+      ['transcript', 'Academic transcript'],
+    ],
+  },
+  inbound: {
+    label: 'inbound',
+    table: 'inboundapplication',
+    bucket: 'inbound-application-files',
+    profileTable: 'incomingstudentauth',
+    reviewFunction: 'review_inbound_application',
+    attachments: [
+      ['passport_copy', 'Passport copy'],
+      ['transcript', 'Academic transcript'],
+    ],
+  },
+}
+
+// Dates are stored as calendar days; parsing them as UTC would shift them by a day in Kuwait.
+function parseCalendarDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''))
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null
+}
+
+function startOfToday() {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+}
+
+function addCalendarMonths(date, count) {
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + count + 1, 0).getDate()
+  return new Date(date.getFullYear(), date.getMonth() + count, Math.min(date.getDate(), lastDay))
+}
+
+// Whole months are counted first and clamped to the month's end (31 January plus one month is
+// 28 February), so short months never leave a negative day count.
+function calendarDifference(from, to) {
+  let totalMonths = (to.getFullYear() - from.getFullYear()) * 12 + to.getMonth() - from.getMonth()
+  if (addCalendarMonths(from, totalMonths) > to) totalMonths -= 1
+  const days = Math.round((to - addCalendarMonths(from, totalMonths)) / 86400000)
+  return { years: Math.floor(totalMonths / 12), months: totalMonths % 12, days }
+}
+
+function formatCalendarDifference({ years, months, days }) {
+  const plural = (count, unit) => `${count} ${unit}${count === 1 ? '' : 's'}`
+  return [plural(years, 'year'), plural(months, 'month'), plural(days, 'day')].join(', ')
+}
+
+function getTimeUntil(value, today) {
+  const date = parseCalendarDate(value)
+  if (!date) return null
+  const expired = date < today
+  return {
+    date,
+    expired,
+    text: formatCalendarDifference(expired ? calendarDifference(date, today) : calendarDifference(today, date)),
+    days: Math.round((date - today) / 86400000),
+  }
+}
+
+const outstandingGpa = 3.67
+
+function ApplicationMetrics({ application, type }) {
+  const today = startOfToday()
+  const passport = getTimeUntil(application.passport_expiry_date, today)
+  const civilId = type === 'outbound' ? getTimeUntil(application.civil_id_expiry, today) : null
+  const birthdate = parseCalendarDate(application.birthdate)
+  const age = birthdate ? calendarDifference(birthdate, today).years : null
+  const gpa = application.gpa === null || application.gpa === undefined || application.gpa === '' ? null : Number(application.gpa)
+  // Incoming students report GPA on their home university's scale, so it is brought to KU's
+  // 4.0 scale before comparing it with the outstanding-student mark.
+  const maxGpa = type === 'inbound' ? Number(application.max_gpa) || null : 4
+  const gpaOnFourScale = gpa !== null && maxGpa ? (gpa / maxGpa) * 4 : null
+  const isOutstanding = gpaOnFourScale !== null && gpaOnFourScale > outstandingGpa
+
+  return (
+    <aside className="coordinator-review__metrics" aria-labelledby="review-metrics-heading">
+      <h2 id="review-metrics-heading">Key metrics</h2>
+
+      <div className={`coordinator-review__metric${passport?.expired ? ' coordinator-review__metric--alert' : ''}`}>
+        <span className="coordinator-review__metric-label">Passport expiry</span>
+        {passport ? (
+          <>
+            <strong>{passport.expired ? 'Expired' : passport.text}</strong>
+            <span>{passport.expired ? `${passport.text} ago` : 'left'} · {passport.date.toLocaleDateString()}</span>
+          </>
+        ) : <strong>Not provided</strong>}
+      </div>
+
+      {type === 'outbound' && (
+        <div className={`coordinator-review__metric${civilId?.expired ? ' coordinator-review__metric--alert' : ''}`}>
+          <span className="coordinator-review__metric-label">Civil ID expiry</span>
+          {civilId ? (
+            <>
+              <strong>{civilId.expired ? 'Expired' : `${civilId.days} day${civilId.days === 1 ? '' : 's'}`}</strong>
+              <span>{civilId.expired ? `${Math.abs(civilId.days)} days ago` : 'left'} · {civilId.date.toLocaleDateString()}</span>
+            </>
+          ) : <strong>Not provided</strong>}
+        </div>
+      )}
+
+      <div className={`coordinator-review__metric${age !== null && age < 18 ? ' coordinator-review__metric--alert' : ''}`}>
+        <span className="coordinator-review__metric-label">18 or older</span>
+        {age !== null ? (
+          <>
+            <strong>{age >= 18 ? 'Yes' : 'No'}</strong>
+            <span>{age} years old</span>
+          </>
+        ) : <strong>Not provided</strong>}
+      </div>
+
+      <div className={`coordinator-review__metric${isOutstanding ? ' coordinator-review__metric--good' : ''}`}>
+        <span className="coordinator-review__metric-label">Outstanding student</span>
+        {gpaOnFourScale !== null ? (
+          <>
+            <strong>{isOutstanding ? 'Yes' : 'No'}</strong>
+            <span>
+              GPA {gpa}{type === 'inbound' ? ` of ${maxGpa}` : ''}
+              {type === 'inbound' && maxGpa !== 4 ? ` (${gpaOnFourScale.toFixed(2)} on 4.0)` : ''}
+              {` · above ${outstandingGpa} needed`}
+            </span>
+          </>
+        ) : <strong>Not provided</strong>}
+      </div>
+    </aside>
+  )
+}
+
+function storedFileName(path) {
+  const fileName = String(path ?? '').split('/').pop() || ''
+  return fileName.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '')
+}
+
+async function loadAttachmentPages(bucket, path, label) {
+  const storage = supabase.storage.from(bucket)
+  const fileName = storedFileName(path)
+  const { data: signed, error: signError } = await storage.createSignedUrl(path, 3600)
+  if (signError) throw signError
+
+  if (!/\.pdf$/i.test(fileName)) {
+    return [{ key: path, label, fileName, previewUrl: signed.signedUrl, openUrl: signed.signedUrl, pageNumber: null, pageCount: null }]
+  }
+
+  // A browser cannot show a PDF inside an <img>, so each page is drawn to a canvas, the same
+  // way the student's receipt shows it.
+  const { data: fileData, error: fileError } = await storage.download(path)
+  if (fileError) throw fileError
+  const pdfjsLib = await import('pdfjs-dist')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(await fileData.arrayBuffer()) })
+  try {
+    const pdf = await loadingTask.promise
+    const pages = []
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber)
+      const originalViewport = page.getViewport({ scale: 1 })
+      const viewport = page.getViewport({ scale: Math.min(2, 1400 / originalViewport.width) })
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.ceil(viewport.width)
+      canvas.height = Math.ceil(viewport.height)
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('A canvas could not be created to display a PDF page.')
+      await page.render({ canvas, canvasContext: context, viewport }).promise
+      pages.push({
+        key: `${path}-${pageNumber}`,
+        label,
+        fileName,
+        previewUrl: canvas.toDataURL('image/png'),
+        openUrl: signed.signedUrl,
+        pageNumber,
+        pageCount: pdf.numPages,
+      })
+      page.cleanup()
+    }
+    return pages
+  } finally {
+    await loadingTask.destroy()
+  }
+}
+
+export function ManageApplication({ type }) {
+  const config = reviewTypes[type]
+  const { applicationId } = useParams()
+  const navigate = useNavigate()
+  const coordinatorName = useAppStore((state) => state.profile?.name)
+  const [application, setApplication] = useState(null)
+  const [lookups, setLookups] = useState({ cycles: [], universities: [], countries: [], contacts: [] })
+  const [profiles, setProfiles] = useState(new Map())
+  const [linkedUpdate, setLinkedUpdate] = useState(null)
+  const [photoUrl, setPhotoUrl] = useState('')
+  const [attachments, setAttachments] = useState({ loading: true, pages: [], error: '' })
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [pendingDecision, setPendingDecision] = useState(null)
+  const [decision, setDecision] = useState({ loading: false, error: '', message: '' })
+  const [exportError, setExportError] = useState('')
+
+  useEffect(() => {
+    let isCurrent = true
+    const loadApplication = async () => {
+      try {
+        const { data: row, error: readError } = await supabase
+          .from(config.table)
+          .select('*')
+          .eq('application_id', applicationId)
+          .maybeSingle()
+        if (readError) throw readError
+        if (!row) throw new Error('This application could not be found.')
+        const [cyclesResult, universitiesResult, countriesResult, contactsResult, studentProfiles] = await Promise.all([
+          supabase.from('exchange_cycle').select('*').order('id'),
+          supabase.from('partneruniversity').select('university_id, name').order('name'),
+          supabase.from('country').select('id, name').order('name'),
+          row.emergency_contact
+            ? supabase.from('emergency_contact').select('*').eq('contact_id', row.emergency_contact)
+            : Promise.resolve({ data: [] }),
+          readProfiles(config.profileTable, [row]),
+        ])
+        for (const result of [cyclesResult, universitiesResult, countriesResult, contactsResult]) {
+          if (result.error) throw result.error
+        }
+        if (!isCurrent) return
+        setApplication(row)
+        setProfiles(studentProfiles)
+        setLookups({
+          cycles: cyclesResult.data || [],
+          universities: universitiesResult.data || [],
+          countries: countriesResult.data || [],
+          contacts: contactsResult.data || [],
+        })
+      } catch (loadError) {
+        if (isCurrent) setError(loadError.message || 'The application could not be loaded.')
+      } finally {
+        if (isCurrent) setIsLoading(false)
+      }
+    }
+
+    loadApplication()
+    // The student can still withdraw or the status can change elsewhere while the coordinator
+    // reads, so the page follows the row instead of showing what it was when it opened.
+    const channel = supabase
+      .channel(`${type}-application-${applicationId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: config.table, filter: `application_id=eq.${applicationId}` },
+        ({ new: row }) => {
+          if (isCurrent && row?.application_id) setApplication(row)
+        },
+      )
+      .subscribe()
+    return () => {
+      isCurrent = false
+      supabase.removeChannel(channel)
+    }
+  }, [applicationId, config.table, config.profileTable, type])
+
+  const updateId = application?.update_id ?? null
+  useEffect(() => {
+    if (updateId === null) return undefined
+    let isCurrent = true
+    supabase
+      .from('updates')
+      .select('id, details, created_at')
+      .eq('id', updateId)
+      .maybeSingle()
+      .then(({ data: row }) => {
+        if (isCurrent) setLinkedUpdate(row || null)
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [updateId])
+
+  const photoPath = application?.profile_photo || ''
+  useEffect(() => {
+    if (!photoPath) return undefined
+    let isCurrent = true
+    supabase.storage
+      .from(config.bucket)
+      .createSignedUrl(photoPath, 3600)
+      .then(({ data: signed }) => {
+        if (isCurrent) setPhotoUrl(signed?.signedUrl || '')
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [photoPath, config.bucket])
+
+  const attachmentPaths = config.attachments.map(([key]) => application?.[key] || '')
+  const attachmentKey = attachmentPaths.join('|')
+  useEffect(() => {
+    if (!application) return undefined
+    let isCurrent = true
+    const files = config.attachments
+      .map(([key, label]) => [application[key], label])
+      .filter(([path]) => Boolean(path))
+    Promise.all(files.map(([path, label]) => loadAttachmentPages(config.bucket, path, label)))
+      .then((results) => {
+        if (isCurrent) setAttachments({ loading: false, pages: results.flat(), error: '' })
+      })
+      .catch((loadError) => {
+        if (isCurrent) setAttachments({ loading: false, pages: [], error: loadError.message || 'The attachments could not be loaded.' })
+      })
+    return () => {
+      isCurrent = false
+    }
+    // Realtime status changes replace the row, so this follows the file paths only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [application?.application_id, attachmentKey, config])
+
+  const backToApplications = () => {
+    navigate('/portal', { state: { view: 'applications', applicationType: type } })
+  }
+
+  const confirmDecision = async () => {
+    const accept = pendingDecision === 'accept'
+    setDecision({ loading: true, error: '', message: '' })
+    const { data: row, error: decisionError } = await supabase.rpc(config.reviewFunction, {
+      requested_application_id: application.application_id,
+      accept_application: accept,
+    })
+    if (decisionError) {
+      setDecision({ loading: false, error: decisionError.message || 'The decision could not be saved.', message: '' })
+      return
+    }
+    setApplication(row)
+    setPendingDecision(null)
+    setDecision({ loading: false, error: '', message: `The application was ${accept ? 'accepted' : 'rejected'}.` })
+  }
+
+  const exportPdf = async () => {
+    try {
+      setExportError('')
+      await downloadApplicationPdf(application, type, { ...lookups, profiles: { [type]: profiles } }, coordinatorName)
+    } catch (exportFailure) {
+      setExportError(exportFailure.message || 'The application PDF could not be exported.')
+    }
+  }
+
+  const status = application?.application_status || 'Unknown'
+  const statusClass = status.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const canDecide = decidableStatuses.includes(status)
+  const studentName = application ? getStudentName(application, profiles) : ''
+  const studentEmail = application ? profiles.get(String(application.student_id))?.student_email || application.email : ''
+  const initials = studentName.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+  // Shown elsewhere on the page (the photo, the attachments and the linked update), or only an
+  // internal reference, so they are left out of the plain list of submitted details.
+  const fieldsShownElsewhere = ['profile_photo', 'update_id', ...config.attachments.map(([key]) => key)]
+  const detailFields = application
+    ? getApplicationFields(
+      Object.fromEntries(Object.entries(application).filter(([key]) => !fieldsShownElsewhere.includes(key))),
+      lookups,
+    )
+    : []
+  const hasAttachments = attachmentPaths.some(Boolean)
+
+  return (
+    <section className="portal-page coordinator-review" aria-labelledby="review-heading">
+      <div className="portal-card portal-card--wide">
+        <div className="coordinator-review__toolbar">
+          <button className="btn btn--secondary" type="button" onClick={backToApplications}>
+            ← Back to applications
+          </button>
+          {application && (
+            <button className="btn btn--secondary" type="button" onClick={exportPdf}>Export PDF</button>
+          )}
+        </div>
+        {isLoading && <p role="status">Loading application...</p>}
+        {!isLoading && error && <p className="auth-form__error" role="alert">{error}</p>}
+        {exportError && <p className="auth-form__error" role="alert">{exportError}</p>}
+        {!isLoading && application && (
+          <>
+            <header className="coordinator-review__header">
+              {photoUrl ? (
+                <img className="coordinator-review__photo" src={photoUrl} alt={`Personal photo of ${studentName}`} />
+              ) : (
+                <div className="coordinator-review__photo coordinator-review__photo--empty" aria-hidden="true">{initials}</div>
+              )}
+              <div className="coordinator-review__identity">
+                <span className="auth-card__eyebrow">Manage {config.label} application</span>
+                <h1 id="review-heading">{studentName}</h1>
+                <p className="coordinator-review__meta">
+                  Student ID: {application.student_id || 'Unavailable'} · {getCycleLabel(application, lookups.cycles)}
+                  {studentEmail ? ` · ${studentEmail}` : ''}
+                </p>
+                <div className="coordinator-review__status">
+                  <span>Status</span>
+                  <span className={`coordinator-review__badge coordinator-review__badge--${statusClass}`}>{status}</span>
+                  <span className="coordinator-review__live">Updates live</span>
+                </div>
+              </div>
+            </header>
+
+            <div className="coordinator-review__layout">
+              <div className="coordinator-review__main">
+                <section className="coordinator-review__panel" aria-labelledby="review-decision-heading">
+                  <h2 id="review-decision-heading">Decision</h2>
+                  {canDecide && !pendingDecision && (
+                    <div className="nomination-table__actions">
+                      <button className="btn btn--primary" type="button" onClick={() => setPendingDecision('accept')}>Accept application</button>
+                      <button className="btn btn--danger" type="button" onClick={() => setPendingDecision('reject')}>Reject application</button>
+                    </div>
+                  )}
+                  {canDecide && pendingDecision && (
+                    <>
+                      <p>
+                        {pendingDecision === 'accept' ? 'Accept' : 'Reject'} the application from {studentName}?
+                        The student will see the status “{pendingDecision === 'accept' ? 'Accepted' : 'Rejected'}”.
+                      </p>
+                      <div className="nomination-table__actions">
+                        <button
+                          className={pendingDecision === 'accept' ? 'btn btn--primary' : 'btn btn--danger'}
+                          type="button"
+                          onClick={confirmDecision}
+                          disabled={decision.loading}
+                        >
+                          {decision.loading ? 'Saving…' : `Confirm ${pendingDecision === 'accept' ? 'acceptance' : 'rejection'}`}
+                        </button>
+                        <button className="btn btn--secondary" type="button" onClick={() => setPendingDecision(null)} disabled={decision.loading}>
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {!canDecide && (
+                    <p>
+                      {status === 'Draft'
+                        ? 'The student has not submitted this application yet, so it cannot be decided.'
+                        : ['Accepted', 'Rejected'].includes(status)
+                          ? `This application was ${status.toLowerCase()}.`
+                          : `This application is ${status}, so it cannot be decided.`}
+                    </p>
+                  )}
+                  {decision.error && <p className="auth-form__error" role="alert">{decision.error}</p>}
+                  {decision.message && <p className="coordinator-review__message" role="status">{decision.message}</p>}
+                </section>
+
+                {updateId !== null && (
+                  <section className="coordinator-review__panel" aria-labelledby="review-updates-heading">
+                    <h2 id="review-updates-heading">Updates</h2>
+                    {linkedUpdate ? (
+                      <article className="coordinator-review__update">
+                        <time dateTime={linkedUpdate.created_at}>{new Date(linkedUpdate.created_at).toLocaleString()}</time>
+                        <p>{linkedUpdate.details}</p>
+                      </article>
+                    ) : <p>Loading the update on this application...</p>}
+                  </section>
+                )}
+
+                <section className="coordinator-review__section" aria-labelledby="review-details-heading">
+                  <h2 id="review-details-heading">Submitted details</h2>
+                  <dl className="coordinator-applications__fields coordinator-review__fields">
+                    {detailFields.map(([label, value]) => (
+                      <div key={label}>
+                        <dt>{label}</dt>
+                        <dd>{formatValue(value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+
+                {hasAttachments && (
+                  <section className="coordinator-review__section" aria-labelledby="review-attachments-heading">
+                    <h2 id="review-attachments-heading">Attachments</h2>
+                    {attachments.loading && <p role="status">Loading attachments...</p>}
+                    {attachments.error && <p className="auth-form__error" role="alert">{attachments.error}</p>}
+                    <div className="coordinator-review__attachments">
+                      {attachments.pages.map((page) => (
+                        <figure key={page.key} className="coordinator-review__attachment">
+                          <figcaption>
+                            <strong>{page.label}</strong>
+                            {page.pageNumber ? ` — page ${page.pageNumber} of ${page.pageCount}` : ''}
+                            <a href={page.openUrl} target="_blank" rel="noreferrer">Open file</a>
+                          </figcaption>
+                          <img src={page.previewUrl} alt={`${page.label}${page.pageNumber ? `, page ${page.pageNumber}` : ''}`} />
+                        </figure>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
+              <ApplicationMetrics application={application} type={type} />
+            </div>
+          </>
+        )}
+      </div>
     </section>
   )
 }

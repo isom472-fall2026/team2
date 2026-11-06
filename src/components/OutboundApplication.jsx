@@ -428,6 +428,9 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+  // Drafts left open at the deadline are rejected automatically and never get a submission
+  // time; a coordinator's rejection comes after the student submitted.
+  const missedDeadline = application.application_status === 'Rejected' && !application.submitted_at
   const countryName = (id) => countries.find((country) => Number(country.id) === Number(id))?.name || ''
   const cycleName = cycles.find((cycle) => Number(cycle.id) === Number(application.semester_applied_for))
   const universityName = universities.find((university) => Number(university.university_id) === Number(application.university_id))?.name
@@ -566,9 +569,14 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
         <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="Kuwait University" />
         <img src={`${import.meta.env.BASE_URL}images/exchangelogoeng.png`} alt="Kuwait University Exchange Program" />
       </header>
-      <span className="auth-card__eyebrow">{application.application_status === 'Rejected' ? 'Application not submitted' : 'Application submitted'}</span>
-      <h1 id="outbound-receipt-heading">{application.application_status === 'Rejected' ? 'Your application was not submitted' : 'Your application was submitted successfully'}</h1>
-      <p>{application.application_status === 'Rejected' ? 'This application was not submitted before the deadline.' : 'Keep this summary for your records.'}</p>
+      <span className="auth-card__eyebrow">{missedDeadline ? 'Application not submitted' : 'Application submitted'}</span>
+      <h1 id="outbound-receipt-heading">
+        {missedDeadline ? 'Your application was not submitted'
+          : application.application_status === 'Accepted' ? 'Your application was accepted'
+            : application.application_status === 'Rejected' ? 'Your application was not accepted'
+              : 'Your application was submitted successfully'}
+      </h1>
+      <p>{missedDeadline ? 'This application was not submitted before the deadline.' : 'Keep this summary for your records.'}</p>
       <dl className="outbound-receipt__metadata">
         <div><dt>Application ID</dt><dd>{application.application_id}</dd></div>
         <div><dt>Submission date</dt><dd>{new Date(application.submitted_at || application.created_at).toLocaleString()}</dd></div>
@@ -1112,6 +1120,7 @@ function OutboundApplication() {
         .select('application_id, application_status')
         .eq('student_id', student.student_id)
         .eq('semester_applied_for', payload.semester_applied_for)
+        .neq('application_status', 'Rejected')
         .maybeSingle()
       if (duplicateError) {
         setError(getDatabaseErrorMessage(duplicateError))
@@ -1188,8 +1197,10 @@ function OutboundApplication() {
       setError('Select an open KU semester to start an application.')
       return
     }
+    // A rejected application does not use up the cycle, so the student may apply again.
     const cycleAlreadyUsed = applications.some((application) => (
       Number(application.semester_applied_for) === Number(form.semester_applied_for)
+      && application.application_status !== 'Rejected'
     ))
     if (cycleAlreadyUsed) {
       setError('An application already exists for this cycle. Open it from your applications list.')

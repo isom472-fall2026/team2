@@ -17,6 +17,7 @@ const Blog = lazy(() => import('./Blog'))
 const OutboundApplication = lazy(() => import('./components/OutboundApplication'))
 const InboundApplication = lazy(() => import('./components/InboundApplication'))
 const CoordinatorApplications = lazy(() => import('./components/CoordinatorApplications'))
+const ManageApplication = lazy(() => import('./components/CoordinatorApplications').then((module) => ({ default: module.ManageApplication })))
 const CoordinatorAccountSettings = lazy(() => import('./components/CoordinatorAccount'))
 const CoordinatorPasswordPage = lazy(() => import('./components/CoordinatorAccount').then((module) => ({ default: module.CoordinatorPasswordPage })))
 const TestingMode = lazy(() => import('./components/TestingMode'))
@@ -276,7 +277,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
         setIsSubmitting(false)
         return
       }
-      verifiedProfile = profile
+      verifiedProfile = { ...profile, role: type }
     }
 
     if (isSignUp) {
@@ -628,7 +629,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
   const [nominationEditForm, setNominationEditForm] = useState({
     studentName: '',
     studentEmail: '',
-    studentNationality: '',
     semester: '',
   })
   const [nominationEditError, setNominationEditError] = useState('')
@@ -636,7 +636,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
   const [pendingDeleteNomination, setPendingDeleteNomination] = useState(null)
   const [isDeletingNomination, setIsDeletingNomination] = useState(false)
   const [semesters, setSemesters] = useState([])
-  const [form, setForm] = useState({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
+  const [form, setForm] = useState({ studentName: '', studentEmail: '', semester: '' })
   const [cycleForm, setCycleForm] = useState(emptyCycleForm)
   const [cycles, setCycles] = useState([])
   const [coordinators, setCoordinators] = useState([])
@@ -648,7 +648,10 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
   const [editingCycleId, setEditingCycleId] = useState(null)
   const [pendingDeleteCycle, setPendingDeleteCycle] = useState(null)
   const [isDeletingCycle, setIsDeletingCycle] = useState(false)
-  const [activeView, setActiveView] = useState(isKuCoordinator ? 'manage' : 'nominations')
+  const returnView = useLocation().state?.view
+  const [activeView, setActiveView] = useState(
+    isKuCoordinator && returnView === 'applications' ? 'applications' : isKuCoordinator ? 'manage' : 'nominations',
+  )
   const [selectedNominationCycle, setSelectedNominationCycle] = useState(null)
   const [isStartingCycle, setIsStartingCycle] = useState(false)
   const [status, setStatus] = useState({ error: '', message: '' })
@@ -706,7 +709,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
     const loadNominations = async () => {
       let nominationsQuery = supabase
         .from('studentnominations')
-        .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
+        .select('id, student_name, student_email, created_at, semester, nomination_status')
       if (!isKuCoordinator) nominationsQuery = nominationsQuery.eq('coordinator_id', profile.coordinator_id)
       const { data, error } = await nominationsQuery.order('created_at', { ascending: false })
       if (!isCurrent) return
@@ -758,13 +761,13 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       .order('cycle_start', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
       .then(({ data, error }) => {
-        if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
-        else setCycles(data || [])
+        if (error) {
+          setStatus({ error: getDatabaseErrorMessage(error), message: '' })
+          return
+        }
+        setCycles(data || [])
+        setSemesters([...(data || [])].sort((left, right) => Number(left.id) - Number(right.id)))
       })
-    supabase.from('exchange_cycle').select('id, semester, academic_year').order('id').then(({ data, error }) => {
-      if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
-      else setSemesters(data || [])
-    })
     if (isKuCoordinator) {
       supabase
         .from('coordinator')
@@ -1040,7 +1043,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         coordinator_id: coordinatorId,
         student_name: form.studentName.trim(),
         student_email: form.studentEmail.trim(),
-        student_nationality: form.studentNationality.trim(),
         semester: Number(form.semester),
       })
       error = result.error
@@ -1050,12 +1052,12 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       setStatus({ error: error.code === '23505' ? 'A unique nomination ID could not be generated. Please try again.' : getDatabaseErrorMessage(error), message: '' })
       return
     }
-    setForm({ studentName: '', studentEmail: '', studentNationality: '', semester: '' })
+    setForm({ studentName: '', studentEmail: '', semester: '' })
     setStatus({ error: '', message: `Student nomination submitted. Save nomination ID ${nominationId} and share it with the student.` })
     setToastId((currentId) => currentId + 1)
     let nominationsQuery = supabase
       .from('studentnominations')
-      .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
+      .select('id, student_name, student_email, created_at, semester, nomination_status')
     if (!isKuCoordinator) nominationsQuery = nominationsQuery.eq('coordinator_id', coordinatorId)
     const { data: updatedNominations, error: refreshError } = await nominationsQuery
       .order('created_at', { ascending: false })
@@ -1081,12 +1083,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       .update({
         student_name: nominationEditForm.studentName.trim(),
         student_email: nominationEditForm.studentEmail.trim(),
-        student_nationality: nominationEditForm.studentNationality.trim(),
         semester: Number(nominationEditForm.semester),
       })
       .eq('id', editingNominationId)
       .eq('coordinator_id', coordinatorId)
-      .select('id, student_name, student_email, student_nationality, created_at, semester, nomination_status')
+      .select('id, student_name, student_email, created_at, semester, nomination_status')
       .maybeSingle()
     setIsSavingNomination(false)
     if (error) {
@@ -1531,8 +1532,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                   <input id="studentName" value={form.studentName} onChange={(event) => setForm({ ...form, studentName: event.target.value })} required />
                   <label htmlFor="studentEmail">Student email</label>
                   <input id="studentEmail" type="email" value={form.studentEmail} onChange={(event) => setForm({ ...form, studentEmail: event.target.value })} required />
-                  <label htmlFor="studentNationality">Student nationality</label>
-                  <input id="studentNationality" value={form.studentNationality} onChange={(event) => setForm({ ...form, studentNationality: event.target.value })} required />
                   <label htmlFor="semester">Exchange semester</label>
                   <select id="semester" value={form.semester} onChange={(event) => setForm({ ...form, semester: event.target.value })} required>
                     <option value="">Choose a semester</option>
@@ -1564,13 +1563,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
               type="email"
               value={nominationEditForm.studentEmail}
               onChange={(event) => setNominationEditForm({ ...nominationEditForm, studentEmail: event.target.value })}
-              required
-            />
-            <label htmlFor="edit-student-nationality">Student nationality</label>
-            <input
-              id="edit-student-nationality"
-              value={nominationEditForm.studentNationality}
-              onChange={(event) => setNominationEditForm({ ...nominationEditForm, studentNationality: event.target.value })}
               required
             />
             <label htmlFor="edit-nomination-semester">Exchange semester</label>
@@ -1615,7 +1607,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                     <th scope="col">Nomination ID</th>
                     <th scope="col">Student</th>
                     <th scope="col">Email</th>
-                    <th scope="col">Nationality</th>
                     <th scope="col">Exchange semester</th>
                     <th scope="col">Status</th>
                     <th scope="col">Submitted</th>
@@ -1630,7 +1621,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                         <td>{nomination.id}</td>
                         <th scope="row">{nomination.student_name}</th>
                         <td>{nomination.student_email}</td>
-                        <td>{nomination.student_nationality}</td>
                         <td>{semester ? `${semester.semester} ${semester.academic_year}` : `Cycle #${nomination.semester}`}</td>
                         <td>{nomination.nomination_status}</td>
                         <td>{formatCycleDate(nomination.created_at)}</td>
@@ -1644,7 +1634,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                                 setNominationEditForm({
                                   studentName: nomination.student_name,
                                   studentEmail: nomination.student_email,
-                                  studentNationality: nomination.student_nationality,
                                   semester: String(nomination.semester),
                                 })
                                 setNominationEditError('')
@@ -1740,7 +1729,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
             {maintenanceError && <p className="auth-form__error" role="alert">{maintenanceError}</p>}
           </section>
         )}
-        <AccountDeleteButton onDeleted={onDeleted} />
+        {activeView === 'account' && <AccountDeleteButton onDeleted={onDeleted} />}
       </section>
     </div>
   )
@@ -1915,6 +1904,15 @@ const partnerUniversityAirports = {
   'University of San Diego': { name: 'San Diego International Airport', code: 'SAN', coordinates: [-117.19, 32.733], distanceKm: 6, driveMinutes: 15, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
   'University of St.Gallen': { name: 'Zurich Airport', code: 'ZRH', coordinates: [8.555, 47.458], distanceKm: 80, driveMinutes: 70, route: 'Nonstop from Kuwait; continue by rail or road to St. Gallen.' },
   'University of Technology Sydney': { name: 'Sydney Airport', code: 'SYD', coordinates: [151.177, -33.946], distanceKm: 7, driveMinutes: 15, route: 'No nonstop from Kuwait identified; confirm a connecting itinerary for your dates.' },
+}
+
+function ManageApplicationRoute({ type }) {
+  const userEmail = useAppStore((state) => state.session?.user.email)
+  const profile = useAppStore((state) => state.profile)
+
+  if (!profile) return <section className="portal-page"><div className="portal-card"><p role="status">Loading coordinator account...</p></div></section>
+  if (profile.role !== 'coordinator' || !isKuCoordinatorProfile(profile, userEmail)) return <Navigate to="/portal" replace />
+  return <Suspense fallback={null}><ManageApplication key={type} type={type} /></Suspense>
 }
 
 function PartnerUniversitiesRoute() {
@@ -2243,7 +2241,7 @@ function App() {
       }
       const userType = nextSession.user.user_metadata?.user_type || nextSession.user.user_metadata?.student_type
       let profileTables
-      if (maintenanceMode === true || userType === 'coordinator') {
+      if (useAppStore.getState().maintenanceMode === true || userType === 'coordinator') {
         profileTables = [['coordinator', 'coordinator_id']]
       } else if (userType === 'incoming') {
         profileTables = [['incomingstudentauth', 'student_id']]
@@ -2264,14 +2262,16 @@ function App() {
       setProfile({ name: nextSession.user.user_metadata?.name, role: userType })
     }
 
-    supabase.auth.getSession().then(({ data }) => loadProfile(data.session))
+    // The listener reports the stored session as INITIAL_SESSION, so no separate getSession()
+    // call is needed. Supabase runs this callback while holding its auth lock, and a query
+    // started inside it can wait on that lock, so the lookup runs after the callback returns.
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      loadProfile(nextSession)
+      window.setTimeout(() => loadProfile(nextSession), 0)
     })
     return () => {
       authListener.subscription.unsubscribe()
     }
-  }, [maintenanceMode, setProfile, setSession])
+  }, [setProfile, setSession])
 
   const signedInKuCoordinator = Boolean(
     session && profile && isKuCoordinatorProfile(profile, session.user.email),
@@ -2404,6 +2404,8 @@ function App() {
             <Route path="/portal" element={session ? <ProtectedPortal onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />} />
             <Route path="/portal/inbound-application/*" element={session ? <InboundApplication /> : <Navigate to="/auth/signin" replace />} />
             <Route path="/portal/outbound-application/*" element={session ? <OutboundApplication /> : <Navigate to="/auth/signin" replace />} />
+            <Route path="/portal/applications/outbound/:applicationId" element={session ? <ManageApplicationRoute type="outbound" /> : <Navigate to="/auth/signin" replace />} />
+            <Route path="/portal/applications/inbound/:applicationId" element={session ? <ManageApplicationRoute type="inbound" /> : <Navigate to="/auth/signin" replace />} />
             <Route path="/partners" element={<PartnerUniversitiesRoute />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/erd" element={<ErdPage />} />

@@ -131,7 +131,6 @@ CREATE TABLE public.studentnominations (
     student_email VARCHAR(255) NOT NULL CHECK (
         student_email ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'
     ),
-    student_nationality VARCHAR(255) NOT NULL CHECK (length(btrim(student_nationality)) > 0),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     semester INT NOT NULL REFERENCES public.exchange_cycle(id) ON DELETE CASCADE,
     nomination_status VARCHAR(20) NOT NULL DEFAULT 'Active'
@@ -178,9 +177,6 @@ CREATE TABLE public.inboundapplication (
     is_whatsapp_available BOOLEAN DEFAULT FALSE,
     major VARCHAR(255) CHECK (major IS NULL OR length(btrim(major)) > 0),
     transcript VARCHAR(255) CHECK (transcript IS NULL OR length(btrim(transcript)) > 0),
-    language_proficiency VARCHAR(255) CHECK (
-        language_proficiency IS NULL OR length(btrim(language_proficiency)) > 0
-    ),
     current_year_of_study VARCHAR(50) CHECK (
         current_year_of_study IS NULL OR current_year_of_study IN (
             'Second year', 'Third year', 'Fourth year', 'Fifth year'
@@ -199,12 +195,12 @@ CREATE TABLE public.inboundapplication (
         CHECK (application_status IN (
             'Draft', 'Submitted', 'In Review', 'Rejected', 'Accepted',
             'Pending Interview', 'Withdrawal Requested', 'Withdrawn',
-            'Approved', 'Ineligible'
+            'Approved', 'Ineligible', 'Modified'
         )),
     withdrawal_reason TEXT,
     withdrawal_previous_status VARCHAR(20),
     status_updated_at TIMESTAMPTZ,
-    nomination_id BIGINT UNIQUE REFERENCES public.studentnominations(id),
+    nomination_id BIGINT REFERENCES public.studentnominations(id),
     CHECK (gpa IS NULL OR (max_gpa IS NOT NULL AND gpa BETWEEN 0 AND max_gpa)),
     CHECK (
         credits_passed IS NULL OR max_credits IS NULL OR credits_passed <= max_credits
@@ -215,9 +211,15 @@ CREATE TABLE public.inboundapplication (
     )
 );
 
+-- A rejected application does not use up the cycle or the nomination, so the student may
+-- apply again; every other status still allows only one application.
 CREATE UNIQUE INDEX inboundapplication_one_per_student_cycle
 ON public.inboundapplication (student_id, semester_applied_for)
-WHERE student_id IS NOT NULL;
+WHERE student_id IS NOT NULL AND application_status <> 'Rejected';
+
+CREATE UNIQUE INDEX inboundapplication_one_per_nomination
+ON public.inboundapplication (nomination_id)
+WHERE nomination_id IS NOT NULL AND application_status <> 'Rejected';
 
 CREATE TABLE public.outboundapplication (
     application_id BIGINT PRIMARY KEY CHECK (application_id > 0),
@@ -275,7 +277,7 @@ CREATE TABLE public.outboundapplication (
         CHECK (application_status IN (
             'Draft', 'Submitted', 'In Review', 'Rejected', 'Accepted',
             'Pending Interview', 'Withdrawal Requested', 'Withdrawn',
-            'Approved', 'Ineligible'
+            'Approved', 'Ineligible', 'Modified'
         )),
     withdrawal_reason TEXT,
     withdrawal_previous_status VARCHAR(20),
@@ -980,6 +982,61 @@ GRANT EXECUTE ON FUNCTION public.request_outbound_withdrawal(BIGINT, TEXT) TO au
 REVOKE ALL ON FUNCTION public.review_outbound_withdrawal(BIGINT, BOOLEAN) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.review_outbound_withdrawal(BIGINT, BOOLEAN) TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.review_outbound_application(
+    requested_application_id BIGINT,
+    accept_application BOOLEAN
+)
+RETURNS public.outboundapplication
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    application_row public.outboundapplication;
+    previous_status VARCHAR(20);
+    next_status VARCHAR(20);
+BEGIN
+    IF NOT public.is_ku_coordinator() THEN
+        RAISE EXCEPTION 'Only a KU coordinator can review applications';
+    END IF;
+    IF public.get_maintenance_mode() IS DISTINCT FROM FALSE
+       OR (
+            public.is_testing_mode_enabled() IS TRUE
+            AND NOT public.is_testing_record('outboundapplication', requested_application_id::TEXT)
+        ) THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '42501',
+            MESSAGE = 'This application cannot be changed in the current mode';
+    END IF;
+
+    -- Drafts are not the student's final answers, and a decided or withdrawn application
+    -- has already been settled, so only applications waiting on the coordinator qualify.
+    SELECT * INTO application_row
+    FROM public.outboundapplication
+    WHERE application_id = requested_application_id
+      AND application_status IN ('Submitted', 'In Review', 'Pending Interview', 'Modified')
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'This application is not waiting for a decision';
+    END IF;
+
+    previous_status := application_row.application_status;
+    next_status := CASE WHEN accept_application THEN 'Accepted' ELSE 'Rejected' END;
+    PERFORM set_config('app.application_review', 'true', true);
+    UPDATE public.outboundapplication
+    SET application_status = next_status, status_updated_at = now()
+    WHERE application_id = requested_application_id
+    RETURNING * INTO application_row;
+
+    INSERT INTO public.application_status_log(application_id, old_status, new_status)
+    VALUES (requested_application_id, previous_status, next_status);
+    RETURN application_row;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.review_outbound_application(BIGINT, BOOLEAN) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.review_outbound_application(BIGINT, BOOLEAN) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.request_inbound_withdrawal(
     requested_application_id INT,
     requested_reason TEXT DEFAULT NULL
@@ -1083,6 +1140,61 @@ GRANT EXECUTE ON FUNCTION public.request_inbound_withdrawal(INT, TEXT) TO authen
 REVOKE ALL ON FUNCTION public.review_inbound_withdrawal(INT, BOOLEAN) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.review_inbound_withdrawal(INT, BOOLEAN) TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.review_inbound_application(
+    requested_application_id INT,
+    accept_application BOOLEAN
+)
+RETURNS public.inboundapplication
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    application_row public.inboundapplication;
+    previous_status VARCHAR(20);
+    next_status VARCHAR(20);
+BEGIN
+    IF NOT public.is_ku_coordinator() THEN
+        RAISE EXCEPTION 'Only a KU coordinator can review applications';
+    END IF;
+    IF public.get_maintenance_mode() IS DISTINCT FROM FALSE
+       OR (
+            public.is_testing_mode_enabled() IS TRUE
+            AND NOT public.is_testing_record('inboundapplication', requested_application_id::TEXT)
+        ) THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '42501',
+            MESSAGE = 'This application cannot be changed in the current mode';
+    END IF;
+
+    -- Drafts are not the student's final answers, and a decided or withdrawn application
+    -- has already been settled, so only applications waiting on the coordinator qualify.
+    SELECT * INTO application_row
+    FROM public.inboundapplication
+    WHERE application_id = requested_application_id
+      AND application_status IN ('Submitted', 'In Review', 'Pending Interview', 'Modified')
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'This application is not waiting for a decision';
+    END IF;
+
+    previous_status := application_row.application_status;
+    next_status := CASE WHEN accept_application THEN 'Accepted' ELSE 'Rejected' END;
+    PERFORM set_config('app.application_review', 'true', true);
+    UPDATE public.inboundapplication
+    SET application_status = next_status, status_updated_at = now()
+    WHERE application_id = requested_application_id
+    RETURNING * INTO application_row;
+
+    INSERT INTO public.application_status_log(inbound_application_id, old_status, new_status)
+    VALUES (requested_application_id, previous_status, next_status);
+    RETURN application_row;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.review_inbound_application(INT, BOOLEAN) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.review_inbound_application(INT, BOOLEAN) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.is_feedback_author(
     inbound_application_id INT,
     outbound_application_id BIGINT
@@ -1130,21 +1242,21 @@ ON public.exchange_cycle
 FOR SELECT
 TO authenticated
 USING (
-    public.is_ku_coordinator()
+    (SELECT public.is_ku_coordinator())
     OR EXISTS (
         SELECT 1
         FROM public.kustudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
     )
     OR EXISTS (
         SELECT 1
         FROM public.incomingstudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
     )
     OR EXISTS (
         SELECT 1
         FROM public.coordinator AS coordinator
-        WHERE coordinator.user_id = auth.uid()
+        WHERE coordinator.user_id = (SELECT auth.uid())
     )
 );
 
@@ -1152,26 +1264,26 @@ CREATE POLICY "KU coordinators can create exchange cycles"
 ON public.exchange_cycle
 FOR INSERT
 TO authenticated
-WITH CHECK (public.is_ku_coordinator());
+WITH CHECK ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "KU coordinators can update exchange cycles"
 ON public.exchange_cycle
 FOR UPDATE
 TO authenticated
-USING (public.is_ku_coordinator())
-WITH CHECK (public.is_ku_coordinator());
+USING ((SELECT public.is_ku_coordinator()))
+WITH CHECK ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "KU coordinators can delete exchange cycles"
 ON public.exchange_cycle
 FOR DELETE
 TO authenticated
-USING (public.is_ku_coordinator());
+USING ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "Users can read their KU student profile"
 ON public.kustudentauth
 FOR SELECT
 TO authenticated
-USING (user_id = auth.uid());
+USING (user_id = (SELECT auth.uid()));
 
 CREATE POLICY "KU coordinators can read KU students with applications"
 ON public.kustudentauth
@@ -1186,7 +1298,7 @@ ON public.kustudentauth
 FOR INSERT
 TO authenticated
 WITH CHECK (
-    user_id = auth.uid()
+    user_id = (SELECT auth.uid())
     AND student_email ILIKE '%@ku.edu.kw'
 );
 
@@ -1194,13 +1306,13 @@ CREATE POLICY "Users can delete their KU student profile"
 ON public.kustudentauth
 FOR DELETE
 TO authenticated
-USING (user_id = auth.uid());
+USING (user_id = (SELECT auth.uid()));
 
 CREATE POLICY "Users can read their incoming student profile"
 ON public.incomingstudentauth
 FOR SELECT
 TO authenticated
-USING (user_id = auth.uid());
+USING (user_id = (SELECT auth.uid()));
 
 CREATE POLICY "KU coordinators can read incoming students with applications"
 ON public.incomingstudentauth
@@ -1214,54 +1326,54 @@ CREATE POLICY "Users can register their incoming student profile"
 ON public.incomingstudentauth
 FOR INSERT
 TO authenticated
-WITH CHECK (user_id = auth.uid());
+WITH CHECK (user_id = (SELECT auth.uid()));
 
 CREATE POLICY "Users can delete their incoming student profile"
 ON public.incomingstudentauth
 FOR DELETE
 TO authenticated
-USING (user_id = auth.uid());
+USING (user_id = (SELECT auth.uid()));
 
 CREATE POLICY "Coordinators can read coordinator profiles"
 ON public.coordinator
 FOR SELECT
 TO authenticated
-USING (public.is_ku_coordinator() OR user_id = auth.uid());
+USING ((SELECT public.is_ku_coordinator()) OR user_id = (SELECT auth.uid()));
 
 CREATE POLICY "Users can register their coordinator profile"
 ON public.coordinator
 FOR INSERT
 TO authenticated
 WITH CHECK (
-    user_id = auth.uid()
-    AND lower(email) = lower(auth.jwt() ->> 'email')
+    user_id = (SELECT auth.uid())
+    AND lower(email) = lower((SELECT auth.jwt()) ->> 'email')
 );
 
 CREATE POLICY "KU coordinators can update coordinator profiles"
 ON public.coordinator
 FOR UPDATE
 TO authenticated
-USING (public.is_ku_coordinator())
-WITH CHECK (public.is_ku_coordinator());
+USING ((SELECT public.is_ku_coordinator()))
+WITH CHECK ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "Users and KU coordinators can delete coordinator profiles"
 ON public.coordinator
 FOR DELETE
 TO authenticated
-USING (public.is_ku_coordinator() OR user_id = auth.uid());
+USING ((SELECT public.is_ku_coordinator()) OR user_id = (SELECT auth.uid()));
 
 CREATE POLICY "Users can read available partner universities"
 ON public.partneruniversity
 FOR SELECT
 TO authenticated
 USING (
-    public.is_ku_coordinator()
+    (SELECT public.is_ku_coordinator())
     OR (
         available IS TRUE
         AND EXISTS (
             SELECT 1
             FROM public.kustudentauth AS student
-            WHERE student.user_id = auth.uid()
+            WHERE student.user_id = (SELECT auth.uid())
         )
     )
 );
@@ -1276,25 +1388,25 @@ CREATE POLICY "KU coordinators can add partner universities"
 ON public.partneruniversity
 FOR INSERT
 TO authenticated
-WITH CHECK (public.is_ku_coordinator());
+WITH CHECK ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "KU coordinators can read emergency contacts"
 ON public.emergency_contact
 FOR SELECT
 TO authenticated
-USING (public.is_ku_coordinator());
+USING ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "Coordinators can read student nominations"
 ON public.studentnominations
 FOR SELECT
 TO authenticated
 USING (
-    public.is_ku_coordinator()
+    (SELECT public.is_ku_coordinator())
     OR EXISTS (
         SELECT 1
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
-          AND user_id = auth.uid()
+          AND user_id = (SELECT auth.uid())
     )
 );
 
@@ -1306,7 +1418,7 @@ USING (
     EXISTS (
         SELECT 1
         FROM public.incomingstudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND lower(student.student_email) = lower(studentnominations.student_email)
     )
 );
@@ -1320,7 +1432,7 @@ WITH CHECK (
         SELECT 1
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
-          AND user_id = auth.uid()
+          AND user_id = (SELECT auth.uid())
     )
 );
 
@@ -1333,7 +1445,7 @@ USING (
         SELECT 1
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
-          AND user_id = auth.uid()
+          AND user_id = (SELECT auth.uid())
     )
 )
 WITH CHECK (
@@ -1341,7 +1453,7 @@ WITH CHECK (
         SELECT 1
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
-          AND user_id = auth.uid()
+          AND user_id = (SELECT auth.uid())
     )
 );
 
@@ -1354,7 +1466,7 @@ USING (
         SELECT 1
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
-          AND user_id = auth.uid()
+          AND user_id = (SELECT auth.uid())
     )
 );
 
@@ -1362,13 +1474,13 @@ CREATE POLICY "KU coordinators can read inbound applications"
 ON public.inboundapplication
 FOR SELECT
 TO authenticated
-USING (public.is_ku_coordinator() AND application_status <> 'Draft');
+USING ((SELECT public.is_ku_coordinator()) AND application_status <> 'Draft');
 
 CREATE POLICY "KU coordinators can read inbound application drafts"
 ON public.inboundapplication
 FOR SELECT
 TO authenticated
-USING (public.is_ku_coordinator() AND application_status = 'Draft');
+USING ((SELECT public.is_ku_coordinator()) AND application_status = 'Draft');
 
 CREATE POLICY "Partner coordinators can read applications for own nominations"
 ON public.inboundapplication
@@ -1381,7 +1493,7 @@ USING (
         JOIN public.coordinator AS coordinator
           ON coordinator.coordinator_id = nomination.coordinator_id
         WHERE nomination.id = inboundapplication.nomination_id
-          AND coordinator.user_id = auth.uid()
+          AND coordinator.user_id = (SELECT auth.uid())
           AND coordinator.email_accepted IS TRUE
     )
 );
@@ -1394,7 +1506,7 @@ USING (
     EXISTS (
         SELECT 1
         FROM public.incomingstudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = inboundapplication.student_id
     )
 );
@@ -1409,7 +1521,7 @@ WITH CHECK (
     AND EXISTS (
         SELECT 1
         FROM public.incomingstudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = inboundapplication.student_id
           AND lower(student.student_email) = lower(inboundapplication.email)
     )
@@ -1437,7 +1549,7 @@ USING (
     AND EXISTS (
         SELECT 1
         FROM public.incomingstudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = inboundapplication.student_id
     )
 )
@@ -1449,7 +1561,7 @@ WITH CHECK (
     AND EXISTS (
         SELECT 1
         FROM public.incomingstudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = inboundapplication.student_id
           AND lower(student.student_email) = lower(inboundapplication.email)
     )
@@ -1477,7 +1589,7 @@ USING (
     AND EXISTS (
         SELECT 1
         FROM public.incomingstudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = inboundapplication.student_id
     )
 );
@@ -1486,19 +1598,19 @@ CREATE POLICY "KU coordinators can link updates to inbound applications"
 ON public.inboundapplication
 FOR UPDATE
 TO authenticated
-USING (public.is_ku_coordinator())
-WITH CHECK (public.is_ku_coordinator());
+USING ((SELECT public.is_ku_coordinator()))
+WITH CHECK ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "Users can read their outbound applications"
 ON public.outboundapplication
 FOR SELECT
 TO authenticated
 USING (
-    public.is_ku_coordinator()
+    (SELECT public.is_ku_coordinator())
     OR EXISTS (
         SELECT 1
         FROM public.kustudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = outboundapplication.student_id
     )
 );
@@ -1507,20 +1619,20 @@ CREATE POLICY "KU students and coordinators can read application status logs"
 ON public.application_status_log
 FOR SELECT TO authenticated
 USING (
-    public.is_ku_coordinator()
+    (SELECT public.is_ku_coordinator())
     OR EXISTS (
         SELECT 1
         FROM public.outboundapplication AS application
         JOIN public.kustudentauth AS student ON student.student_id = application.student_id
         WHERE application.application_id = application_status_log.application_id
-          AND student.user_id = auth.uid()
+          AND student.user_id = (SELECT auth.uid())
         )
         OR EXISTS (
                 SELECT 1
                 FROM public.inboundapplication AS application
                 JOIN public.incomingstudentauth AS student ON student.student_id = application.student_id
                 WHERE application.application_id = application_status_log.inbound_application_id
-                    AND student.user_id = auth.uid()
+                    AND student.user_id = (SELECT auth.uid())
     )
 );
 
@@ -1528,8 +1640,8 @@ CREATE POLICY "KU coordinators can link updates to outbound applications"
 ON public.outboundapplication
 FOR UPDATE
 TO authenticated
-USING (public.is_ku_coordinator())
-WITH CHECK (public.is_ku_coordinator());
+USING ((SELECT public.is_ku_coordinator()))
+WITH CHECK ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "KU students can create outbound application drafts"
 ON public.outboundapplication
@@ -1548,7 +1660,7 @@ WITH CHECK (
     AND EXISTS (
         SELECT 1
         FROM public.kustudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_email ILIKE '%@ku.edu.kw'
           AND student.student_id = outboundapplication.student_id
     )
@@ -1564,7 +1676,7 @@ USING (
     AND EXISTS (
         SELECT 1
         FROM public.kustudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = outboundapplication.student_id
     )
 )
@@ -1576,7 +1688,7 @@ WITH CHECK (
     AND EXISTS (
         SELECT 1
         FROM public.kustudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = outboundapplication.student_id
     )
         AND EXISTS (
@@ -1596,7 +1708,7 @@ USING (
     AND EXISTS (
         SELECT 1
         FROM public.kustudentauth AS student
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id = outboundapplication.student_id
     )
 );
@@ -1631,21 +1743,28 @@ ON public.feedback
 FOR DELETE
 TO authenticated
 USING (
-    public.is_ku_coordinator()
+    (SELECT public.is_ku_coordinator())
     OR public.is_feedback_author(iapplicationid, oapplicationid)
 );
+
+-- Updates are recorded inside an application, and the coordinator reviewing it reads them there.
+CREATE POLICY "KU coordinators can read updates"
+ON public.updates
+FOR SELECT
+TO authenticated
+USING ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "KU coordinators can create updates"
 ON public.updates
 FOR INSERT
 TO authenticated
-WITH CHECK (public.is_ku_coordinator());
+WITH CHECK ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "KU coordinators can delete updates"
 ON public.updates
 FOR DELETE
 TO authenticated
-USING (public.is_ku_coordinator());
+USING ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "Anyone can read the testing control row"
 ON public.testing
@@ -1657,7 +1776,7 @@ CREATE POLICY "KU coordinators can read testing records"
 ON public.testing
 FOR SELECT
 TO authenticated
-USING (public.is_ku_coordinator());
+USING ((SELECT public.is_ku_coordinator()));
 
 CREATE POLICY "Authenticated users can register rows during testing"
 ON public.testing
@@ -1667,7 +1786,7 @@ WITH CHECK (
     id > 1
     AND enabled IS FALSE
     AND test_accounts IS NULL
-    AND public.is_testing_mode_enabled() IS TRUE
+    AND (SELECT public.is_testing_mode_enabled()) IS TRUE
     AND public.testing_insert_allowed('testing', NULL)
 );
 
@@ -1677,7 +1796,7 @@ AS RESTRICTIVE
 FOR INSERT
 TO authenticated
 WITH CHECK (
-    public.is_testing_mode_enabled() IS NOT TRUE
+    (SELECT public.is_testing_mode_enabled()) IS NOT TRUE
     OR university <> 4
     OR email NOT ILIKE '%@ku.edu.kw'
 );
@@ -2000,8 +2119,8 @@ ON storage.objects
 FOR DELETE
 TO authenticated
 USING (
-    public.is_ku_coordinator()
-    AND public.is_testing_mode_enabled() IS TRUE
+    (SELECT public.is_ku_coordinator())
+    AND (SELECT public.is_testing_mode_enabled()) IS TRUE
     AND public.is_testing_record('storage.objects', id::TEXT)
 );
 
@@ -2376,6 +2495,7 @@ BEGIN
 
     IF public.is_ku_coordinator()
          AND current_setting('app.withdrawal_review', true) IS DISTINCT FROM 'true'
+         AND current_setting('app.application_review', true) IS DISTINCT FROM 'true'
        AND NOT (
             TG_TABLE_NAME = 'outboundapplication'
             AND EXISTS (
@@ -2406,8 +2526,10 @@ BEFORE UPDATE ON public.outboundapplication
 FOR EACH ROW
 EXECUTE FUNCTION public.restrict_coordinator_application_update();
 
+-- A rejected application does not use up the cycle, so the student may apply again.
 CREATE UNIQUE INDEX outboundapplication_student_cycle_unique
-ON public.outboundapplication (student_id, semester_applied_for);
+ON public.outboundapplication (student_id, semester_applied_for)
+WHERE application_status <> 'Rejected';
 
 CREATE OR REPLACE FUNCTION public.delete_my_account()
 RETURNS VOID
@@ -2660,84 +2782,84 @@ ALTER FUNCTION public.set_maintenance_mode(BOOLEAN) OWNER TO postgres;
 DROP POLICY IF EXISTS "Maintenance blocks country reads" ON public.country;
 CREATE POLICY "Maintenance blocks country reads"
 ON public.country AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks exchange cycle reads" ON public.exchange_cycle;
 CREATE POLICY "Maintenance blocks exchange cycle reads"
 ON public.exchange_cycle AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks KU student reads" ON public.kustudentauth;
 CREATE POLICY "Maintenance blocks KU student reads"
 ON public.kustudentauth AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks incoming student reads" ON public.incomingstudentauth;
 CREATE POLICY "Maintenance blocks incoming student reads"
 ON public.incomingstudentauth AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks emergency contact reads" ON public.emergency_contact;
 CREATE POLICY "Maintenance blocks emergency contact reads"
 ON public.emergency_contact AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks partner university reads" ON public.partneruniversity;
 CREATE POLICY "Maintenance blocks partner university reads"
 ON public.partneruniversity AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance limits coordinator profile reads" ON public.coordinator;
 CREATE POLICY "Maintenance limits coordinator profile reads"
 ON public.coordinator AS RESTRICTIVE FOR SELECT TO authenticated
 USING (
-    public.get_maintenance_mode() IS FALSE
+    (SELECT public.get_maintenance_mode()) IS FALSE
     OR (
-        public.get_maintenance_mode() IS TRUE
-        AND user_id = auth.uid()
-        AND public.is_ku_coordinator()
+        (SELECT public.get_maintenance_mode()) IS TRUE
+        AND user_id = (SELECT auth.uid())
+        AND (SELECT public.is_ku_coordinator())
     )
 );
 
 DROP POLICY IF EXISTS "Maintenance blocks nomination reads" ON public.studentnominations;
 CREATE POLICY "Maintenance blocks nomination reads"
 ON public.studentnominations AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks inbound application reads" ON public.inboundapplication;
 CREATE POLICY "Maintenance blocks inbound application reads"
 ON public.inboundapplication AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks outbound application reads" ON public.outboundapplication;
 CREATE POLICY "Maintenance blocks outbound application reads"
 ON public.outboundapplication AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks status log reads" ON public.application_status_log;
 CREATE POLICY "Maintenance blocks status log reads"
 ON public.application_status_log AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks update reads" ON public.updates;
 CREATE POLICY "Maintenance blocks update reads"
 ON public.updates AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks feedback reads" ON public.feedback;
 CREATE POLICY "Maintenance blocks feedback reads"
 ON public.feedback AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks testing data reads" ON public.testing;
 CREATE POLICY "Maintenance blocks testing data reads"
 ON public.testing AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 DROP POLICY IF EXISTS "Maintenance blocks storage object reads" ON storage.objects;
 CREATE POLICY "Maintenance blocks storage object reads"
 ON storage.objects AS RESTRICTIVE FOR SELECT TO anon, authenticated
-USING (public.get_maintenance_mode() IS FALSE);
+USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
 REVOKE ALL ON FUNCTION public.set_maintenance_mode(BOOLEAN) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.set_maintenance_mode(BOOLEAN) TO authenticated;
@@ -2749,11 +2871,15 @@ DROP POLICY IF EXISTS "KU students can read their outbound application files"
 ON storage.objects;
 DROP POLICY IF EXISTS "KU students can delete their outbound application files"
 ON storage.objects;
+DROP POLICY IF EXISTS "KU coordinators can read outbound application files"
+ON storage.objects;
 DROP POLICY IF EXISTS "Incoming students can upload inbound application files"
 ON storage.objects;
 DROP POLICY IF EXISTS "Incoming students can read their inbound application files"
 ON storage.objects;
 DROP POLICY IF EXISTS "Incoming students can delete their inbound application files"
+ON storage.objects;
+DROP POLICY IF EXISTS "KU coordinators can read inbound application files"
 ON storage.objects;
 DROP POLICY IF EXISTS "KU coordinators can upload partner university logos"
 ON storage.objects;
@@ -2795,7 +2921,7 @@ WITH CHECK (
         FROM public.incomingstudentauth AS student
         JOIN public.inboundapplication AS application
           ON application.student_id = student.student_id
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND application.application_status = 'Draft'
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
@@ -2813,10 +2939,20 @@ USING (
         FROM public.incomingstudentauth AS student
         JOIN public.inboundapplication AS application
           ON application.student_id = student.student_id
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
     )
+);
+
+-- The coordinator has to see the uploaded documents to decide on an application.
+CREATE POLICY "KU coordinators can read inbound application files"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+    bucket_id = 'inbound-application-files'
+    AND (SELECT public.is_ku_coordinator())
 );
 
 CREATE POLICY "Incoming students can delete their inbound application files"
@@ -2830,7 +2966,7 @@ USING (
         FROM public.incomingstudentauth AS student
         JOIN public.inboundapplication AS application
           ON application.student_id = student.student_id
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND application.application_status = 'Draft'
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
@@ -2848,7 +2984,7 @@ WITH CHECK (
         FROM public.kustudentauth AS student
         JOIN public.outboundapplication AS application
           ON application.student_id = student.student_id
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
     )
@@ -2865,10 +3001,20 @@ USING (
         FROM public.kustudentauth AS student
         JOIN public.outboundapplication AS application
           ON application.student_id = student.student_id
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
     )
+);
+
+-- The coordinator has to see the uploaded documents to decide on an application.
+CREATE POLICY "KU coordinators can read outbound application files"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+    bucket_id = 'outbound-application-files'
+    AND (SELECT public.is_ku_coordinator())
 );
 
 CREATE POLICY "KU students can delete their outbound application files"
@@ -2882,7 +3028,7 @@ USING (
         FROM public.kustudentauth AS student
         JOIN public.outboundapplication AS application
           ON application.student_id = student.student_id
-        WHERE student.user_id = auth.uid()
+        WHERE student.user_id = (SELECT auth.uid())
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
     )
@@ -2909,5 +3055,28 @@ FOR INSERT
 TO authenticated
 WITH CHECK (
     bucket_id = 'partner-university-logos'
-    AND public.is_ku_coordinator()
+    AND (SELECT public.is_ku_coordinator())
 );
+
+-- The KU coordinator's Manage view follows an application's status as it changes, which
+-- Supabase Realtime only delivers for tables in this publication.
+DO $$
+DECLARE
+    target_table TEXT;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        RETURN;
+    END IF;
+    FOREACH target_table IN ARRAY ARRAY['outboundapplication', 'inboundapplication'] LOOP
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_publication_tables
+            WHERE pubname = 'supabase_realtime'
+              AND schemaname = 'public'
+              AND tablename = target_table
+        ) THEN
+            EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', target_table);
+        END IF;
+    END LOOP;
+END;
+$$;

@@ -2,7 +2,7 @@
   min-width: 0;
 }
 
-.coordinator-applications__section-tabs,
+.coordinator-applications__history-link,
 .coordinator-applications__type-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -78,9 +78,10 @@
 .coordinator-applications__details {
   margin-top: 24px;
   padding: 22px;
-  border: 1px solid var(--border-color, #d8dee8);
-  border-radius: 14px;
-  background: var(--surface-raised, #fff);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-alt);
+  color: var(--text);
 }
 
 .coordinator-applications__detail-heading {
@@ -113,6 +114,7 @@
 
 .coordinator-applications__fields dt {
   font-weight: 700;
+  color: var(--text-strong);
 }
 
 .coordinator-applications__fields dd {
@@ -123,4 +125,288 @@
   .coordinator-applications__detail-heading {
     flex-direction: column;
   }
+}
+
+.coordinator-review__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.coordinator-review__header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.coordinator-review__photo {
+  flex: none;
+  width: 112px;
+  height: 112px;
+  border: 2px solid var(--border-bright);
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-card-alt);
+}
+
+.coordinator-review__photo--empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-strong);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.coordinator-review__identity {
+  min-width: 0;
+}
+
+.coordinator-review__identity h1 {
+  margin: 6px 0 6px;
+}
+
+.coordinator-review__meta {
+  margin: 0 0 12px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.coordinator-review__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.coordinator-review__badge {
+  padding: 6px 12px;
+  border: 1px solid var(--border-bright);
+  border-radius: 999px;
+  color: var(--neon);
+  font-size: 0.85rem;
+}
+
+.coordinator-review__badge--submitted,
+.coordinator-review__badge--accepted {
+  border-color: rgba(54, 211, 153, 0.48);
+  background: rgba(54, 211, 153, 0.12);
+  color: #36d399;
+}
+
+.coordinator-review__badge--rejected {
+  border-color: rgba(255, 51, 79, 0.6);
+  background: rgba(255, 51, 79, 0.12);
+  color: #ff8f9d;
+}
+
+.coordinator-review__live {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.coordinator-review__panel {
+  margin-bottom: 24px;
+  padding: 20px 22px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-alt);
+}
+
+.coordinator-review__panel h2,
+.coordinator-review__section h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+  color: var(--text-strong);
+}
+
+.coordinator-review__panel p {
+  margin: 8px 0;
+  color: var(--text);
+}
+
+.coordinator-review__message {
+  color: #36d399;
+}
+
+.coordinator-review__section {
+  margin-top: 32px;
+}
+
+.coordinator-review__update time {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.coordinator-review__update p {
+  white-space: pre-wrap;
+  color: var(--text-strong);
+}
+
+.coordinator-review__attachments {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.coordinator-review__attachment {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-alt);
+}
+
+.coordinator-review__attachment figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.coordinator-review__attachment figcaption strong {
+  color: var(--text-strong);
+}
+
+.coordinator-review__attachment figcaption a {
+  margin-left: auto;
+  color: var(--neon);
+}
+
+.coordinator-review__attachment img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.coordinator-review__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+  gap: 28px;
+}
+
+.coordinator-review__main {
+  min-width: 0;
+}
+
+.coordinator-review__metrics {
+  position: sticky;
+  top: calc(var(--navbar-height, 72px) + 16px);
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-alt);
+}
+
+.coordinator-review__metrics h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  color: var(--text-strong);
+}
+
+.coordinator-review__metric {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.coordinator-review__metric strong {
+  color: var(--text-strong);
+  font-size: 1.05rem;
+}
+
+.coordinator-review__metric-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.coordinator-review__metric--good {
+  border-left-color: #36d399;
+}
+
+.coordinator-review__metric--good strong {
+  color: #36d399;
+}
+
+.coordinator-review__metric--alert {
+  border-left-color: #ff334f;
+}
+
+.coordinator-review__metric--alert strong {
+  color: #ff8f9d;
+}
+
+:root[data-theme='light'] .coordinator-review__metric--good strong {
+  color: #087443;
+}
+
+:root[data-theme='light'] .coordinator-review__metric--alert strong {
+  color: #b42318;
+}
+
+@media (max-width: 960px) {
+  .coordinator-review__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .coordinator-review__metrics {
+    position: static;
+    order: -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .coordinator-review__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .coordinator-review__attachments {
+    grid-template-columns: 1fr;
+  }
+}
+
+.coordinator-review__fields dd {
+  color: var(--text);
+}
+
+:root[data-theme='light'] .coordinator-review__badge--submitted,
+:root[data-theme='light'] .coordinator-review__badge--accepted,
+:root[data-theme='light'] .coordinator-review__message {
+  border-color: rgba(22, 128, 74, 0.5);
+  background: #e8f3ed;
+  color: #087443;
+}
+
+:root[data-theme='light'] .coordinator-review__message {
+  background: none;
+}
+
+:root[data-theme='light'] .coordinator-review__badge--rejected {
+  border-color: rgba(198, 40, 40, 0.5);
+  background: #f9eaea;
+  color: #b42318;
 }

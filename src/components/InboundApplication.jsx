@@ -47,7 +47,6 @@ const emptyForm = {
   is_whatsapp_available: false,
   major: '',
   transcript: '',
-  language_proficiency: '',
   current_year_of_study: '',
   nationality: '',
   passport_issuing_country: '',
@@ -218,6 +217,9 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
   const [documentsLoading, setDocumentsLoading] = useState(true)
   const [viewingPage, setViewingPage] = useState(null)
   const receiptRef = useRef(null)
+  // Drafts left open at the deadline are rejected automatically and never get a submission
+  // time; a coordinator's rejection comes after the student submitted.
+  const missedDeadline = application.application_status === 'Rejected' && !application.submitted_at
   const countryName = (id) => countries.find((country) => Number(country.id) === Number(id))?.name || ''
   const cycle = cycles.find((item) => Number(item.id) === Number(application.semester_applied_for))
   const university = universities.find((item) => Number(item.university_id) === Number(application.university_id))
@@ -247,7 +249,6 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
     ['KU semester', cycle ? `${cycle.semester} ${cycle.academic_year}` : application.semester_applied_for],
     ['Host university', university?.name || application.university_id],
     ['Academic transcript', uploadedFileName(application.transcript)],
-    ['English proficiency document', uploadedFileName(application.language_proficiency)],
     ['Passport copy', uploadedFileName(application.passport_copy)],
     ['Personal photo', uploadedFileName(application.profile_photo)],
     ['Terms and conditions accepted', application.tos ? 'Yes' : 'No'],
@@ -266,7 +267,6 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
       setDocumentsLoading(true)
       const files = [
         ['Academic transcript', application.transcript],
-        ['English proficiency document', application.language_proficiency],
         ['Passport copy', application.passport_copy],
         ['Personal photo', application.profile_photo],
       ].filter(([, path]) => Boolean(path))
@@ -343,7 +343,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
       }
     })
     return () => { current = false }
-  }, [application.application_id, application.language_proficiency, application.passport_copy, application.profile_photo, application.transcript])
+  }, [application.application_id, application.passport_copy, application.profile_photo, application.transcript])
 
   useEffect(() => {
     if (!viewingPage) return undefined
@@ -365,9 +365,14 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
         <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="Kuwait University" />
         <img src={`${import.meta.env.BASE_URL}images/exchangelogoeng.png`} alt="Kuwait University Exchange Program" />
       </header>
-      <span className="auth-card__eyebrow">{application.application_status === 'Rejected' ? 'Application not submitted' : 'Application submitted'}</span>
-      <h1 id="inbound-receipt-heading">{application.application_status === 'Rejected' ? 'Your application was not submitted' : 'Your application was submitted successfully'}</h1>
-      <p>{application.application_status === 'Rejected' ? 'This application was not submitted before the deadline.' : 'Keep this summary for your records.'}</p>
+      <span className="auth-card__eyebrow">{missedDeadline ? 'Application not submitted' : 'Application submitted'}</span>
+      <h1 id="inbound-receipt-heading">
+        {missedDeadline ? 'Your application was not submitted'
+          : application.application_status === 'Accepted' ? 'Your application was accepted'
+            : application.application_status === 'Rejected' ? 'Your application was not accepted'
+              : 'Your application was submitted successfully'}
+      </h1>
+      <p>{missedDeadline ? 'This application was not submitted before the deadline.' : 'Keep this summary for your records.'}</p>
       <dl className="outbound-receipt__metadata">
         <div><dt>Application ID</dt><dd>{application.application_id}</dd></div>
         <div><dt>Submission date</dt><dd>{displayDate(application.submitted_at || application.created_at)}</dd></div>
@@ -675,6 +680,7 @@ function InboundApplication() {
       const used = applications.some((item) => (
         Number(item.semester_applied_for) === Number(data?.semester)
         && String(item.application_id) !== String(applicationId)
+        && item.application_status !== 'Rejected'
       ))
       if (!data || !isNominationCycleAvailable(cycle) || used) {
         setError(used
@@ -896,7 +902,6 @@ function InboundApplication() {
           : null,
         major: form.major.trim() || null,
         transcript: form.transcript || null,
-        language_proficiency: form.language_proficiency || null,
         current_year_of_study: form.current_year_of_study || null,
         tos: false,
         passport_issuing_country: form.passport_issuing_country ? Number(form.passport_issuing_country) : null,
@@ -1028,7 +1033,10 @@ function InboundApplication() {
       setLoading(false)
       return
     }
-    if (applications.some((item) => Number(item.semester_applied_for) === Number(data.semester))) {
+    // A rejected application does not use up the cycle or the nomination, so the student may
+    // apply again with the same Nomination ID.
+    const activeApplications = applications.filter((item) => item.application_status !== 'Rejected')
+    if (activeApplications.some((item) => Number(item.semester_applied_for) === Number(data.semester))) {
       setError('You already have an application for this KU semester. Continue your existing draft from your applications list.')
       setLoading(false)
       return
@@ -1039,7 +1047,7 @@ function InboundApplication() {
       setLoading(false)
       return
     }
-    if (applications.some((item) => Number(item.nomination_id) === Number(data.id))) {
+    if (activeApplications.some((item) => Number(item.nomination_id) === Number(data.id))) {
       setError('This nomination has already been used for an application.')
       setLoading(false)
       return
@@ -1312,9 +1320,8 @@ function InboundApplication() {
               <InputField label="Expected graduation date" name="expected_graduation_date" value={form.expected_graduation_date} onChange={updateField} type="date" required />
               <FileField label="Academic transcript" name="transcript" value={form.transcript} onUpload={uploadFile} uploading={uploading} />
               <div className="inbound-form__field-note">
-                <FileField label="English proficiency document" name="language_proficiency" value={form.language_proficiency} onUpload={uploadFile} uploading={uploading} />
                 <article className="inbound-form__explanation">
-                  Accepted evidence includes an IELTS or TOEFL result, or a testimony from your dean, vice dean, or an English department instructor confirming that your English proficiency is sufficient.
+                  Kuwait University does not require English proficiency proofs for exchange students.
                 </article>
               </div>
             </div>

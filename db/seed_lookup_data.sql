@@ -376,18 +376,17 @@ ON CONFLICT (coordinator_id) DO UPDATE SET
     maintenance_mode = EXCLUDED.maintenance_mode;
 
 INSERT INTO public.studentnominations (
-    id, coordinator_id, student_name, student_email, student_nationality,
+    id, coordinator_id, student_name, student_email,
     semester, nomination_status
 )
 VALUES (
     990001, 990001, 'Seed Incoming Student', 'seed-incoming-student@example.com',
-    'India', 990001, 'Active'
+    990001, 'Active'
 )
 ON CONFLICT (id) DO UPDATE SET
     coordinator_id = EXCLUDED.coordinator_id,
     student_name = EXCLUDED.student_name,
     student_email = EXCLUDED.student_email,
-    student_nationality = EXCLUDED.student_nationality,
     semester = EXCLUDED.semester,
     nomination_status = EXCLUDED.nomination_status;
 

@@ -80,6 +80,8 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 |---|---|---|---|---|
 | KU coordinator reviews outgoing students applications [#140](https://github.com/isom472-fall2026/team2/issues/140) | VS agents | 120K Tokens | Story description, outboundapplication table, application_status_log, updates table, outbound storage bucket and RLS policies | none |
 | KU Coordinator Reviews Incoming Student Applications [#141](https://github.com/isom472-fall2026/team2/issues/141) | VS agents | 20.2K Tokens | Story description, inboundapplication table, application_status_log, inbound storage bucket and RLS policies, the #140 manage page as a reference | none |
+| KU coordinator sends application updates [#143](https://github.com/isom472-fall2026/team2/issues/143) | VS agents | 110K Tokens | Story description, schema.sql (updates table, inboundapplication and outboundapplication tables, review functions, RLS policies), the default acceptance and rejection messages | None |  
+| KU Coordinators and Incoming Students Edit Applications Before a Decision [#144](https://github.com/isom472-fall2026/team2/issues/144) | VS agents | 225K Tokens | Story description, inboundapplication and outboundapplication tables, application_status_log, updates table, both storage buckets and their RLS policies, the rule that an edit creates a copy and marks the old one 'Modified' | None |
 |  |  |  |  |  |
 
 ## Phase 5

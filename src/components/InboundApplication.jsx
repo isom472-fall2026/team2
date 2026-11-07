@@ -166,6 +166,72 @@ function getBirthdateError(value) {
   return ''
 }
 
+const editableStatuses = ['Submitted', 'In Review', 'Pending Interview']
+
+function getPersonalDetailsError(form) {
+  if (!form.first_name.trim() || !form.last_name.trim()) return 'Enter your first and last name.'
+  if (!form.gender) return 'Select your gender.'
+  if (!form.birthdate) return 'Enter your date of birth.'
+  const birthdateError = getBirthdateError(form.birthdate)
+  if (birthdateError) return birthdateError
+  if (!form.email.trim()) return 'An email address is required.'
+  if (form.phone_number) {
+    const fullDigits = `${form.phone_country_code}${form.phone_number}`.replace(/\D/g, '')
+    if (!form.phone_country_code) return 'Select a country calling code.'
+    if (!/^[0-9() -]+$/.test(form.phone_number) || fullDigits.length < 7 || fullDigits.length > 15) {
+      return 'Enter a phone number with 7 to 15 digits.'
+    }
+  }
+  if (!form.passport_expiry_date || form.passport_expiry_date <= oneYearFromTodayValue()) {
+    return 'Passport must be valid for more than one year.'
+  }
+  return ''
+}
+
+function getAcademicDetailsError(form) {
+  if (requiredAcademicFields.some((field) => !String(form[field] ?? '').trim())) return 'Complete the required academic information.'
+  const gpa = Number(form.gpa)
+  const maxGpa = Number(form.max_gpa)
+  if (!Number.isFinite(gpa) || !Number.isFinite(maxGpa) || maxGpa <= 0 || gpa < 0 || gpa > maxGpa) {
+    return 'GPA must be between 0 and the maximum GPA.'
+  }
+  const passed = Number(form.credits_passed)
+  const maximum = Number(form.max_credits)
+  if (!Number.isInteger(passed) || !Number.isInteger(maximum) || passed < 0 || maximum < 0 || passed > maximum) {
+    return 'Credits passed must be a whole number no greater than the maximum credits.'
+  }
+  if (form.expected_graduation_date <= todayValue()) {
+    return 'Expected graduation date must be in the future.'
+  }
+  return ''
+}
+
+function editedFields(form) {
+  return {
+    first_name: form.first_name.trim() || null,
+    middle_name: form.middle_name.trim() || null,
+    last_name: form.last_name.trim() || null,
+    gender: form.gender || null,
+    birthdate: form.birthdate || null,
+    country_of_residence: form.country_of_residence.trim() || null,
+    nationality: form.nationality ? Number(form.nationality) : null,
+    passport_issuing_country: form.passport_issuing_country ? Number(form.passport_issuing_country) : null,
+    passport_number: form.passport_number.trim() || null,
+    passport_expiry_date: form.passport_expiry_date || null,
+    phone_number: form.phone_number.trim()
+      ? `${form.phone_country_code}${form.phone_number.trim().replace(/^0+/, '')}`
+      : null,
+    is_whatsapp_available: Boolean(form.is_whatsapp_available),
+    major: form.major.trim() || null,
+    current_year_of_study: form.current_year_of_study || null,
+    gpa: form.gpa === '' ? null : Number(form.gpa),
+    max_gpa: form.max_gpa === '' ? null : Number(form.max_gpa),
+    credits_passed: form.credits_passed === '' ? null : Number(form.credits_passed),
+    max_credits: form.max_credits === '' ? null : Number(form.max_credits),
+    expected_graduation_date: form.expected_graduation_date || null,
+  }
+}
+
 function InputField({ label, name, value, onChange, type = 'text', required = false, error = '', ...props }) {
   const Field = DATE_TYPES.includes(type) ? DateField : 'input'
   return (
@@ -211,7 +277,7 @@ function FileField({ label, name, value, onUpload, uploading, required = false, 
   )
 }
 
-function InboundApplicationReceipt({ application, studentId, countries, cycles, universities, onBack, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal }) {
+function InboundApplicationReceipt({ application, studentId, countries, cycles, universities, onBack, onEdit, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal }) {
   const [uploadedPages, setUploadedPages] = useState([])
   const [documentsError, setDocumentsError] = useState('')
   const [documentsLoading, setDocumentsLoading] = useState(true)
@@ -437,6 +503,9 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
         </div>
       )}
       <div className="outbound-receipt__actions">
+        {editableStatuses.includes(application.application_status) && !isConfirmingWithdrawal && (
+          <button className="btn btn--secondary" type="button" onClick={onEdit}>Edit application</button>
+        )}
         {['Submitted', 'Pending Interview'].includes(application.application_status) && (
           <div className="outbound-receipt__withdrawal">
             {!isConfirmingWithdrawal ? (
@@ -483,6 +552,106 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
   )
 }
 
+// Used by the student on their receipt and by the KU coordinator on the Manage page. Saving
+// creates an edited copy and returns it; the version being edited becomes 'Modified'.
+export function InboundApplicationEditor({ application, countries, onSaved, onCancel, editorLabel = 'your' }) {
+  const [form, setForm] = useState(() => formFromApplication(application))
+  const [state, setState] = useState({ saving: false, error: '' })
+
+  const updateField = (event) => {
+    const { name, value, checked, type } = event.target
+    setForm((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }))
+    setState((current) => ({ ...current, error: '' }))
+  }
+
+  const save = async (event) => {
+    event.preventDefault()
+    const validationError = getPersonalDetailsError(form) || getAcademicDetailsError(form)
+    if (validationError) {
+      setState({ saving: false, error: validationError })
+      return
+    }
+    setState({ saving: true, error: '' })
+    const { data, error: saveError } = await supabase.rpc('modify_inbound_application', {
+      requested_application_id: Number(application.application_id),
+      requested_changes: editedFields(form),
+    })
+    if (saveError || !data) {
+      setState({ saving: false, error: saveError ? getDatabaseErrorMessage(saveError) : 'The changes were not saved.' })
+      return
+    }
+    onSaved(data)
+  }
+
+  const countryOptions = countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)
+
+  return (
+    <form className="inbound-application-editor" onSubmit={save} noValidate>
+      <h2>Edit {editorLabel} application</h2>
+      <p>
+        Saving keeps the current version in the application history and replaces it with the edited one.
+        Documents, the nomination and the KU semester cannot be changed here.
+      </p>
+      <h3 className="outbound-form__section-heading">Personal information</h3>
+      <div className="outbound-form__grid">
+        <InputField label="First name" name="first_name" value={form.first_name} onChange={updateField} required />
+        <InputField label="Middle name" name="middle_name" value={form.middle_name} onChange={updateField} />
+        <InputField label="Last name" name="last_name" value={form.last_name} onChange={updateField} required />
+        <SelectField label="Gender" name="gender" value={form.gender} onChange={updateField} required>
+          <option value="">Select gender</option><option value="Female">Female</option><option value="Male">Male</option>
+        </SelectField>
+        <InputField label="Date of birth" name="birthdate" value={form.birthdate} onChange={updateField} type="date" max={todayValue()} error={getBirthdateError(form.birthdate)} required />
+        <InputField label="Email" name="email" value={form.email} readOnly required />
+        <div className="inbound-phone">
+          <SelectField label="Country code" name="phone_country_code" value={form.phone_country_code || ''} onChange={updateField}>
+            <option value="">Code</option>
+            {phoneCountryCodes.map(({ country, code }) => (
+              <option key={`${country}-${code}`} value={code}>{country} ({code})</option>
+            ))}
+          </SelectField>
+          <InputField label="Phone number" name="phone_number" value={form.phone_number} onChange={updateField} type="tel" inputMode="tel" placeholder="Number without country code" />
+        </div>
+        <label className="outbound-form__checkbox outbound-form__checkbox--inline">
+          <input type="checkbox" name="is_whatsapp_available" checked={form.is_whatsapp_available} onChange={updateField} />
+          <span>This phone number is available on WhatsApp</span>
+        </label>
+        <SelectField label="Country of residence" name="country_of_residence" value={form.country_of_residence} onChange={updateField}>
+          <option value="">Select a country</option>
+          {countries.map((country) => <option key={country.id} value={country.name}>{country.name}</option>)}
+        </SelectField>
+        <SelectField label="Nationality" name="nationality" value={form.nationality} onChange={updateField}>
+          <option value="">Select a country</option>{countryOptions}
+        </SelectField>
+        <InputField label="Passport number" name="passport_number" value={form.passport_number} onChange={updateField} />
+        <InputField label="Passport expiry date" name="passport_expiry_date" value={form.passport_expiry_date} onChange={updateField} type="date" />
+        <SelectField label="Passport issuing country" name="passport_issuing_country" value={form.passport_issuing_country} onChange={updateField}>
+          <option value="">Select a country</option>{countryOptions}
+        </SelectField>
+      </div>
+      <h3 className="outbound-form__section-heading">Academic information</h3>
+      <div className="outbound-form__grid">
+        <InputField label="Major or field of study" name="major" value={form.major} onChange={updateField} required />
+        <SelectField label="Current year of study" name="current_year_of_study" value={form.current_year_of_study} onChange={updateField} required>
+          <option value="">Select your year</option>
+          {['Second year', 'Third year', 'Fourth year', 'Fifth year'].map((year) => <option key={year} value={year}>{year}</option>)}
+        </SelectField>
+        <InputField label="Current GPA" name="gpa" value={form.gpa} onChange={updateField} type="number" min="0" step="any" required />
+        <InputField label="Maximum GPA" name="max_gpa" value={form.max_gpa} onChange={updateField} type="number" min="0" step="any" required />
+        <InputField label="Credits passed" name="credits_passed" value={form.credits_passed} onChange={updateField} type="number" min="0" step="1" required />
+        <InputField label="Maximum credits" name="max_credits" value={form.max_credits} onChange={updateField} type="number" min="0" step="1" required />
+        <InputField label="Expected graduation date" name="expected_graduation_date" value={form.expected_graduation_date} onChange={updateField} type="date" required />
+      </div>
+      {state.error && <p className="outbound-application__error" role="alert">{state.error}</p>}
+      <div className="outbound-receipt__actions">
+        <button className="btn btn--primary" type="submit" disabled={state.saving}>
+          {state.saving ? 'Saving changes…' : 'Save changes'}
+        </button>
+        <button className="btn btn--secondary" type="button" onClick={onCancel} disabled={state.saving}>Cancel</button>
+      </div>
+    </form>
+  )
+}
+
 function InboundApplication() {
   const user = useAppStore((state) => state.session?.user)
   const location = useLocation()
@@ -498,6 +667,7 @@ function InboundApplication() {
   const [withdrawalState, setWithdrawalState] = useState({ loading: false, error: '', message: '' })
   const [withdrawalReason, setWithdrawalReason] = useState('')
   const [isConfirmingWithdrawal, setIsConfirmingWithdrawal] = useState(false)
+  const [editingApplicationId, setEditingApplicationId] = useState(null)
   const [nomination, setNomination] = useState(null)
   const [nominationInput, setNominationInput] = useState('')
   const [form, setForm] = useState(emptyForm)
@@ -626,6 +796,7 @@ function InboundApplication() {
         supabase.from('inboundapplication')
           .select('application_id, application_status, semester_applied_for, nomination_id, created_at')
           .eq('student_id', studentRecord.student_id)
+          .neq('application_status', 'Modified')
           .order('created_at', { ascending: false }),
       ])
       const loadError = cycleResult.error || countryResult.error || universityResult.error || applicationResult.error
@@ -803,6 +974,9 @@ function InboundApplication() {
       } else if (!data || data.application_status === 'Draft') {
         setSubmittedApplication(null)
         setReceiptError('Not allowed to view this application.')
+      } else if (data.application_status === 'Modified') {
+        setSubmittedApplication(null)
+        setReceiptError('This version was replaced by your edited application. Open it from your applications list.')
       } else {
         setSubmittedApplication(data)
       }
@@ -815,37 +989,12 @@ function InboundApplication() {
 
   const validateStep = useCallback((stepIndex) => {
     if (stepIndex === 0) {
-      if (!form.first_name.trim() || !form.last_name.trim()) return 'Enter your first and last name.'
-      if (!form.gender) return 'Select your gender.'
-      if (!form.birthdate) return 'Enter your date of birth.'
-      if (birthdateError) return birthdateError
-      if (!form.email.trim()) return 'An email address is required.'
-      if (form.phone_number) {
-        const fullDigits = `${form.phone_country_code}${form.phone_number}`.replace(/\D/g, '')
-        if (!form.phone_country_code) return 'Select a country calling code.'
-        if (!/^[0-9() -]+$/.test(form.phone_number) || fullDigits.length < 7 || fullDigits.length > 15) {
-          return 'Enter a phone number with 7 to 15 digits.'
-        }
-      }
-      if (!form.passport_expiry_date || form.passport_expiry_date <= oneYearFromTodayValue()) {
-        return 'Passport must be valid for more than one year.'
-      }
+      const personalError = getPersonalDetailsError(form)
+      if (personalError) return personalError
     }
     if (stepIndex === 1) {
-      if (requiredAcademicFields.some((field) => !String(form[field] ?? '').trim())) return 'Complete the required academic information.'
-      const gpa = Number(form.gpa)
-      const maxGpa = Number(form.max_gpa)
-      if (!Number.isFinite(gpa) || !Number.isFinite(maxGpa) || maxGpa <= 0 || gpa < 0 || gpa > maxGpa) {
-        return 'GPA must be between 0 and the maximum GPA.'
-      }
-      const passed = Number(form.credits_passed)
-      const maximum = Number(form.max_credits)
-      if (!Number.isInteger(passed) || !Number.isInteger(maximum) || passed < 0 || maximum < 0 || passed > maximum) {
-        return 'Credits passed must be a whole number no greater than the maximum credits.'
-      }
-      if (form.expected_graduation_date <= todayValue()) {
-        return 'Expected graduation date must be in the future.'
-      }
+      const academicError = getAcademicDetailsError(form)
+      if (academicError) return academicError
     }
     if (stepIndex === 2 && (!nomination || !isNominationCycleAvailable(nomination.cycle))) {
       return 'The nomination does not have an available KU semester.'
@@ -854,7 +1003,7 @@ function InboundApplication() {
       return 'Choose the KU semester associated with your nomination.'
     }
     return ''
-  }, [birthdateError, form, nomination])
+  }, [form, nomination])
 
   const updateField = (event) => {
     const { name, value, checked, type } = event.target
@@ -1407,8 +1556,26 @@ function InboundApplication() {
     ? submittedApplication
     : null
   const receiptIsLoading = receiptLoading || (!receiptError && !visibleSubmittedApplication)
-  const renderSubmittedPage = visibleSubmittedApplication ? (
+  const saveEditedApplication = (edited) => {
+    setApplications((items) => items.map((item) => (
+      String(item.application_id) === String(visibleSubmittedApplication.application_id) ? { ...item, ...edited } : item
+    )))
+    setSubmittedApplication(edited)
+    setEditingApplicationId(null)
+    navigate(`/portal/inbound-application/${edited.application_id}/submitted`, { replace: true })
+  }
+  const renderSubmittedPage = visibleSubmittedApplication && String(editingApplicationId) === submittedRouteId ? (
+    <section className="outbound-receipt">
+      <InboundApplicationEditor
+        application={visibleSubmittedApplication}
+        countries={countries}
+        onSaved={saveEditedApplication}
+        onCancel={() => setEditingApplicationId(null)}
+      />
+    </section>
+  ) : visibleSubmittedApplication ? (
     <InboundApplicationReceipt
+      onEdit={() => setEditingApplicationId(visibleSubmittedApplication.application_id)}
       application={visibleSubmittedApplication}
       studentId={student.student_id}
       countries={countries}

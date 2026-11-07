@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { jsPDF } from 'jspdf'
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -7,6 +7,8 @@ import { useAppStore } from '../stores/appStore'
 import { formatUpdateTime } from '../formatUpdateTime'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
+
+const InboundApplicationEditor = lazy(() => import('./InboundApplication').then((module) => ({ default: module.InboundApplicationEditor })))
 
 const pageSize = 500
 
@@ -269,7 +271,7 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
   doc.save(`${studentId}-${safeCycle || 'cycle'}.pdf`)
 }
 
-const decidableStatuses = ['Submitted', 'In Review', 'Pending Interview', 'Modified']
+const decidableStatuses = ['Submitted', 'In Review', 'Pending Interview']
 
 // Shown to the coordinator only; the database's default_decision_update() holds the wording
 // that is actually saved, so the two must be changed together.
@@ -418,7 +420,11 @@ export default function CoordinatorApplications() {
     inbound: data.inboundProfiles,
     outbound: data.outboundProfiles,
   }
-  const records = data[applicationType].map((application) => ({ ...application, type: applicationType }))
+  // Modified rows are earlier versions of an edited application; they are shown as its
+  // history on the Manage page, not as applications of their own.
+  const records = data[applicationType]
+    .filter((application) => application.application_status !== 'Modified')
+    .map((application) => ({ ...application, type: applicationType }))
   const currentApplications = records.filter(
     (application) => currentCycle && Number(application.semester_applied_for) === Number(currentCycle.id),
   )
@@ -638,6 +644,94 @@ function UpdateHistory({ type, applicationId, refreshKey, headingId }) {
   )
 }
 
+// The same fields modify_inbound_application() lets an edit change.
+const editableInboundFields = [
+  'first_name', 'middle_name', 'last_name', 'gender', 'birthdate',
+  'country_of_residence', 'nationality', 'passport_issuing_country',
+  'passport_number', 'passport_expiry_date', 'phone_number', 'is_whatsapp_available',
+  'major', 'current_year_of_study', 'gpa', 'max_gpa', 'credits_passed', 'max_credits',
+  'expected_graduation_date',
+]
+
+function ModificationHistory({ application, refreshKey }) {
+  const navigate = useNavigate()
+  const rootId = application.original_application_id ?? application.application_id
+  const [state, setState] = useState({ key: null, versions: [], error: '' })
+  const requestKey = `${rootId}-${application.application_id}-${refreshKey}`
+
+  useEffect(() => {
+    let isCurrent = true
+    supabase
+      .from('inboundapplication')
+      .select('*')
+      .or(`application_id.eq.${rootId},original_application_id.eq.${rootId}`)
+      .then(({ data: rows, error: readError }) => {
+        if (!isCurrent) return
+        setState(readError
+          ? { key: requestKey, versions: [], error: readError.message || 'The modification history could not be loaded.' }
+          : { key: requestKey, versions: rows || [], error: '' })
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [rootId, requestKey])
+
+  const loading = state.key !== requestKey
+  // Each old version was replaced at its status_updated_at, so that orders them; the current
+  // version is always last.
+  const versions = [...state.versions].sort((left, right) => {
+    if (left.application_status === 'Modified' && right.application_status !== 'Modified') return -1
+    if (right.application_status === 'Modified' && left.application_status !== 'Modified') return 1
+    return new Date(left.status_updated_at) - new Date(right.status_updated_at)
+  })
+  const oldVersions = versions
+    .map((version, index) => ({
+      version,
+      changed: versions[index + 1]
+        ? editableInboundFields.filter((field) => String(version[field] ?? '') !== String(versions[index + 1][field] ?? ''))
+        : [],
+    }))
+    .filter(({ version }) => version.application_status === 'Modified')
+    .reverse()
+  const currentVersion = versions.find((version) => version.application_status !== 'Modified')
+
+  if (!loading && !state.error && oldVersions.length === 0) return null
+
+  const openVersion = (applicationId) => navigate(`/portal/applications/inbound/${applicationId}`)
+
+  return (
+    <section className="coordinator-review__panel" aria-labelledby="review-modifications-heading">
+      <h2 id="review-modifications-heading">Modification history</h2>
+      {application.application_status === 'Modified' && currentVersion && (
+        <p>
+          This is an earlier version. The application was edited and replaced.{' '}
+          <button className="btn btn--secondary" type="button" onClick={() => openVersion(currentVersion.application_id)}>
+            Open the current version
+          </button>
+        </p>
+      )}
+      {loading && <p role="status">Loading modification history...</p>}
+      {state.error && <p className="auth-form__error" role="alert">{state.error}</p>}
+      {oldVersions.length > 0 && (
+        <ol className="update-history">
+          {oldVersions.map(({ version, changed }) => (
+            <li key={version.application_id}>
+              <strong className="update-history__application">Version #{version.application_id}</strong>
+              <time dateTime={version.status_updated_at}>Replaced {formatUpdateTime(version.status_updated_at)}</time>
+              <p>{changed.length > 0 ? `Changed: ${changed.map(getLabel).join(', ')}` : 'Saved without changes to the details.'}</p>
+              {String(version.application_id) !== String(application.application_id) && (
+                <button className="btn btn--secondary" type="button" onClick={() => openVersion(version.application_id)}>
+                  View this version
+                </button>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
+}
+
 // Dates are stored as calendar days; parsing them as UTC would shift them by a day in Kuwait.
 function parseCalendarDate(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''))
@@ -814,6 +908,7 @@ export function ManageApplication({ type }) {
   const [error, setError] = useState('')
   const [pendingDecision, setPendingDecision] = useState(null)
   const [decisionUpdate, setDecisionUpdate] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
   const [updatesRefresh, setUpdatesRefresh] = useState(0)
   const [decision, setDecision] = useState({ loading: false, error: '', message: '' })
   const [exportError, setExportError] = useState('')
@@ -936,6 +1031,12 @@ export function ManageApplication({ type }) {
     setDecision({ loading: false, error: '', message: `The application was ${accept ? 'accepted' : 'rejected'}, and the student was sent an update.` })
   }
 
+  const saveEditedApplication = (edited) => {
+    setIsEditing(false)
+    setDecision({ loading: false, error: '', message: '' })
+    navigate(`/portal/applications/inbound/${edited.application_id}`, { replace: true })
+  }
+
   const exportPdf = async () => {
     try {
       setExportError('')
@@ -948,12 +1049,14 @@ export function ManageApplication({ type }) {
   const status = application?.application_status || 'Unknown'
   const statusClass = status.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const canDecide = decidableStatuses.includes(status)
+  // Issue #144 covers incoming students' applications only.
+  const canEdit = type === 'inbound' && canDecide
   const studentName = application ? getStudentName(application, profiles) : ''
   const studentEmail = application ? profiles.get(String(application.student_id))?.student_email || application.email : ''
   const initials = studentName.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
   // Shown elsewhere on the page (the photo, the attachments and the linked update), or only an
   // internal reference, so they are left out of the plain list of submitted details.
-  const fieldsShownElsewhere = ['profile_photo', 'update_id', ...config.attachments.map(([key]) => key)]
+  const fieldsShownElsewhere = ['profile_photo', 'update_id', 'original_application_id', ...config.attachments.map(([key]) => key)]
   const detailFields = application
     ? getApplicationFields(
       Object.fromEntries(Object.entries(application).filter(([key]) => !fieldsShownElsewhere.includes(key))),
@@ -1001,12 +1104,29 @@ export function ManageApplication({ type }) {
 
             <div className="coordinator-review__layout">
               <div className="coordinator-review__main">
+                {canEdit && isEditing && (
+                  <section className="coordinator-review__panel">
+                    <Suspense fallback={<p role="status">Loading the edit form...</p>}>
+                      <InboundApplicationEditor
+                        application={application}
+                        countries={lookups.countries}
+                        editorLabel="this"
+                        onSaved={saveEditedApplication}
+                        onCancel={() => setIsEditing(false)}
+                      />
+                    </Suspense>
+                  </section>
+                )}
+
                 <section className="coordinator-review__panel" aria-labelledby="review-decision-heading">
                   <h2 id="review-decision-heading">Decision</h2>
                   {canDecide && !pendingDecision && (
                     <div className="nomination-table__actions">
                       <button className="btn btn--primary" type="button" onClick={() => setPendingDecision('accept')}>Accept application</button>
                       <button className="btn btn--danger" type="button" onClick={() => setPendingDecision('reject')}>Reject application</button>
+                      {canEdit && !isEditing && (
+                        <button className="btn btn--secondary" type="button" onClick={() => setIsEditing(true)}>Edit application</button>
+                      )}
                     </div>
                   )}
                   {canDecide && pendingDecision && (
@@ -1066,6 +1186,8 @@ export function ManageApplication({ type }) {
                   refreshKey={updatesRefresh}
                   headingId="review-updates-heading"
                 />
+
+                {type === 'inbound' && <ModificationHistory application={application} refreshKey={status} />}
 
                 <section className="coordinator-review__section" aria-labelledby="review-details-heading">
                   <h2 id="review-details-heading">Submitted details</h2>
@@ -1155,6 +1277,7 @@ export function SendApplicationUpdate() {
   const profiles = data.profiles[applicationType]
   const query = search.trim().toLowerCase()
   const options = data[applicationType]
+    .filter((application) => application.application_status !== 'Modified')
     .map((application) => ({
       application,
       label: `${getStudentName(application, profiles)} · ID ${application.student_id || 'unavailable'} · ${getCycleLabel(application, data.cycles)} · ${application.application_status}`,

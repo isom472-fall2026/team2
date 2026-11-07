@@ -5,6 +5,8 @@ import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
 import DateField from './DateField'
+import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles'
+import ReplacementFileField from './ReplacementFileField'
 import './OutboundApplication.css'
 
 const DATE_TYPES = ['date', 'month', 'datetime-local']
@@ -554,9 +556,25 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
 
 // Used by the student on their receipt and by the KU coordinator on the Manage page. Saving
 // creates an edited copy and returns it; the version being edited becomes 'Modified'.
+const inboundDocuments = [
+  ['passport_copy', 'Passport copy'],
+  ['transcript', 'Academic transcript'],
+  ['profile_photo', 'Personal photo'],
+]
+
 export function InboundApplicationEditor({ application, countries, onSaved, onCancel, editorLabel = 'your' }) {
   const [form, setForm] = useState(() => formFromApplication(application))
+  const [files, setFiles] = useState({})
   const [state, setState] = useState({ saving: false, error: '' })
+
+  const chooseFile = (field, file) => {
+    setFiles((current) => {
+      const next = { ...current }
+      if (file) next[field] = file
+      else delete next[field]
+      return next
+    })
+  }
 
   const updateField = (event) => {
     const { name, value, checked, type } = event.target
@@ -572,11 +590,19 @@ export function InboundApplicationEditor({ application, countries, onSaved, onCa
       return
     }
     setState({ saving: true, error: '' })
+    let uploaded
+    try {
+      uploaded = await uploadReplacementFiles(storageBucket, application, files)
+    } catch (uploadError) {
+      setState({ saving: false, error: `File upload failed: ${getDatabaseErrorMessage(uploadError)}` })
+      return
+    }
     const { data, error: saveError } = await supabase.rpc('modify_inbound_application', {
       requested_application_id: Number(application.application_id),
-      requested_changes: editedFields(form),
+      requested_changes: { ...editedFields(form), ...uploaded },
     })
     if (saveError || !data) {
+      await removeUploadedFiles(storageBucket, Object.values(uploaded))
       setState({ saving: false, error: saveError ? getDatabaseErrorMessage(saveError) : 'The changes were not saved.' })
       return
     }
@@ -590,7 +616,7 @@ export function InboundApplicationEditor({ application, countries, onSaved, onCa
       <h2>Edit {editorLabel} application</h2>
       <p>
         Saving keeps the current version in the application history and replaces it with the edited one.
-        Documents, the nomination and the KU semester cannot be changed here.
+        The nomination and the KU semester cannot be changed here.
       </p>
       <h3 className="outbound-form__section-heading">Personal information</h3>
       <div className="outbound-form__grid">
@@ -640,6 +666,12 @@ export function InboundApplicationEditor({ application, countries, onSaved, onCa
         <InputField label="Credits passed" name="credits_passed" value={form.credits_passed} onChange={updateField} type="number" min="0" step="1" required />
         <InputField label="Maximum credits" name="max_credits" value={form.max_credits} onChange={updateField} type="number" min="0" step="1" required />
         <InputField label="Expected graduation date" name="expected_graduation_date" value={form.expected_graduation_date} onChange={updateField} type="date" required />
+      </div>
+      <h3 className="outbound-form__section-heading">Documents</h3>
+      <div className="outbound-form__grid">
+        {inboundDocuments.map(([field, label]) => (
+          <ReplacementFileField key={field} label={label} field={field} currentPath={application[field]} onChange={chooseFile} disabled={state.saving} />
+        ))}
       </div>
       {state.error && <p className="outbound-application__error" role="alert">{state.error}</p>}
       <div className="outbound-receipt__actions">

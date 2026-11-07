@@ -6,6 +6,8 @@ import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
 import { getAcademicFieldError, majors, otherMajor } from '../studentExchangeEligibility'
 import DateField from './DateField'
+import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles'
+import ReplacementFileField from './ReplacementFileField'
 import './OutboundApplication.css'
 
 const DATE_TYPES = ['date', 'month', 'datetime-local']
@@ -341,10 +343,27 @@ const academicFieldNames = (form) => [
 
 // Used by the KU student on their receipt and by the KU coordinator on the Manage page. Saving
 // creates an edited copy and returns it; the version being edited becomes 'Modified'.
-export function OutboundApplicationEditor({ application, countries, onSaved, onCancel, editorLabel = 'your' }) {
+const outboundDocuments = [
+  ['civil_id_copy', 'Civil ID copy'],
+  ['passport_copy', 'Passport copy'],
+  ['transcript', 'Academic transcript'],
+  ['profile_photo', 'Personal photo'],
+]
+
+export function OutboundApplicationEditor({ application, countries, cycles, universities, onSaved, onCancel, editorLabel = 'your' }) {
   const [form, setForm] = useState(() => formFromApplication(application))
+  const [files, setFiles] = useState({})
   const [fieldErrors, setFieldErrors] = useState({})
   const [state, setState] = useState({ saving: false, error: '' })
+
+  const chooseFile = (field, file) => {
+    setFiles((current) => {
+      const next = { ...current }
+      if (file) next[field] = file
+      else delete next[field]
+      return next
+    })
+  }
 
   const updateField = (event) => {
     const { name, value, checked, type } = event.target
@@ -352,6 +371,12 @@ export function OutboundApplicationEditor({ application, countries, onSaved, onC
     setFieldErrors((current) => ({ ...current, [name]: '' }))
     setState((current) => ({ ...current, error: '' }))
   }
+
+  // The current choice stays selectable even if its window has closed or the university was
+  // withdrawn; anything else must be open now, as modify_outbound_application() checks.
+  const isCurrent = (value, field) => String(value) === String(application[field])
+  const selectableCycles = cycles.filter((cycle) => isCurrent(cycle.id, 'semester_applied_for') || Date.parse(cycle.application_c) >= Date.now())
+  const selectableUniversities = universities.filter((university) => isCurrent(university.university_id, 'university_id') || university.available !== false)
 
   const validateOnBlur = (event) => {
     const { name } = event.target
@@ -372,7 +397,18 @@ export function OutboundApplicationEditor({ application, countries, onSaved, onC
       setState({ saving: false, error: 'Correct the highlighted fields before saving.' })
       return
     }
+    if (!form.university_id || !form.semester_applied_for) {
+      setState({ saving: false, error: 'Choose a partner university and a KU semester.' })
+      return
+    }
     setState({ saving: true, error: '' })
+    let uploaded
+    try {
+      uploaded = await uploadReplacementFiles(storageBucket, application, files)
+    } catch (uploadError) {
+      setState({ saving: false, error: `File upload failed: ${getDatabaseErrorMessage(uploadError)}` })
+      return
+    }
     const { data, error: saveError } = await supabase.rpc('modify_outbound_application', {
       requested_application_id: Number(application.application_id),
       requested_changes: {
@@ -394,9 +430,13 @@ export function OutboundApplicationEditor({ application, countries, onSaved, onC
         gpa: form.gpa === '' ? null : Number(form.gpa),
         credits_passed: form.credits_passed === '' ? null : Number(form.credits_passed),
         expected_graduation_semester: form.expected_graduation_semester ? `${form.expected_graduation_semester}-20` : null,
+        university_id: form.university_id ? Number(form.university_id) : null,
+        semester_applied_for: form.semester_applied_for ? Number(form.semester_applied_for) : null,
+        ...uploaded,
       },
     })
     if (saveError || !data) {
+      await removeUploadedFiles(storageBucket, Object.values(uploaded))
       setState({ saving: false, error: saveError ? getApplicationSaveErrorMessage(saveError) : 'The changes were not saved.' })
       return
     }
@@ -408,7 +448,7 @@ export function OutboundApplicationEditor({ application, countries, onSaved, onC
       <h2>Edit {editorLabel} application</h2>
       <p>
         Saving keeps the current version in the application history and replaces it with the edited one.
-        Documents, the partner university and the KU semester cannot be changed here.
+        The partner university and the KU semester cannot be changed here.
       </p>
       <h3 className="outbound-form__section-heading">Personal information</h3>
       <PersonalInformationPage form={form} onChange={updateField} onBlur={validateOnBlur} fieldErrors={fieldErrors} countries={countries} />
@@ -420,6 +460,27 @@ export function OutboundApplicationEditor({ application, countries, onSaved, onC
         fieldErrors={fieldErrors}
         showCreditsWarning={Boolean(getCreditsWarning(form))}
       />
+      <h3 className="outbound-form__section-heading">Destination and semester</h3>
+      <div className="outbound-form__grid">
+        <SelectField label="KU semester" name="semester_applied_for" value={form.semester_applied_for || ''} onChange={updateField} required>
+          <option value="">Select a KU semester</option>
+          {selectableCycles.map((cycle) => (
+            <option key={cycle.id} value={cycle.id}>{cycle.semester} {cycle.academic_year}</option>
+          ))}
+        </SelectField>
+        <SelectField label="Preferred partner university" name="university_id" value={form.university_id} onChange={updateField} required>
+          <option value="">Select a destination</option>
+          {selectableUniversities.map((university) => (
+            <option key={university.university_id} value={university.university_id}>{university.name}</option>
+          ))}
+        </SelectField>
+      </div>
+      <h3 className="outbound-form__section-heading">Documents</h3>
+      <div className="outbound-form__grid">
+        {outboundDocuments.map(([field, label]) => (
+          <ReplacementFileField key={field} label={label} field={field} currentPath={application[field]} onChange={chooseFile} disabled={state.saving} />
+        ))}
+      </div>
       {state.error && <p className="outbound-application__error" role="alert">{state.error}</p>}
       <div className="outbound-receipt__actions">
         <button className="btn btn--primary" type="submit" disabled={state.saving}>
@@ -1661,6 +1722,8 @@ function OutboundApplication() {
       <OutboundApplicationEditor
         application={submittedApplication}
         countries={countries}
+        cycles={cycles}
+        universities={universities}
         onSaved={saveEditedApplication}
         onCancel={() => setEditingApplicationId(null)}
       />

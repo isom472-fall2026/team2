@@ -1025,3 +1025,10 @@
 .inbound-application-editor p {
   margin: 0;
 }
+
+.replacement-file__current {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}

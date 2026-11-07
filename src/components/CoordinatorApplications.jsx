@@ -654,13 +654,14 @@ const editableFields = {
     'country_of_residence', 'nationality', 'passport_issuing_country',
     'passport_number', 'passport_expiry_date', 'phone_number', 'is_whatsapp_available',
     'major', 'current_year_of_study', 'gpa', 'max_gpa', 'credits_passed', 'max_credits',
-    'expected_graduation_date',
+    'expected_graduation_date', 'passport_copy', 'transcript', 'profile_photo',
   ],
   outbound: [
     'first_name', 'middle_name', 'last_name', 'gender', 'birthdate',
     'nationality', 'passport_issuing_country', 'passport_number', 'passport_expiry_date',
     'civil_id_number', 'civil_id_expiry', 'phone_number', 'is_whatsapp_available',
     'major', 'current_year_of_study', 'gpa', 'credits_passed', 'expected_graduation_semester',
+    'university_id', 'semester_applied_for', 'civil_id_copy', 'passport_copy', 'transcript', 'profile_photo',
   ],
 }
 
@@ -937,7 +938,7 @@ export function ManageApplication({ type }) {
         if (!row) throw new Error('This application could not be found.')
         const [cyclesResult, universitiesResult, countriesResult, contactsResult, studentProfiles] = await Promise.all([
           supabase.from('exchange_cycle').select('*').order('id'),
-          supabase.from('partneruniversity').select('university_id, name').order('name'),
+          supabase.from('partneruniversity').select('university_id, name, available').order('name'),
           supabase.from('country').select('id, name').order('name'),
           row.emergency_contact
             ? supabase.from('emergency_contact').select('*').eq('contact_id', row.emergency_contact)
@@ -1120,6 +1121,8 @@ export function ManageApplication({ type }) {
                       <ApplicationEditor
                         application={application}
                         countries={lookups.countries}
+                        cycles={lookups.cycles}
+                        universities={lookups.universities}
                         editorLabel="this"
                         onSaved={saveEditedApplication}
                         onCancel={() => setIsEditing(false)}

@@ -185,8 +185,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    -- Files, the nomination, the semester and the owner stay with the application; only the
-    -- details the student typed can change.
+    -- The nomination, the semester and the owner stay with the application. Documents can be
+    -- replaced but are checked separately below.
     editable_fields CONSTANT TEXT[] := ARRAY[
         'first_name', 'middle_name', 'last_name', 'gender', 'birthdate',
         'country_of_residence', 'nationality', 'passport_issuing_country',
@@ -198,6 +198,10 @@ DECLARE
     new_row public.inboundapplication;
     allowed_changes JSONB;
     new_application_id INT;
+    file_fields CONSTANT TEXT[] := ARRAY['passport_copy', 'transcript', 'profile_photo'];
+    file_field TEXT;
+    file_path TEXT;
+    file_prefix TEXT;
     editor_is_coordinator BOOLEAN := public.is_ku_coordinator();
 BEGIN
     IF public.get_maintenance_mode() IS DISTINCT FROM FALSE
@@ -237,6 +241,24 @@ BEGIN
     INTO allowed_changes
     FROM jsonb_each(COALESCE(requested_changes, '{}'::JSONB))
     WHERE key = ANY(editable_fields);
+
+    -- A new document must already be uploaded into this version's own folder; otherwise any
+    -- path, including another student's file, could be attached to the application.
+    FOREACH file_field IN ARRAY file_fields LOOP
+        file_path := requested_changes ->> file_field;
+        CONTINUE WHEN file_path IS NULL OR file_path IS NOT DISTINCT FROM (to_jsonb(old_row) ->> file_field);
+        file_prefix := old_row.student_id::TEXT || '/' || old_row.application_id::TEXT || '/' || file_field || '/';
+        IF left(file_path, length(file_prefix)) <> file_prefix
+           OR NOT EXISTS (
+                SELECT 1 FROM storage.objects
+                WHERE bucket_id = 'inbound-application-files' AND name = file_path
+            ) THEN
+            RAISE EXCEPTION USING
+                ERRCODE = '22023',
+                MESSAGE = format('The new %s was not uploaded for this application', replace(file_field, '_', ' '));
+        END IF;
+        allowed_changes := allowed_changes || jsonb_build_object(file_field, file_path);
+    END LOOP;
 
     LOOP
         new_application_id := 100000000 + floor(random() * 2000000000)::INT;
@@ -293,18 +315,23 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    -- Files, the destination, the semester and the owner stay with the application; only the
-    -- details the student typed can change.
+    -- Only the owner stays with the application. Documents, the semester and the preferred
+    -- university are checked separately below.
     editable_fields CONSTANT TEXT[] := ARRAY[
         'first_name', 'middle_name', 'last_name', 'gender', 'birthdate',
         'nationality', 'passport_issuing_country', 'passport_number', 'passport_expiry_date',
         'civil_id_number', 'civil_id_expiry', 'phone_number', 'is_whatsapp_available',
-        'major', 'current_year_of_study', 'gpa', 'credits_passed', 'expected_graduation_semester'
+        'major', 'current_year_of_study', 'gpa', 'credits_passed', 'expected_graduation_semester',
+        'university_id', 'semester_applied_for'
     ];
     old_row public.outboundapplication;
     new_row public.outboundapplication;
     allowed_changes JSONB;
     new_application_id BIGINT;
+    file_fields CONSTANT TEXT[] := ARRAY['civil_id_copy', 'passport_copy', 'transcript', 'profile_photo'];
+    file_field TEXT;
+    file_path TEXT;
+    file_prefix TEXT;
     editor_is_coordinator BOOLEAN := public.is_ku_coordinator();
 BEGIN
     IF public.get_maintenance_mode() IS DISTINCT FROM FALSE
@@ -345,6 +372,24 @@ BEGIN
     FROM jsonb_each(COALESCE(requested_changes, '{}'::JSONB))
     WHERE key = ANY(editable_fields);
 
+    -- A new document must already be uploaded into this version's own folder; otherwise any
+    -- path, including another student's file, could be attached to the application.
+    FOREACH file_field IN ARRAY file_fields LOOP
+        file_path := requested_changes ->> file_field;
+        CONTINUE WHEN file_path IS NULL OR file_path IS NOT DISTINCT FROM (to_jsonb(old_row) ->> file_field);
+        file_prefix := old_row.student_id::TEXT || '/' || old_row.application_id::TEXT || '/' || file_field || '/';
+        IF left(file_path, length(file_prefix)) <> file_prefix
+           OR NOT EXISTS (
+                SELECT 1 FROM storage.objects
+                WHERE bucket_id = 'outbound-application-files' AND name = file_path
+            ) THEN
+            RAISE EXCEPTION USING
+                ERRCODE = '22023',
+                MESSAGE = format('The new %s was not uploaded for this application', replace(file_field, '_', ' '));
+        END IF;
+        allowed_changes := allowed_changes || jsonb_build_object(file_field, file_path);
+    END LOOP;
+
     -- Same shape as the ids the student portal creates: milliseconds followed by three digits.
     LOOP
         new_application_id := floor(extract(epoch FROM clock_timestamp()) * 1000)::BIGINT * 1000
@@ -355,6 +400,29 @@ BEGIN
     END LOOP;
 
     new_row := jsonb_populate_record(old_row, allowed_changes);
+
+    -- The same rules a new application meets: a semester still taking applications and a
+    -- partner university that is available. Keeping the current choice is always allowed.
+    IF new_row.semester_applied_for IS DISTINCT FROM old_row.semester_applied_for
+       AND NOT EXISTS (
+            SELECT 1 FROM public.exchange_cycle AS cycle
+            WHERE cycle.id = new_row.semester_applied_for
+              AND cycle.application_c >= now()
+        ) THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '22023',
+            MESSAGE = 'Choose a KU semester that is still accepting applications';
+    END IF;
+    IF new_row.university_id IS DISTINCT FROM old_row.university_id
+       AND NOT EXISTS (
+            SELECT 1 FROM public.partneruniversity AS university
+            WHERE university.university_id = new_row.university_id
+              AND university.available IS TRUE
+        ) THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '22023',
+            MESSAGE = 'Choose an available partner university';
+    END IF;
     new_row.application_id := new_application_id;
     new_row.original_application_id := COALESCE(old_row.original_application_id, old_row.application_id);
     new_row.status_updated_at := now();
@@ -390,6 +458,64 @@ $$;
 
 REVOKE ALL ON FUNCTION public.modify_outbound_application(BIGINT, JSONB) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.modify_outbound_application(BIGINT, JSONB) TO authenticated;
+
+-- 5. Documents can be replaced while an application is pending, by its student or a KU
+-- coordinator; the files go into the edited version's folder.
+DROP POLICY IF EXISTS "Incoming students can upload inbound application files" ON storage.objects;
+CREATE POLICY "Incoming students can upload inbound application files"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+    bucket_id = 'inbound-application-files'
+    AND EXISTS (
+        SELECT 1
+        FROM public.incomingstudentauth AS student
+        JOIN public.inboundapplication AS application
+          ON application.student_id = student.student_id
+        WHERE student.user_id = (SELECT auth.uid())
+          -- A pending application takes new files only through an edit, which saves them on
+          -- an edited copy; the submitted version keeps the files it was sent with.
+          AND application.application_status IN ('Draft', 'Submitted', 'In Review', 'Pending Interview')
+          AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
+          AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
+    )
+);
+
+DROP POLICY IF EXISTS "KU coordinators can upload inbound application files" ON storage.objects;
+DROP POLICY IF EXISTS "KU coordinators can upload outbound application files" ON storage.objects;
+-- A KU coordinator editing a pending application may replace its documents.
+CREATE POLICY "KU coordinators can upload inbound application files"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+    bucket_id = 'inbound-application-files'
+    AND (SELECT public.is_ku_coordinator())
+    AND EXISTS (
+        SELECT 1
+        FROM public.inboundapplication AS application
+        WHERE application.application_status IN ('Submitted', 'In Review', 'Pending Interview')
+          AND application.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
+          AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
+    )
+);
+
+CREATE POLICY "KU coordinators can upload outbound application files"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+    bucket_id = 'outbound-application-files'
+    AND (SELECT public.is_ku_coordinator())
+    AND EXISTS (
+        SELECT 1
+        FROM public.outboundapplication AS application
+        WHERE application.application_status IN ('Submitted', 'In Review', 'Pending Interview')
+          AND application.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
+          AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
+    )
+);
 
 NOTIFY pgrst, 'reload schema';
 

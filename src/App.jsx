@@ -25,6 +25,8 @@ const CoordinatorPasswordPage = lazy(() => import('./components/CoordinatorAccou
 const TestingMode = lazy(() => import('./components/TestingMode'))
 const PartnerUniversityMap = lazy(() => import('./components/PartnerUniversityMap'))
 const AddPartnerUniversity = lazy(() => import('./components/AddPartnerUniversity'))
+const SubjectImport = lazy(() => import('./components/SubjectImport'))
+const StudentAccount = lazy(() => import('./components/StudentAccount'))
 
 const authOptions = {
   ku: {
@@ -1293,6 +1295,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
             </button>
           )}
           {isKuCoordinator && (
+            <button className={activeView === 'subjects' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('subjects')}>
+              <span aria-hidden="true">▥</span> CBA subjects
+            </button>
+          )}
+          {isKuCoordinator && (
             <button className={activeView === 'coordinators' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('coordinators')}>
               <span aria-hidden="true">♙</span> Coordinator access
             </button>
@@ -1318,6 +1325,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       <section className="portal-card portal-card--wide portal-card--workspace">
         {activeView === 'account' && <Suspense fallback={null}><CoordinatorAccountSettings profile={profile} /></Suspense>}
         {isKuCoordinator && activeView === 'add-university' && <Suspense fallback={null}><AddPartnerUniversity /></Suspense>}
+        {isKuCoordinator && activeView === 'subjects' && <Suspense fallback={null}><SubjectImport /></Suspense>}
         {isKuCoordinator && activeView === 'start' && (
           <>
             <span className="auth-card__eyebrow">New cycle</span>
@@ -1781,43 +1789,84 @@ function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus, passw
   return <StudentPortal user={user} profile={profile} onSignOut={onSignOut} onDeleted={onDeleted} />
 }
 
+const studentPortalViews = [
+  { id: 'home', icon: '⌂', label: 'Home' },
+  { id: 'inbox', icon: '✉', label: 'Inbox' },
+  { id: 'account', icon: '♙', label: 'My account' },
+]
+
 function StudentPortal({ user, profile, onSignOut, onDeleted }) {
-  const [tab, setTab] = useState('home')
-  const hasInbox = profile?.role === 'incoming' || profile?.role === 'ku'
+  const [activeView, setActiveView] = useState('home')
+  // Only a saved KU or incoming student profile has an inbox and details to edit.
+  const isStudent = profile?.role === 'incoming' || profile?.role === 'ku'
+  const name = profile?.name || user.user_metadata?.name || user.email
+  const application = profile?.role === 'incoming'
+    ? { to: '/portal/inbound-application', label: 'Inbound application' }
+    : profile?.role === 'ku'
+      ? { to: '/portal/outbound-application', label: 'Outbound application' }
+      : null
+  const views = isStudent ? studentPortalViews : studentPortalViews.filter((view) => view.id === 'home')
+  const shownView = views.some((view) => view.id === activeView) ? activeView : 'home'
 
   return (
-    <section className="portal-page" aria-labelledby="portal-heading">
-      <div className="portal-card">
-        <span className="auth-card__eyebrow">Secure portal</span>
-        <h1 id="portal-heading">Welcome, {profile?.name || user.user_metadata?.name || user.email}</h1>
-        {hasInbox && (
-          <div className="portal-actions" role="tablist" aria-label="Student portal">
-            <button className={tab === 'home' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" role="tab" aria-selected={tab === 'home'} onClick={() => setTab('home')}>
-              Home
+    <div className="portal-dashboard portal-dashboard--student">
+      <aside className="portal-sidebar" aria-label="Student portal navigation">
+        <span className="portal-sidebar__eyebrow">
+          {profile?.role === 'ku' ? 'KU student portal' : profile?.role === 'incoming' ? 'Incoming student portal' : 'Student portal'}
+        </span>
+        <h1 className="portal-sidebar__title">KU Exchange</h1>
+        <p className="portal-sidebar__welcome">Welcome, {name}</p>
+        <nav className="portal-sidebar__nav">
+          {views.map((view) => (
+            <button
+              key={view.id}
+              className={shownView === view.id ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'}
+              type="button"
+              aria-current={shownView === view.id ? 'page' : undefined}
+              onClick={() => setActiveView(view.id)}
+            >
+              <span aria-hidden="true">{view.icon}</span> {view.label}
             </button>
-            <button className={tab === 'inbox' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" role="tab" aria-selected={tab === 'inbox'} onClick={() => setTab('inbox')}>
-              Inbox
-            </button>
-          </div>
-        )}
-        {tab === 'inbox' && hasInbox ? (
+          ))}
+          {application && (
+            <Link className="portal-sidebar__action" to={application.to}>
+              <span aria-hidden="true">▤</span> {application.label}
+            </Link>
+          )}
+        </nav>
+        <div className="portal-sidebar__footer">
+          <span className="portal-sidebar__secure">Signed in securely</span>
+          <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+        </div>
+      </aside>
+      <section className="portal-card portal-card--wide portal-card--workspace">
+        {shownView === 'home' && (
           <>
-            <h2 className="portal-section-heading">Inbox</h2>
+            <span className="auth-card__eyebrow">Secure portal</span>
+            <h2 id="portal-heading">Welcome, {name}</h2>
+            <p>You are signed in as <strong>{user.email}</strong>.</p>
+            {application && (
+              <div className="portal-actions student-portal__actions">
+                <Link className="btn btn--primary" to={application.to}>{application.label}</Link>
+              </div>
+            )}
+          </>
+        )}
+        {shownView === 'inbox' && (
+          <>
+            <span className="auth-card__eyebrow">Messages</span>
+            <h2>Inbox</h2>
             <Suspense fallback={null}><StudentInbox role={profile.role} /></Suspense>
           </>
-        ) : (
+        )}
+        {shownView === 'account' && (
           <>
-            <p>You are signed in as <strong>{user.email}</strong>.</p>
-            <div className="portal-actions">
-              {profile?.role === 'incoming' && <Link className="btn btn--primary" to="/portal/inbound-application">Inbound application</Link>}
-              {profile?.role === 'ku' && <Link className="btn btn--secondary" to="/portal/outbound-application">Outbound application</Link>}
-            </div>
-            <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+            <Suspense fallback={null}><StudentAccount profile={profile} /></Suspense>
             <AccountDeleteButton onDeleted={onDeleted} />
           </>
         )}
-      </div>
-    </section>
+      </section>
+    </div>
   )
 }
 

@@ -1,0 +1,272 @@
+.subject-import {
+  display: grid;
+  gap: 16px;
+}
+
+.subject-import > .btn {
+  justify-self: start;
+}
+
+/* The app's buttons have no disabled look, and this one is disabled until the extension answers. */
+.subject-import > .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: grayscale(0.6);
+}
+
+.subject-import__extension {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text);
+}
+
+.subject-import__extension--ready {
+  border-color: rgba(18, 183, 106, 0.45);
+}
+
+.subject-import__extension--missing {
+  border-color: #ff8f9d;
+}
+
+.subject-import__extension-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: subject-import-pulse 1.2s ease-in-out infinite;
+}
+
+.subject-import__extension--ready .subject-import__extension-dot {
+  background: #12b76a;
+  box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.2);
+  animation: none;
+}
+
+.subject-import__extension--missing .subject-import__extension-dot {
+  background: #f04438;
+  box-shadow: 0 0 0 4px rgba(240, 68, 56, 0.2);
+  animation: none;
+}
+
+.subject-import__extension-copy {
+  display: grid;
+  flex: 1 1 240px;
+  gap: 2px;
+}
+
+.subject-import__extension-copy strong {
+  color: var(--text-strong);
+}
+
+.subject-import__status {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-strong);
+}
+
+.subject-import__status--error {
+  border-color: #ff8f9d;
+}
+
+.subject-import__subheading {
+  margin-top: 8px;
+  color: var(--text-strong);
+}
+
+.subject-import__link {
+  color: var(--neon);
+  text-decoration: underline;
+}
+
+.subject-import__table-wrap {
+  max-height: 480px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.subject-import__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.subject-import__table th,
+.subject-import__table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.subject-import__table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  color: var(--text-strong);
+}
+
+.subject-import__download {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--neon);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.subject-import-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(6px);
+  animation: subject-import-fade-in 0.3s ease-out;
+}
+
+.subject-import-loading__card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  width: min(460px, 100%);
+  padding: 32px 28px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--glow-card);
+  text-align: center;
+  animation: subject-import-rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.subject-import-loading__card h2 {
+  color: var(--text-strong);
+}
+
+.subject-import-loading__orbit {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 4px;
+}
+
+.subject-import-loading__orbit span {
+  position: absolute;
+  inset: 0;
+  border: 3px solid transparent;
+  border-radius: 50%;
+}
+
+.subject-import-loading__orbit span:nth-child(1) {
+  border-top-color: var(--neon);
+  border-right-color: var(--neon);
+  animation: subject-import-spin 1.1s linear infinite;
+}
+
+.subject-import-loading__orbit span:nth-child(2) {
+  inset: 12px;
+  border-bottom-color: var(--neon-2);
+  border-left-color: var(--neon-2);
+  animation: subject-import-spin 0.8s linear infinite reverse;
+}
+
+.subject-import-loading__orbit span:nth-child(3) {
+  inset: 28px;
+  border: 0;
+  background: var(--neon);
+  box-shadow: var(--glow-cyan);
+  animation: subject-import-pulse 1.4s ease-in-out infinite;
+}
+
+.subject-import-loading__bar {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.subject-import-loading__bar span {
+  position: relative;
+  display: block;
+  width: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--neon-2), var(--neon));
+  transition: width 0.4s ease;
+}
+
+.subject-import-loading__bar span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.25) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.25) 75%, transparent 75%);
+  background-size: 20px 20px;
+  animation: subject-import-stripes 0.8s linear infinite;
+}
+
+.subject-import-loading__bar--indeterminate span {
+  position: absolute;
+  width: 35%;
+  animation: subject-import-slide 1.3s ease-in-out infinite;
+}
+
+.subject-import-loading__count {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes subject-import-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes subject-import-pulse {
+  50% { transform: scale(0.6); opacity: 0.6; }
+}
+
+@keyframes subject-import-stripes {
+  to { background-position: 20px 0; }
+}
+
+@keyframes subject-import-slide {
+  from { left: -35%; }
+  to { left: 100%; }
+}
+
+@keyframes subject-import-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes subject-import-rise {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subject-import-loading,
+  .subject-import-loading *,
+  .subject-import-loading *::before,
+  .subject-import-loading *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+  }
+}

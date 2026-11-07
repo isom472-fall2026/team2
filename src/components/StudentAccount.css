@@ -1,0 +1,32 @@
+.student-account__section {
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.student-account__section h3 {
+  color: var(--text-strong);
+}
+
+.student-account__hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.student-account__prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #ff8f9d;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 143, 157, 0.08);
+  color: var(--text-strong);
+}
+
+.student-account__prompt p {
+  flex: 1 1 260px;
+}

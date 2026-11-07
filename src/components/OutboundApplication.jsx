@@ -1016,6 +1016,7 @@ function OutboundApplication() {
           .from('outboundapplication')
           .select('application_id, application_status, semester_applied_for, university_id, created_at')
           .eq('student_id', studentRecord.student_id)
+          .neq('application_status', 'Modified')
           .order('created_at', { ascending: false })
         if (applicationsError) throw applicationsError
         if (current) {

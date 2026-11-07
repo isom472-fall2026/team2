@@ -650,10 +650,15 @@ svg { display: block; flex-shrink: 0; }
     var(--bg);
 }
 
-.portal-dashboard--coordinator {
+.portal-dashboard--coordinator,
+.portal-dashboard--student {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 24px;
+}
+
+.student-portal__actions {
+  margin-top: 24px;
 }
 
 .portal-sidebar {
@@ -2215,7 +2220,8 @@ svg { display: block; flex-shrink: 0; }
 
 /* ─── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .portal-dashboard--coordinator {
+  .portal-dashboard--coordinator,
+  .portal-dashboard--student {
     grid-template-columns: 1fr;
   }
 

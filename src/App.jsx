@@ -739,6 +739,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         .from('inboundapplication')
         .select('nomination_id, application_status')
         .in('nomination_id', loadedNominations.map(({ id }) => id))
+        .neq('application_status', 'Modified')
       if (!isCurrent) return
 
       if (applicationError) {

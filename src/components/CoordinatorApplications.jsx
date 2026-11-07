@@ -8,7 +8,10 @@ import { formatUpdateTime } from '../formatUpdateTime'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
 
-const InboundApplicationEditor = lazy(() => import('./InboundApplication').then((module) => ({ default: module.InboundApplicationEditor })))
+const applicationEditors = {
+  inbound: lazy(() => import('./InboundApplication').then((module) => ({ default: module.InboundApplicationEditor }))),
+  outbound: lazy(() => import('./OutboundApplication').then((module) => ({ default: module.OutboundApplicationEditor }))),
+}
 
 const pageSize = 500
 
@@ -644,16 +647,24 @@ function UpdateHistory({ type, applicationId, refreshKey, headingId }) {
   )
 }
 
-// The same fields modify_inbound_application() lets an edit change.
-const editableInboundFields = [
-  'first_name', 'middle_name', 'last_name', 'gender', 'birthdate',
-  'country_of_residence', 'nationality', 'passport_issuing_country',
-  'passport_number', 'passport_expiry_date', 'phone_number', 'is_whatsapp_available',
-  'major', 'current_year_of_study', 'gpa', 'max_gpa', 'credits_passed', 'max_credits',
-  'expected_graduation_date',
-]
+// The same fields modify_inbound_application() and modify_outbound_application() let an edit change.
+const editableFields = {
+  inbound: [
+    'first_name', 'middle_name', 'last_name', 'gender', 'birthdate',
+    'country_of_residence', 'nationality', 'passport_issuing_country',
+    'passport_number', 'passport_expiry_date', 'phone_number', 'is_whatsapp_available',
+    'major', 'current_year_of_study', 'gpa', 'max_gpa', 'credits_passed', 'max_credits',
+    'expected_graduation_date',
+  ],
+  outbound: [
+    'first_name', 'middle_name', 'last_name', 'gender', 'birthdate',
+    'nationality', 'passport_issuing_country', 'passport_number', 'passport_expiry_date',
+    'civil_id_number', 'civil_id_expiry', 'phone_number', 'is_whatsapp_available',
+    'major', 'current_year_of_study', 'gpa', 'credits_passed', 'expected_graduation_semester',
+  ],
+}
 
-function ModificationHistory({ application, refreshKey }) {
+function ModificationHistory({ type, application, refreshKey }) {
   const navigate = useNavigate()
   const rootId = application.original_application_id ?? application.application_id
   const [state, setState] = useState({ key: null, versions: [], error: '' })
@@ -662,7 +673,7 @@ function ModificationHistory({ application, refreshKey }) {
   useEffect(() => {
     let isCurrent = true
     supabase
-      .from('inboundapplication')
+      .from(reviewTypes[type].table)
       .select('*')
       .or(`application_id.eq.${rootId},original_application_id.eq.${rootId}`)
       .then(({ data: rows, error: readError }) => {
@@ -674,7 +685,7 @@ function ModificationHistory({ application, refreshKey }) {
     return () => {
       isCurrent = false
     }
-  }, [rootId, requestKey])
+  }, [type, rootId, requestKey])
 
   const loading = state.key !== requestKey
   // Each old version was replaced at its status_updated_at, so that orders them; the current
@@ -688,7 +699,7 @@ function ModificationHistory({ application, refreshKey }) {
     .map((version, index) => ({
       version,
       changed: versions[index + 1]
-        ? editableInboundFields.filter((field) => String(version[field] ?? '') !== String(versions[index + 1][field] ?? ''))
+        ? editableFields[type].filter((field) => String(version[field] ?? '') !== String(versions[index + 1][field] ?? ''))
         : [],
     }))
     .filter(({ version }) => version.application_status === 'Modified')
@@ -697,7 +708,7 @@ function ModificationHistory({ application, refreshKey }) {
 
   if (!loading && !state.error && oldVersions.length === 0) return null
 
-  const openVersion = (applicationId) => navigate(`/portal/applications/inbound/${applicationId}`)
+  const openVersion = (applicationId) => navigate(`/portal/applications/${type}/${applicationId}`)
 
   return (
     <section className="coordinator-review__panel" aria-labelledby="review-modifications-heading">
@@ -1034,7 +1045,7 @@ export function ManageApplication({ type }) {
   const saveEditedApplication = (edited) => {
     setIsEditing(false)
     setDecision({ loading: false, error: '', message: '' })
-    navigate(`/portal/applications/inbound/${edited.application_id}`, { replace: true })
+    navigate(`/portal/applications/${type}/${edited.application_id}`, { replace: true })
   }
 
   const exportPdf = async () => {
@@ -1049,8 +1060,7 @@ export function ManageApplication({ type }) {
   const status = application?.application_status || 'Unknown'
   const statusClass = status.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const canDecide = decidableStatuses.includes(status)
-  // Issue #144 covers incoming students' applications only.
-  const canEdit = type === 'inbound' && canDecide
+  const ApplicationEditor = applicationEditors[type]
   const studentName = application ? getStudentName(application, profiles) : ''
   const studentEmail = application ? profiles.get(String(application.student_id))?.student_email || application.email : ''
   const initials = studentName.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
@@ -1104,10 +1114,10 @@ export function ManageApplication({ type }) {
 
             <div className="coordinator-review__layout">
               <div className="coordinator-review__main">
-                {canEdit && isEditing && (
+                {canDecide && isEditing && (
                   <section className="coordinator-review__panel">
                     <Suspense fallback={<p role="status">Loading the edit form...</p>}>
-                      <InboundApplicationEditor
+                      <ApplicationEditor
                         application={application}
                         countries={lookups.countries}
                         editorLabel="this"
@@ -1124,7 +1134,7 @@ export function ManageApplication({ type }) {
                     <div className="nomination-table__actions">
                       <button className="btn btn--primary" type="button" onClick={() => setPendingDecision('accept')}>Accept application</button>
                       <button className="btn btn--danger" type="button" onClick={() => setPendingDecision('reject')}>Reject application</button>
-                      {canEdit && !isEditing && (
+                      {!isEditing && (
                         <button className="btn btn--secondary" type="button" onClick={() => setIsEditing(true)}>Edit application</button>
                       )}
                     </div>
@@ -1187,7 +1197,7 @@ export function ManageApplication({ type }) {
                   headingId="review-updates-heading"
                 />
 
-                {type === 'inbound' && <ModificationHistory application={application} refreshKey={status} />}
+                <ModificationHistory type={type} application={application} refreshKey={status} />
 
                 <section className="coordinator-review__section" aria-labelledby="review-details-heading">
                   <h2 id="review-details-heading">Submitted details</h2>

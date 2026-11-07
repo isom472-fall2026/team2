@@ -328,6 +328,109 @@ function AcademicInformationPage({
   )
 }
 
+const editableStatuses = ['Submitted', 'In Review', 'Pending Interview']
+
+const academicFieldNames = (form) => [
+  'major',
+  ...(form.major === otherMajor ? ['major_other'] : []),
+  'current_year_of_study',
+  'gpa',
+  'credits_passed',
+  'expected_graduation_semester',
+]
+
+// Used by the KU student on their receipt and by the KU coordinator on the Manage page. Saving
+// creates an edited copy and returns it; the version being edited becomes 'Modified'.
+export function OutboundApplicationEditor({ application, countries, onSaved, onCancel, editorLabel = 'your' }) {
+  const [form, setForm] = useState(() => formFromApplication(application))
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [state, setState] = useState({ saving: false, error: '' })
+
+  const updateField = (event) => {
+    const { name, value, checked, type } = event.target
+    setForm((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }))
+    setFieldErrors((current) => ({ ...current, [name]: '' }))
+    setState((current) => ({ ...current, error: '' }))
+  }
+
+  const validateOnBlur = (event) => {
+    const { name } = event.target
+    const fieldError = personalInformationFieldNames.includes(name)
+      ? getPersonalFieldError(name, form)
+      : getAcademicFieldError(name, form)
+    setFieldErrors((current) => ({ ...current, [name]: fieldError }))
+  }
+
+  const save = async (event) => {
+    event.preventDefault()
+    const errors = Object.fromEntries([
+      ...personalInformationFieldNames.map((field) => [field, getPersonalFieldError(field, form)]),
+      ...academicFieldNames(form).map((field) => [field, getAcademicFieldError(field, form)]),
+    ].filter(([, fieldError]) => fieldError))
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      setState({ saving: false, error: 'Correct the highlighted fields before saving.' })
+      return
+    }
+    setState({ saving: true, error: '' })
+    const { data, error: saveError } = await supabase.rpc('modify_outbound_application', {
+      requested_application_id: Number(application.application_id),
+      requested_changes: {
+        first_name: form.first_name.trim(),
+        middle_name: optionalText(form.middle_name),
+        last_name: form.last_name.trim(),
+        gender: form.gender || null,
+        birthdate: form.birthdate || null,
+        nationality: form.nationality ? Number(form.nationality) : null,
+        passport_issuing_country: form.passport_issuing_country ? Number(form.passport_issuing_country) : null,
+        passport_number: optionalText(form.passport_number),
+        passport_expiry_date: form.passport_expiry_date || null,
+        civil_id_number: String(form.civil_id_number ?? '').trim() ? Number(form.civil_id_number) : null,
+        civil_id_expiry: form.civil_id_expiry || null,
+        phone_number: optionalText(form.phone_number),
+        is_whatsapp_available: Boolean(form.is_whatsapp_available),
+        major: optionalText(form.major === otherMajor ? form.major_other : form.major),
+        current_year_of_study: form.current_year_of_study || null,
+        gpa: form.gpa === '' ? null : Number(form.gpa),
+        credits_passed: form.credits_passed === '' ? null : Number(form.credits_passed),
+        expected_graduation_semester: form.expected_graduation_semester ? `${form.expected_graduation_semester}-20` : null,
+      },
+    })
+    if (saveError || !data) {
+      setState({ saving: false, error: saveError ? getApplicationSaveErrorMessage(saveError) : 'The changes were not saved.' })
+      return
+    }
+    onSaved(data)
+  }
+
+  return (
+    <form className="inbound-application-editor" onSubmit={save} noValidate>
+      <h2>Edit {editorLabel} application</h2>
+      <p>
+        Saving keeps the current version in the application history and replaces it with the edited one.
+        Documents, the partner university and the KU semester cannot be changed here.
+      </p>
+      <h3 className="outbound-form__section-heading">Personal information</h3>
+      <PersonalInformationPage form={form} onChange={updateField} onBlur={validateOnBlur} fieldErrors={fieldErrors} countries={countries} />
+      <h3 className="outbound-form__section-heading">Academic information</h3>
+      <AcademicInformationPage
+        form={form}
+        onChange={updateField}
+        onBlur={validateOnBlur}
+        fieldErrors={fieldErrors}
+        showCreditsWarning={Boolean(getCreditsWarning(form))}
+      />
+      {state.error && <p className="outbound-application__error" role="alert">{state.error}</p>}
+      <div className="outbound-receipt__actions">
+        <button className="btn btn--primary" type="submit" disabled={state.saving}>
+          {state.saving ? 'Saving changes…' : 'Save changes'}
+        </button>
+        <button className="btn btn--secondary" type="button" onClick={onCancel} disabled={state.saving}>Cancel</button>
+      </div>
+    </form>
+  )
+}
+
 function ExchangeDocumentsPage({ form, onChange, cycles, universities, onUpload, uploading }) {
   return (
     <div className="outbound-form__grid">
@@ -418,7 +521,7 @@ function TermsPage({ accepted, onChange }) {
   )
 }
 
-function ApplicationReceipt({ application, studentId, countries, cycles, universities, onDownload, onBack, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal }) {
+function ApplicationReceipt({ application, studentId, countries, cycles, universities, onDownload, onBack, onEdit, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal }) {
   const [uploadedPages, setUploadedPages] = useState([])
   const [imageError, setImageError] = useState('')
   const [documentsLoading, setDocumentsLoading] = useState(true)
@@ -639,6 +742,9 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
         </div>
       )}
       <div className="outbound-receipt__actions">
+        {editableStatuses.includes(application.application_status) && !isConfirmingWithdrawal && (
+          <button className="btn btn--secondary" type="button" onClick={onEdit}>Edit application</button>
+        )}
         {['Submitted', 'Pending Interview'].includes(application.application_status) && (
           <div className="outbound-receipt__withdrawal">
             {!isConfirmingWithdrawal ? (
@@ -692,6 +798,7 @@ function OutboundApplication() {
   const [withdrawalState, setWithdrawalState] = useState({ loading: false, error: '', message: '' })
   const [withdrawalReason, setWithdrawalReason] = useState('')
   const [isConfirmingWithdrawal, setIsConfirmingWithdrawal] = useState(false)
+  const [editingApplicationId, setEditingApplicationId] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [editedPersonalFields, setEditedPersonalFields] = useState({})
   const [personalFieldErrors, setPersonalFieldErrors] = useState({})
@@ -794,6 +901,7 @@ function OutboundApplication() {
       .from('outboundapplication')
       .select('application_id, application_status, semester_applied_for, university_id, created_at')
       .eq('student_id', studentId)
+      .neq('application_status', 'Modified')
       .order('created_at', { ascending: false })
     if (applicationsError) throw applicationsError
     setApplications(data || [])
@@ -961,6 +1069,8 @@ function OutboundApplication() {
         setReceiptError(getDatabaseErrorMessage(applicationError))
       } else if (!data || data.application_status === 'Draft') {
         setReceiptError('Not allowed to view this application.')
+      } else if (data.application_status === 'Modified') {
+        setReceiptError('This version was replaced by your edited application. Open it from your applications list.')
       } else {
         setSubmittedApplication(data)
       }
@@ -1120,7 +1230,7 @@ function OutboundApplication() {
         .select('application_id, application_status')
         .eq('student_id', student.student_id)
         .eq('semester_applied_for', payload.semester_applied_for)
-        .neq('application_status', 'Rejected')
+        .not('application_status', 'in', '("Rejected","Modified")')
         .maybeSingle()
       if (duplicateError) {
         setError(getDatabaseErrorMessage(duplicateError))
@@ -1538,8 +1648,26 @@ function OutboundApplication() {
     </>
   )
 
-  const renderSubmittedPage = submittedApplication ? (
+  const saveEditedApplication = (edited) => {
+    setApplications((items) => items.map((item) => (
+      String(item.application_id) === String(submittedApplication.application_id) ? { ...item, ...edited } : item
+    )))
+    setEditingApplicationId(null)
+    navigate(`/portal/outbound-application/${edited.application_id}/submitted`, { replace: true })
+  }
+
+  const renderSubmittedPage = submittedApplication && String(editingApplicationId) === String(submittedApplication.application_id) ? (
+    <section className="outbound-receipt">
+      <OutboundApplicationEditor
+        application={submittedApplication}
+        countries={countries}
+        onSaved={saveEditedApplication}
+        onCancel={() => setEditingApplicationId(null)}
+      />
+    </section>
+  ) : submittedApplication ? (
     <ApplicationReceipt
+      onEdit={() => setEditingApplicationId(submittedApplication.application_id)}
       application={submittedApplication}
       studentId={student.student_id}
       countries={countries}

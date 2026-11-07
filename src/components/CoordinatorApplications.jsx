@@ -4,7 +4,9 @@ import { jsPDF } from 'jspdf'
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { useAppStore } from '../stores/appStore'
+import { formatUpdateTime } from '../formatUpdateTime'
 import './CoordinatorApplications.css'
+import './ApplicationUpdates.css'
 
 const pageSize = 500
 
@@ -268,6 +270,13 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
 }
 
 const decidableStatuses = ['Submitted', 'In Review', 'Pending Interview', 'Modified']
+
+// Shown to the coordinator only; the database's default_decision_update() holds the wording
+// that is actually saved, so the two must be changed together.
+const defaultDecisionUpdates = {
+  accept: 'Congratulations on being accepted! You will receive an acceptance letter shortly.',
+  reject: 'You currently do not meet one of the general requirements for the student exchange program at KU. We encourage you to apply later.',
+}
 
 function ApplicationList({ applications, profiles, cycles, universities, countries, contacts, onManage, onExport, loading, emptyMessage }) {
   if (loading) return <p role="status">Loading applications...</p>
@@ -559,6 +568,7 @@ const reviewTypes = {
     bucket: 'outbound-application-files',
     profileTable: 'kustudentauth',
     reviewFunction: 'review_outbound_application',
+    updateColumn: 'outbound_application_id',
     attachments: [
       ['civil_id_copy', 'Civil ID copy'],
       ['passport_copy', 'Passport copy'],
@@ -571,11 +581,61 @@ const reviewTypes = {
     bucket: 'inbound-application-files',
     profileTable: 'incomingstudentauth',
     reviewFunction: 'review_inbound_application',
+    updateColumn: 'inbound_application_id',
     attachments: [
       ['passport_copy', 'Passport copy'],
       ['transcript', 'Academic transcript'],
     ],
   },
+}
+
+function useApplicationUpdates(type, applicationId, refreshKey) {
+  const requestKey = `${type}-${applicationId}-${refreshKey}`
+  const [state, setState] = useState({ key: null, updates: [], error: '' })
+  useEffect(() => {
+    if (!applicationId) return undefined
+    let isCurrent = true
+    supabase
+      .from('updates')
+      .select('id, details, created_at')
+      .eq(reviewTypes[type].updateColumn, applicationId)
+      .order('created_at', { ascending: false })
+      .then(({ data: rows, error: readError }) => {
+        if (!isCurrent) return
+        setState(readError
+          ? { key: requestKey, updates: [], error: readError.message || 'The updates could not be loaded.' }
+          : { key: requestKey, updates: rows || [], error: '' })
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [type, applicationId, requestKey])
+  // A result from a previous application or before the latest send counts as still loading.
+  return state.key === requestKey
+    ? { loading: false, updates: state.updates, error: state.error }
+    : { loading: true, updates: [], error: '' }
+}
+
+function UpdateHistory({ type, applicationId, refreshKey, headingId }) {
+  const { loading, updates, error } = useApplicationUpdates(type, applicationId, refreshKey)
+  return (
+    <section className="coordinator-review__panel" aria-labelledby={headingId}>
+      <h2 id={headingId}>Update history</h2>
+      {loading && <p role="status">Loading updates...</p>}
+      {error && <p className="auth-form__error" role="alert">{error}</p>}
+      {!loading && !error && updates.length === 0 && <p>No updates have been sent on this application yet.</p>}
+      {updates.length > 0 && (
+        <ol className="update-history">
+          {updates.map((update) => (
+            <li key={update.id}>
+              <time dateTime={update.created_at}>{formatUpdateTime(update.created_at)}</time>
+              <p>{update.details}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
 }
 
 // Dates are stored as calendar days; parsing them as UTC would shift them by a day in Kuwait.
@@ -748,12 +808,13 @@ export function ManageApplication({ type }) {
   const [application, setApplication] = useState(null)
   const [lookups, setLookups] = useState({ cycles: [], universities: [], countries: [], contacts: [] })
   const [profiles, setProfiles] = useState(new Map())
-  const [linkedUpdate, setLinkedUpdate] = useState(null)
   const [photoUrl, setPhotoUrl] = useState('')
   const [attachments, setAttachments] = useState({ loading: true, pages: [], error: '' })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [pendingDecision, setPendingDecision] = useState(null)
+  const [decisionUpdate, setDecisionUpdate] = useState('')
+  const [updatesRefresh, setUpdatesRefresh] = useState(0)
   const [decision, setDecision] = useState({ loading: false, error: '', message: '' })
   const [exportError, setExportError] = useState('')
 
@@ -815,23 +876,6 @@ export function ManageApplication({ type }) {
     }
   }, [applicationId, config.table, config.profileTable, type])
 
-  const updateId = application?.update_id ?? null
-  useEffect(() => {
-    if (updateId === null) return undefined
-    let isCurrent = true
-    supabase
-      .from('updates')
-      .select('id, details, created_at')
-      .eq('id', updateId)
-      .maybeSingle()
-      .then(({ data: row }) => {
-        if (isCurrent) setLinkedUpdate(row || null)
-      })
-    return () => {
-      isCurrent = false
-    }
-  }, [updateId])
-
   const photoPath = application?.profile_photo || ''
   useEffect(() => {
     if (!photoPath) return undefined
@@ -879,6 +923,7 @@ export function ManageApplication({ type }) {
     const { data: row, error: decisionError } = await supabase.rpc(config.reviewFunction, {
       requested_application_id: application.application_id,
       accept_application: accept,
+      update_details: decisionUpdate.trim() || null,
     })
     if (decisionError) {
       setDecision({ loading: false, error: decisionError.message || 'The decision could not be saved.', message: '' })
@@ -886,7 +931,9 @@ export function ManageApplication({ type }) {
     }
     setApplication(row)
     setPendingDecision(null)
-    setDecision({ loading: false, error: '', message: `The application was ${accept ? 'accepted' : 'rejected'}.` })
+    setDecisionUpdate('')
+    setUpdatesRefresh((count) => count + 1)
+    setDecision({ loading: false, error: '', message: `The application was ${accept ? 'accepted' : 'rejected'}, and the student was sent an update.` })
   }
 
   const exportPdf = async () => {
@@ -968,6 +1015,20 @@ export function ManageApplication({ type }) {
                         {pendingDecision === 'accept' ? 'Accept' : 'Reject'} the application from {studentName}?
                         The student will see the status “{pendingDecision === 'accept' ? 'Accepted' : 'Rejected'}”.
                       </p>
+                      <label className="update-composer__field">
+                        {pendingDecision === 'accept' ? 'Next steps for the student' : 'Reason for rejection'} <span>(optional)</span>
+                        <textarea
+                          rows={4}
+                          value={decisionUpdate}
+                          onChange={(event) => setDecisionUpdate(event.target.value)}
+                          disabled={decision.loading}
+                        />
+                      </label>
+                      <p className="update-composer__hint">
+                        Left empty, the student receives: “{pendingDecision === 'accept'
+                          ? defaultDecisionUpdates.accept
+                          : defaultDecisionUpdates.reject}”
+                      </p>
                       <div className="nomination-table__actions">
                         <button
                           className={pendingDecision === 'accept' ? 'btn btn--primary' : 'btn btn--danger'}
@@ -977,7 +1038,10 @@ export function ManageApplication({ type }) {
                         >
                           {decision.loading ? 'Saving…' : `Confirm ${pendingDecision === 'accept' ? 'acceptance' : 'rejection'}`}
                         </button>
-                        <button className="btn btn--secondary" type="button" onClick={() => setPendingDecision(null)} disabled={decision.loading}>
+                        <button className="btn btn--secondary" type="button" onClick={() => {
+                          setPendingDecision(null)
+                          setDecisionUpdate('')
+                        }} disabled={decision.loading}>
                           Cancel
                         </button>
                       </div>
@@ -996,17 +1060,12 @@ export function ManageApplication({ type }) {
                   {decision.message && <p className="coordinator-review__message" role="status">{decision.message}</p>}
                 </section>
 
-                {updateId !== null && (
-                  <section className="coordinator-review__panel" aria-labelledby="review-updates-heading">
-                    <h2 id="review-updates-heading">Updates</h2>
-                    {linkedUpdate ? (
-                      <article className="coordinator-review__update">
-                        <time dateTime={linkedUpdate.created_at}>{new Date(linkedUpdate.created_at).toLocaleString()}</time>
-                        <p>{linkedUpdate.details}</p>
-                      </article>
-                    ) : <p>Loading the update on this application...</p>}
-                  </section>
-                )}
+                <UpdateHistory
+                  type={type}
+                  applicationId={application.application_id}
+                  refreshKey={updatesRefresh}
+                  headingId="review-updates-heading"
+                />
 
                 <section className="coordinator-review__section" aria-labelledby="review-details-heading">
                   <h2 id="review-details-heading">Submitted details</h2>
@@ -1045,6 +1104,152 @@ export function ManageApplication({ type }) {
           </>
         )}
       </div>
+    </section>
+  )
+}
+
+export function SendApplicationUpdate() {
+  const [applicationType, setApplicationType] = useState('outbound')
+  const [data, setData] = useState({ inbound: [], outbound: [], profiles: { inbound: new Map(), outbound: new Map() }, cycles: [] })
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState('')
+  const [details, setDetails] = useState('')
+  const [sending, setSending] = useState({ loading: false, error: '', message: '' })
+  const [updatesRefresh, setUpdatesRefresh] = useState(0)
+
+  useEffect(() => {
+    let isCurrent = true
+    const load = async () => {
+      try {
+        const [inbound, outbound, cyclesResult] = await Promise.all([
+          readAllRows('inboundapplication'),
+          readAllRows('outboundapplication'),
+          supabase.from('exchange_cycle').select('id, semester, academic_year').order('id'),
+        ])
+        if (cyclesResult.error) throw cyclesResult.error
+        const [inboundProfiles, outboundProfiles] = await Promise.all([
+          readProfiles('incomingstudentauth', inbound),
+          readProfiles('kustudentauth', outbound),
+        ])
+        if (!isCurrent) return
+        setData({
+          inbound,
+          outbound,
+          profiles: { inbound: inboundProfiles, outbound: outboundProfiles },
+          cycles: cyclesResult.data || [],
+        })
+      } catch (error) {
+        if (isCurrent) setLoadError(error.message || 'Applications could not be loaded.')
+      } finally {
+        if (isCurrent) setIsLoading(false)
+      }
+    }
+    load()
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  const profiles = data.profiles[applicationType]
+  const query = search.trim().toLowerCase()
+  const options = data[applicationType]
+    .map((application) => ({
+      application,
+      label: `${getStudentName(application, profiles)} · ID ${application.student_id || 'unavailable'} · ${getCycleLabel(application, data.cycles)} · ${application.application_status}`,
+    }))
+    .filter(({ label }) => !query || label.toLowerCase().includes(query))
+    .sort((left, right) => left.label.localeCompare(right.label))
+  const selected = data[applicationType].find(({ application_id }) => String(application_id) === selectedId)
+
+  const changeType = (nextType) => {
+    setApplicationType(nextType)
+    setSelectedId('')
+    setSearch('')
+    setSending({ loading: false, error: '', message: '' })
+  }
+
+  const sendUpdate = async (event) => {
+    event.preventDefault()
+    const message = details.trim()
+    if (!selected) {
+      setSending({ loading: false, error: 'Choose the application this update is about.', message: '' })
+      return
+    }
+    if (!message) {
+      setSending({ loading: false, error: 'Write the update before sending it.', message: '' })
+      return
+    }
+    setSending({ loading: true, error: '', message: '' })
+    const { error } = await supabase
+      .from('updates')
+      .insert({ [reviewTypes[applicationType].updateColumn]: selected.application_id, details: message })
+    if (error) {
+      setSending({ loading: false, error: error.message || 'The update could not be sent.', message: '' })
+      return
+    }
+    setDetails('')
+    setUpdatesRefresh((count) => count + 1)
+    setSending({ loading: false, error: '', message: `The update was sent to ${getStudentName(selected, profiles)}.` })
+  }
+
+  return (
+    <section className="coordinator-applications" aria-labelledby="portal-heading">
+      <span className="auth-card__eyebrow">Student inbox</span>
+      <h2 id="portal-heading">Send an update</h2>
+      <p>Choose an application and write an update. The student sees it in their portal inbox.</p>
+      <div className="coordinator-applications__type-tabs" role="group" aria-label="Application type">
+        <button className={applicationType === 'outbound' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => changeType('outbound')}>
+          Outbound
+        </button>
+        <button className={applicationType === 'inbound' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => changeType('inbound')}>
+          Inbound
+        </button>
+      </div>
+      {loadError && <p className="auth-form__error" role="alert">{loadError}</p>}
+      {isLoading ? <p role="status">Loading applications...</p> : (
+        <form className="update-composer" onSubmit={sendUpdate} noValidate>
+          <label className="update-composer__field">
+            Search applications
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Student name, ID, semester or status" />
+          </label>
+          <label className="update-composer__field">
+            Application
+            <select
+              value={selectedId}
+              onChange={(event) => {
+                setSelectedId(event.target.value)
+                setSending({ loading: false, error: '', message: '' })
+              }}
+            >
+              <option value="">{options.length === 0 ? 'No applications match' : 'Choose an application'}</option>
+              {options.map(({ application, label }) => (
+                <option key={application.application_id} value={application.application_id}>{label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="update-composer__field">
+            Update
+            <textarea rows={5} value={details} onChange={(event) => setDetails(event.target.value)} disabled={sending.loading} />
+          </label>
+          <div className="nomination-table__actions">
+            <button className="btn btn--primary" type="submit" disabled={sending.loading}>
+              {sending.loading ? 'Sending…' : 'Send update'}
+            </button>
+          </div>
+          {sending.error && <p className="auth-form__error" role="alert">{sending.error}</p>}
+          {sending.message && <p className="coordinator-review__message" role="status">{sending.message}</p>}
+        </form>
+      )}
+      {selected && (
+        <UpdateHistory
+          type={applicationType}
+          applicationId={selected.application_id}
+          refreshKey={updatesRefresh}
+          headingId="send-update-history-heading"
+        />
+      )}
     </section>
   )
 }

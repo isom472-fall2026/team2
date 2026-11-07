@@ -18,6 +18,8 @@ const OutboundApplication = lazy(() => import('./components/OutboundApplication'
 const InboundApplication = lazy(() => import('./components/InboundApplication'))
 const CoordinatorApplications = lazy(() => import('./components/CoordinatorApplications'))
 const ManageApplication = lazy(() => import('./components/CoordinatorApplications').then((module) => ({ default: module.ManageApplication })))
+const SendApplicationUpdate = lazy(() => import('./components/CoordinatorApplications').then((module) => ({ default: module.SendApplicationUpdate })))
+const StudentInbox = lazy(() => import('./components/StudentInbox'))
 const CoordinatorAccountSettings = lazy(() => import('./components/CoordinatorAccount'))
 const CoordinatorPasswordPage = lazy(() => import('./components/CoordinatorAccount').then((module) => ({ default: module.CoordinatorPasswordPage })))
 const TestingMode = lazy(() => import('./components/TestingMode'))
@@ -1275,6 +1277,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
             </button>
           )}
           {isKuCoordinator && (
+            <button className={activeView === 'send-update' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('send-update')}>
+              <span aria-hidden="true">✉</span> Send an update
+            </button>
+          )}
+          {isKuCoordinator && (
             <button className={activeView === 'withdrawals' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('withdrawals')}>
               <span aria-hidden="true">↩</span> Withdrawal requests
             </button>
@@ -1452,6 +1459,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           </>
         )}
         {isKuCoordinator && activeView === 'applications' && <Suspense fallback={null}><CoordinatorApplications /></Suspense>}
+        {isKuCoordinator && activeView === 'send-update' && <Suspense fallback={null}><SendApplicationUpdate /></Suspense>}
         {!isKuCoordinator && activeView === 'progress' && (
           <section aria-labelledby="progress-heading">
             <span className="auth-card__eyebrow">Nomination tracking</span>
@@ -1769,18 +1777,44 @@ function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus, passw
     return <CoordinatorPortal onDeleted={onDeleted} onSignOut={onSignOut} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
   }
 
+  return <StudentPortal user={user} profile={profile} onSignOut={onSignOut} onDeleted={onDeleted} />
+}
+
+function StudentPortal({ user, profile, onSignOut, onDeleted }) {
+  const [tab, setTab] = useState('home')
+  const hasInbox = profile?.role === 'incoming' || profile?.role === 'ku'
+
   return (
     <section className="portal-page" aria-labelledby="portal-heading">
       <div className="portal-card">
         <span className="auth-card__eyebrow">Secure portal</span>
         <h1 id="portal-heading">Welcome, {profile?.name || user.user_metadata?.name || user.email}</h1>
-        <p>You are signed in as <strong>{user.email}</strong>.</p>
-        <div className="portal-actions">
-          {profile?.role === 'incoming' && <Link className="btn btn--primary" to="/portal/inbound-application">Inbound application</Link>}
-          {profile?.role === 'ku' && <Link className="btn btn--secondary" to="/portal/outbound-application">Outbound application</Link>}
-        </div>
-        <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
-        <AccountDeleteButton onDeleted={onDeleted} />
+        {hasInbox && (
+          <div className="portal-actions" role="tablist" aria-label="Student portal">
+            <button className={tab === 'home' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" role="tab" aria-selected={tab === 'home'} onClick={() => setTab('home')}>
+              Home
+            </button>
+            <button className={tab === 'inbox' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" role="tab" aria-selected={tab === 'inbox'} onClick={() => setTab('inbox')}>
+              Inbox
+            </button>
+          </div>
+        )}
+        {tab === 'inbox' && hasInbox ? (
+          <>
+            <h2 className="portal-section-heading">Inbox</h2>
+            <Suspense fallback={null}><StudentInbox role={profile.role} /></Suspense>
+          </>
+        ) : (
+          <>
+            <p>You are signed in as <strong>{user.email}</strong>.</p>
+            <div className="portal-actions">
+              {profile?.role === 'incoming' && <Link className="btn btn--primary" to="/portal/inbound-application">Inbound application</Link>}
+              {profile?.role === 'ku' && <Link className="btn btn--secondary" to="/portal/outbound-application">Outbound application</Link>}
+            </div>
+            <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+            <AccountDeleteButton onDeleted={onDeleted} />
+          </>
+        )}
       </div>
     </section>
   )

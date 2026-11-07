@@ -241,16 +241,6 @@
   margin-top: 32px;
 }
 
-.coordinator-review__update time {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.coordinator-review__update p {
-  white-space: pre-wrap;
-  color: var(--text-strong);
-}
-
 .coordinator-review__attachments {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -409,4 +399,63 @@
   border-color: rgba(198, 40, 40, 0.5);
   background: #f9eaea;
   color: #b42318;
+}
+
+.update-composer {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0 24px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-alt);
+}
+
+.update-composer__field {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.update-composer .update-composer__field {
+  margin: 0;
+}
+
+.update-composer__field span {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.update-composer__field input,
+.update-composer__field select,
+.update-composer__field textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg-card);
+  font: inherit;
+  font-weight: 400;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.update-composer__field textarea {
+  resize: vertical;
+}
+
+.update-composer__field input:hover,
+.update-composer__field select:hover,
+.update-composer__field textarea:hover {
+  border-color: var(--neon);
+}
+
+.coordinator-review__panel .update-composer__hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }

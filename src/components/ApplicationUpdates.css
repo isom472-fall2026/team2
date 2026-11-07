@@ -1,0 +1,31 @@
+.update-history {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.update-history li {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.update-history p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  color: var(--text-strong);
+}
+
+.update-history time {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.update-history__application {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-strong);
+}

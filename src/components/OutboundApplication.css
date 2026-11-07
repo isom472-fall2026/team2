@@ -1013,3 +1013,22 @@
     display: none;
   }
 }
+
+.inbound-application-editor {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.inbound-application-editor h2,
+.inbound-application-editor h3,
+.inbound-application-editor p {
+  margin: 0;
+}
+
+.replacement-file__current {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}

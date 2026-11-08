@@ -37,11 +37,11 @@ By the end of Phase 4, KU coordinators could review outgoing and incoming studen
 
 ## The tag cut for this phase
 
-`phase-4` created by Fatma after pull request #152 merged.
+`phase-4` created by Fatma after pull request #154 merged.
 
 <!-- Created by the Phase Lead — steps in ../how-we-work.md#how-to-create-the-tag. The tag is what gets graded — anything pushed after it does not
      count for this phase. -->
 
 ## Anything not finished, and where it went
 
-Twelve stories were finished. Fifteen stories planned for this phase were not finished and moved to Phase 5, with the same people assigned: #28 #72 #75 #76 #99 #101 #102 #103 #105 #113 #115 #117 #131 #132 #133. Nothing was dropped.
+Twelve stories were finished. Fifteen stories planned for this phase were not finished and moved to Phase 5, with the same people assigned: #28 #72 #75 #76 #99 #101 #102 #103 #105 #113 #115 #117 #131 #132 #133. Nothing was dropped. Nothing will be assigned to phase 6 until phase 5 finishes

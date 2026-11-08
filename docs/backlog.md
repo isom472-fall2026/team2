@@ -74,9 +74,38 @@ the story ID, the title, who built it, and what happened to it.
 | #138 | KU coordinator manages Partner universities | Fatma Alshimmari | phase-4 |
 
 
-## Phase 4 — saved 4 November
+## Phase 4 — saved 8 November
 
 | Story | Title | Who | State at the tag |
+| Story | Title | Who | State at the tag |
+|---|---|---|---|
+| #140 | KU coordinator reviews outgoing students applications | Hadi Haidar | Done |
+| #141 | KU Coordinator Reviews Incoming Student Applications | Hadi Haidar | Done |
+| #143 | KU coordinator sends application updates | Almaha Alajmi | Done |
+| #144 | KU Coordinators and Incoming Students Edit Applications Before a Decision | Almaha Alajmi | Done |
+| #104 | Student updates their user details after signing up | Rawan Abdrabou | Done |
+| #146 | KU coordinator can fetch all CBA subjects and their syllabi | Rawan Abdrabou | Done |
+| #97 | Incoming Students the list of KU courses and their syllabi | Aysha Jan | Done |
+| #98 | Incoming Students and KU coordinators search and filter subjects at Kuwait University | Aysha Jan | Done |
+| #86 | KU coordinator can offer alternative partner universities to outbound applicant | Yousef Almohammed | Done |
+| #100 | KU coordinator filters applications by status or GPA | Yousef Almohammed | Done |
+| #114 | KU coordinator adds a partner university to the website | Fatma Alshimmari | Done |
+| #138 | KU coordinator manages Partner universities | Fatma Alshimmari | Done |
+| #28 | Real-Time Outbound Eligibility Verification | Aysha Jan and Hadi Haidar | phase-5 |
+| #72 | Returning student leaves feedback on a host university | Yousef Almohammed | phase-5 |
+| #75 | User switches the interface language to Arabic | Hadi Haidar | phase-5 |
+| #76 | Returning incoming student leaves feedback about their exchange at KU | Hadi Haidar | phase-5 |
+| #99 | Approved student lists the courses they plan to take abroad | Rawan Abdrabou | phase-5 |
+| #101 | Incoming student adds an emergency contact | Yousef Almohammed | phase-5 |
+| #102 | KU coordinator changes the status of applications at once | Yousef Almohammed | phase-5 |
+| #103 | Student reads requirements and a walkthrough before applying | Fatma Alshimmari | phase-5 |
+| #105 | Approved student follows a checklist of next steps | Almaha Alajmi | phase-5 |
+| #113 | KU coordinator generates graphs summarizing an exchange cycle | Almaha Alajmi | phase-5 |
+| #115 | KU coordinator compares two exchange cycles | Hadi Haidar | phase-5 |
+| #117 | Cycle rules and processes for partner coordinators | Aysha Jan | phase-5 |
+| #131 | Incoming student contacts the Student Exchange Office through a support request form | Yousef Almohammed | phase-5 |
+| #132 | Incoming student downloads an official exchange acceptance letter | Aysha Jan | phase-5 |
+| #133 | Incoming student views a pre-arrival guide for studying at Kuwait University | Almaha Alajmi | phase-5 |
 |---|---|---|---|
 
 

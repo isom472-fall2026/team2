@@ -204,15 +204,22 @@ export default function VisaChecker() {
   const setNationality = useAppStore((state) => state.setVisaNationality)
   const setPassportMatches = useAppStore((state) => state.setVisaPassportMatches)
   const setDestination = useAppStore((state) => state.setVisaDestination)
-  const [passportCoverStatus, setPassportCoverStatus] = useState('idle')
+  // Each loaded result remembers what it was loaded for, so "loading" is worked out while
+  // rendering instead of being reset inside the effects whenever the selection changes.
+  const [passportCover, setPassportCover] = useState({ nationality: '', status: 'idle' })
   const [destinationCountries, setDestinationCountries] = useState([])
   const [destinationsLoaded, setDestinationsLoaded] = useState(false)
-  const [isLoadingDestinations, setIsLoadingDestinations] = useState(false)
   const [destinationError, setDestinationError] = useState('')
   const [destinationLoadAttempt, setDestinationLoadAttempt] = useState(0)
-  const [destinationMapStatus, setDestinationMapStatus] = useState('idle')
-  const [destinationMapPaths, setDestinationMapPaths] = useState([])
+  const [destinationMap, setDestinationMap] = useState({ destination: '', status: 'idle', paths: [] })
   const passportCoverContainer = useRef(null)
+  const passportCoverStatus = !nationality ? 'idle'
+    : passportCover.nationality === nationality ? passportCover.status : 'loading'
+  const isLoadingDestinations = passportMatches === 'yes' && !destinationsLoaded && !destinationError
+  const destinationMapIsCurrent = destinationMap.destination === destination
+  const destinationMapStatus = !destination ? 'idle'
+    : destinationMapIsCurrent ? destinationMap.status : 'loading'
+  const destinationMapPaths = destinationMapIsCurrent ? destinationMap.paths : []
   const selectedNationality = nationalityOptions.find(({ code }) => code === nationality)
   const destinationCode = destinationIsoCodes[destination]
   const entryRule = entryRules[destination]
@@ -223,28 +230,24 @@ export default function VisaChecker() {
     : null
 
   useEffect(() => {
-    if (!nationality) {
-      setPassportCoverStatus('idle')
-      passportCoverContainer.current?.replaceChildren()
-      return
-    }
+    if (!nationality) return
 
     let cancelled = false
-    setPassportCoverStatus('loading')
-    passportCoverContainer.current?.replaceChildren()
+    const container = passportCoverContainer.current
+    container?.replaceChildren()
     loadPassportCover(nationality).then((image) => {
       if (!cancelled) {
         if (image) {
           image.alt = `${selectedNationality.name} passport cover`
-          passportCoverContainer.current?.replaceChildren(image)
+          container?.replaceChildren(image)
         }
-        setPassportCoverStatus(image ? 'loaded' : 'unavailable')
+        setPassportCover({ nationality, status: image ? 'loaded' : 'unavailable' })
       }
     })
 
     return () => {
       cancelled = true
-      passportCoverContainer.current?.replaceChildren()
+      container?.replaceChildren()
     }
   }, [nationality, selectedNationality])
 
@@ -252,8 +255,6 @@ export default function VisaChecker() {
     if (passportMatches !== 'yes' || destinationsLoaded) return
 
     let isCurrent = true
-    setIsLoadingDestinations(true)
-    setDestinationError('')
     supabase
       .from('partneruniversity')
       .select('location, country(name)')
@@ -267,10 +268,10 @@ export default function VisaChecker() {
             .map(({ country }) => country?.name)
             .filter((name) => name && name.trim().toLowerCase() !== 'kuwait'))]
             .sort((first, second) => first.localeCompare(second))
+          setDestinationError('')
           setDestinationCountries(countries)
           setDestinationsLoaded(true)
         }
-        setIsLoadingDestinations(false)
       })
 
     return () => {
@@ -279,21 +280,18 @@ export default function VisaChecker() {
   }, [passportMatches, destinationsLoaded, destinationLoadAttempt])
 
   useEffect(() => {
-    if (!destination) {
-      setDestinationMapStatus('idle')
-      setDestinationMapPaths([])
-      return
-    }
+    if (!destination) return
 
     let isCurrent = true
-    setDestinationMapStatus('loading')
-    setDestinationMapPaths([])
     loadWorldBoundaries().then((world) => {
       if (!isCurrent) return
       const mapName = destinationMapNames[destination] || destination
       const paths = world ? getDestinationMapPaths(world.features, mapName) : []
-      setDestinationMapPaths(paths)
-      setDestinationMapStatus(paths.some(({ isDestination }) => isDestination) ? 'loaded' : 'unavailable')
+      setDestinationMap({
+        destination,
+        paths,
+        status: paths.some(({ isDestination }) => isDestination) ? 'loaded' : 'unavailable',
+      })
     })
 
     return () => {
@@ -315,7 +313,6 @@ export default function VisaChecker() {
             onChange={(event) => {
               const nextNationality = event.target.value
               setNationality(nextNationality)
-              setPassportCoverStatus(nextNationality ? 'loading' : 'idle')
               passportCoverContainer.current?.replaceChildren()
             }}
             autoComplete="country-name"
@@ -395,7 +392,10 @@ export default function VisaChecker() {
           {destinationError && (
             <div className="visa-advisory__destination-error" role="alert">
               <p>Destinations could not be loaded: {destinationError}</p>
-              <button type="button" onClick={() => setDestinationLoadAttempt((attempt) => attempt + 1)}>
+              <button type="button" onClick={() => {
+                setDestinationError('')
+                setDestinationLoadAttempt((attempt) => attempt + 1)
+              }}>
                 Try again
               </button>
             </div>

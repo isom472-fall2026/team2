@@ -276,6 +276,10 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
 
 const decidableStatuses = ['Submitted', 'In Review', 'Pending Interview']
 
+// The review functions save an acceptance as 'Accepted'; 'Approved' is the proposal's older
+// name for the same outcome and is still allowed in the table, so the history keeps both.
+const approvedStatuses = ['Accepted', 'Approved']
+
 // Shown to the coordinator only; the database's default_decision_update() holds the wording
 // that is actually saved, so the two must be changed together.
 const defaultDecisionUpdates = {
@@ -335,7 +339,7 @@ function readGpaBounds(input) {
   return { bounds: { min: min.value, max: max.value } }
 }
 
-function ApplicationList({ applications, profiles, cycles, universities, countries, contacts, onManage, onExport, loading, emptyMessage }) {
+function ApplicationList({ applications, profiles, cycles, universities, countries, onManage, onExport, loading, emptyMessage }) {
   if (loading) return <p role="status">Loading applications...</p>
   if (applications.length === 0) return <div className="portal-empty-state">{emptyMessage}</div>
 
@@ -491,7 +495,7 @@ export default function CoordinatorApplications() {
     (application) => currentCycle && Number(application.semester_applied_for) === Number(currentCycle.id),
   )
   const historicalApplications = records.filter(
-    (application) => application.application_status === 'Approved'
+    (application) => approvedStatuses.includes(application.application_status)
       && (!currentCycle || Number(application.semester_applied_for) !== Number(currentCycle.id)),
   )
 
@@ -688,7 +692,6 @@ export default function CoordinatorApplications() {
         cycles={data.cycles}
         universities={data.universities}
         countries={data.countries}
-        contacts={data.contacts}
         onExport={exportPdf}
         onManage={manageApplication}
         loading={isLoading}

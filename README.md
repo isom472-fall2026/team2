@@ -14,6 +14,39 @@ This line gets updated at the start of every phase, because it is the first thin
 - Running system: https://isom472-fall2026.github.io/team2/
 - Board: https://github.com/orgs/isom472-fall2026/projects/
 
+## Test accounts
+
+Sign in to the [running system](https://isom472-fall2026.github.io/team2/) with this
+confirmed KU coordinator account:
+
+| Persona | User type | Email | Password |
+|---|---|---|---|
+| Areej, exchange program coordinator | KU coordinator | `s2221191188@ku.edu.kw` | `123456` |
+
+Every other user type is reached through **testing mode**, which switches between user types
+instantly:
+
+1. Sign in as the KU coordinator above.
+2. Open testing mode, either from **Testing mode** in the KU coordinator portal's sidebar or
+   from **Testing mode** in the site footer.
+3. Click **Start testing mode** and wait while the testing data loads. It is ready when the
+   page says "Testing accounts, KU semester data, and submitted applications are ready."
+   If the page already says "Testing mode is on", skip this step: the testing users are
+   ready.
+4. Under **Switch testing user**, click a user to continue as them:
+
+| Testing user | User type | Persona |
+|---|---|---|
+| John Doe | KU student, with a submitted outbound application | Ahmad, outgoing KU business student |
+| Alex Johnson | KU student who has not applied yet | Ahmad, before he applies |
+| Jane Smith | Incoming student, nominated and with a submitted application | Sarah, prospective inbound exchange student |
+| Michael Brown | Partner coordinator who nominated Jane Smith | Sarah's home university coordinator |
+
+To go back to the KU coordinator, open testing mode from the footer, click **Switch to KU
+coordinator** and sign in with the account above. Testing users can change only records
+created while testing mode is on. **End testing and remove test data**, as the KU
+coordinator, deletes them and their data.
+
 ## Where do I go?
 
 | I need to… | Go to |

@@ -856,6 +856,15 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
     setToastId((currentId) => currentId + 1)
   }
 
+  // While testing mode is on, the database lets KU coordinators change only coordinators
+  // created during the test, so a change that matched no row is explained by that first.
+  const coordinatorChangeBlockedMessage = async (fallback) => {
+    const { data: testingModeOn } = await supabase.rpc('is_testing_mode_enabled')
+    return testingModeOn === true
+      ? 'Testing mode is on, so only coordinators created during the test can be changed. Turn testing mode off to change this coordinator.'
+      : fallback
+  }
+
   const updateCoordinatorAccess = async (coordinator, isAccepted) => {
     setStatus({ error: '', message: '' })
     if (isAccepted) {
@@ -870,7 +879,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         return
       }
       if (!data) {
-        setStatus({ error: 'The coordinator access was not updated. You may not have permission.', message: '' })
+        setStatus({ error: await coordinatorChangeBlockedMessage('The coordinator access was not updated. You may not have permission.'), message: '' })
         return
       }
       setCoordinators((current) => current.map((item) => item.coordinator_id === data.coordinator_id ? data : item))
@@ -882,12 +891,18 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         .eq('coordinator_id', coordinator.coordinator_id)
         .select('coordinator_id')
         .maybeSingle()
+      // Removing a coordinator also removes their nominations, which the database refuses
+      // once a nominated student has applied, so those applications are never lost.
+      if (error?.code === '23503') {
+        setStatus({ error: 'This coordinator has nominated students who have already applied, so their request cannot be removed without losing those applications.', message: '' })
+        return
+      }
       if (error) {
         setStatus({ error: getDatabaseErrorMessage(error), message: '' })
         return
       }
       if (!data) {
-        setStatus({ error: 'The coordinator request was not removed. You may not have permission.', message: '' })
+        setStatus({ error: await coordinatorChangeBlockedMessage('The coordinator request was not removed. You may not have permission.'), message: '' })
         return
       }
       setCoordinators((current) => current.filter((item) => item.coordinator_id !== data.coordinator_id))

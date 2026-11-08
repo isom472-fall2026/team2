@@ -3360,7 +3360,10 @@ BEGIN
     WHERE backup.table_name = 'coordinator'
       AND backup.record_id = record.coordinator_id::TEXT;
 
-    DELETE FROM public.testing_backup;
+    -- Supabase's safeupdate extension refuses a DELETE with no WHERE clause, even inside a
+    -- function, so emptying the table needs one that matches every row.
+    DELETE FROM public.testing_backup
+    WHERE TRUE;
 
     DELETE FROM public.testing
     WHERE id <> 1;

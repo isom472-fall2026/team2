@@ -50,27 +50,17 @@ the story ID, the title, who built it, and what happened to it.
 | #32 | Start Student Exchange Application | Fatma | Done |
 | #74 | KU Student exports their submitted outgoing application as a PDF | Fatma | Done |
 | #77 | KU Student’s application changes are saved automatically | Fatma | Done |
-| #28 | Real-Time Outbound Eligibility Verification | Aysha Jan | phase-4 |
-| #72 | Returning student leaves feedback on a host university | Aysha Jan | phase-4 |
-| #75 | User switches the interface language to Arabic | Yousef Almohammed | phase-4 |
-| #76 | Returning incoming student leaves feedback about their exchange at KU | Yousef Almohammed | phase-4 |
-| #86 | KU coordinator can offer alternative partner universities to outbound applicant | Almaha Alajmi | phase-4 |
-| #97 | User views the list of KU courses and their syllabi | Almaha Alajmi | phase-4 |
-| #98 | User searches and filters subjects at Kuwait University | Hadi Haidar | phase-4 |
-| #99 | Approved student lists the courses they plan to take abroad | Hadi Haidar | phase-4 |
-| #100 | KU coordinator filters applications by status or GPA | Rawan Abdrabou | phase-4 |
-| #101 | Incoming student adds an emergency contact | Rawan Abdrabou | phase-4 |
-| #102 | KU coordinator changes the status of applications at once | Aysha Jan | phase-4 |
-| #103 | Student reads requirements and a walkthrough before applying | Aysha Jan | phase-4 |
-| #104 | Student updates their contact details after signing up | Aysha Jan | phase-4 |
-| #105 | Approved student follows a checklist of next steps | Aysha Jan | phase-4 |
-| #113 | KU coordinator generates graphs summarizing an exchange cycle | Aysha Jan | phase-4 |
-| #114 | KU coordinator adds a partner university to the website | Hadi Haidar | phase-4 |
-| #115 | KU coordinator compares two exchange cycles | Rawan Abdrabou | phase-4 |
-| #117 | Filter by author | Rawan Abdrabou | phase-4 |
-| #131 | Incoming student contacts the Student Exchange Office through a support request form | Yousef Almohammed | phase-4 |
-| #132 | Incoming student downloads an official exchange acceptance letter | Aysha Jan | phase-4 |
-| #133 | Incoming student views a pre-arrival guide for studying at Kuwait University | Almaha Alajmi | phase-4 |
+| #140 | KU coordinator reviews outgoing students applications | Hadi Haidar | phase-4 |
+| #141 | KU Coordinator Reviews Incoming Student Applications | Hadi Haidar | phase-4 |
+| #143 | KU coordinator sends application updates | Almaha Alajmi | phase-4 |
+| #144 | KU Coordinators and Incoming Students Edit Applications Before a Decision | Almaha Alajmi | phase-4 |
+| #104 | Student updates their user details after signing up | Rawan Abdrabou | phase-4 |
+| #146 | KU coordinator can fetch all CBA subjects and their syllabi | Rawan Abdrabou | phase-4 |
+| #97 | Incoming Students the list of KU courses and their syllabi | Aysha Jan | phase-4 |
+| #98 | Incoming Students and KU coordinators search and filter subjects at Kuwait University | Aysha Jan | phase-4 |
+| #86 | KU coordinator can offer alternative partner universities to outbound applicant | Yousef Almohammed | phase-4 |
+| #100 | KU coordinator filters applications by status or GPA | Yousef Almohammed | phase-4 |
+| #114 | KU coordinator adds a partner university to the website | Fatma Alshimmari | phase-4 |
 | #138 | KU coordinator manages Partner universities | Fatma Alshimmari | phase-4 |
 
 

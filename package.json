@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && cp -r docs dist/docs",
+    "build:firefox-extension": "node extension/build-firefox.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",

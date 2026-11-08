@@ -341,6 +341,11 @@ CREATE TABLE public.subjects (
     course_syllabus VARCHAR(255) CHECK (
         course_syllabus IS NULL OR length(btrim(course_syllabus)) > 0
     ),
+    course_description TEXT CHECK (
+        course_description IS NULL OR length(btrim(course_description)) > 0
+    ),
+    -- One entry per course learning outcome, in the order the CBA site lists them.
+    course_clos TEXT[] CHECK (course_clos IS NULL OR cardinality(course_clos) > 0),
     course_link VARCHAR(255) GENERATED ALWAYS AS (
         'https://cmu-cba.ku.edu.kw/syllabus/courses/'
         || left(course_code, 4) || '/' || right(course_code, 3) || '/'
@@ -862,6 +867,11 @@ BEGIN
     END IF;
 
     IF TG_TABLE_SCHEMA = 'storage' AND TG_TABLE_NAME = 'objects' THEN
+        -- Imported syllabi are real CBA data, so ending testing mode must not delete them
+        -- (issue #97). Only KU coordinators can add files to this bucket.
+        IF record_data ->> 'bucket_id' = 'syllabi' THEN
+            RETURN NEW;
+        END IF;
         INSERT INTO public.testing (storage_object_id)
         VALUES ((record_data ->> 'id')::UUID);
         RETURN NEW;
@@ -2602,6 +2612,25 @@ FOR DELETE
 TO authenticated
 USING (public.testing_change_allowed('feedback', id::TEXT));
 
+-- Syllabi are real CBA data that a KU coordinator imports, not test data, so a re-import
+-- may replace them while testing mode is on (issue #97).
+CREATE OR REPLACE FUNCTION public.is_syllabus_import(requested_bucket TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    RETURN requested_bucket = 'syllabi'
+       AND public.is_ku_coordinator()
+       AND public.get_maintenance_mode() IS FALSE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.is_syllabus_import(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_syllabus_import(TEXT) TO authenticated;
+
 DROP POLICY IF EXISTS "Control storage object inserts" ON storage.objects;
 DROP POLICY IF EXISTS "Control storage object changes" ON storage.objects;
 DROP POLICY IF EXISTS "Control storage object deletes" ON storage.objects;
@@ -2619,8 +2648,14 @@ ON storage.objects
 AS RESTRICTIVE
 FOR UPDATE
 TO authenticated
-USING (public.testing_change_allowed('storage.objects', id::TEXT))
-WITH CHECK (public.testing_change_allowed('storage.objects', id::TEXT));
+USING (
+    public.testing_change_allowed('storage.objects', id::TEXT)
+    OR public.is_syllabus_import(bucket_id)
+)
+WITH CHECK (
+    public.testing_change_allowed('storage.objects', id::TEXT)
+    OR public.is_syllabus_import(bucket_id)
+);
 
 CREATE POLICY "Control storage object deletes"
 ON storage.objects
@@ -3675,8 +3710,8 @@ CREATE POLICY "Maintenance blocks subject reads"
 ON public.subjects AS RESTRICTIVE FOR SELECT TO anon, authenticated
 USING ((SELECT public.get_maintenance_mode()) IS FALSE);
 
--- Syllabus files. Private, so only signed-in users can download them. The CBA site
--- publishes syllabi as PDF and as Word files, so the bucket accepts both.
+-- Syllabus files. Private, so only the readers the policy below allows can download them.
+-- The CBA site publishes syllabi as PDF and as Word files, so the bucket accepts both.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
     'syllabi',
@@ -3694,15 +3729,54 @@ SET public = FALSE,
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+-- Syllabi are for students KU has nominated or accepted (issue #97). KU coordinators keep
+-- access because the import page lists the syllabi it saved. A nomination counts even
+-- after it expires.
+CREATE OR REPLACE FUNCTION public.can_download_syllabi()
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT public.is_ku_coordinator() OR EXISTS (
+        SELECT 1
+        FROM public.incomingstudentauth AS student
+        WHERE student.user_id = auth.uid()
+          AND (
+              EXISTS (
+                  SELECT 1
+                  FROM public.studentnominations AS nomination
+                  WHERE lower(nomination.student_email) = lower(student.student_email)
+              )
+              OR EXISTS (
+                  SELECT 1
+                  FROM public.inboundapplication AS application
+                  WHERE application.student_id = student.student_id
+                    AND application.application_status IN ('Accepted', 'Approved')
+              )
+          )
+    );
+$$;
+
+ALTER FUNCTION public.can_download_syllabi() OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.can_download_syllabi() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.can_download_syllabi() TO authenticated;
+
 DROP POLICY IF EXISTS "Signed-in users can read syllabi" ON storage.objects;
+DROP POLICY IF EXISTS "Nominated or accepted students and KU coordinators can read syllabi" ON storage.objects;
 DROP POLICY IF EXISTS "KU coordinators can upload syllabi" ON storage.objects;
 DROP POLICY IF EXISTS "KU coordinators can replace syllabi" ON storage.objects;
 
-CREATE POLICY "Signed-in users can read syllabi"
+CREATE POLICY "Nominated or accepted students and KU coordinators can read syllabi"
 ON storage.objects
 FOR SELECT
 TO authenticated
-USING (bucket_id = 'syllabi');
+USING (
+    bucket_id = 'syllabi'
+    AND (SELECT public.can_download_syllabi())
+);
 
 CREATE POLICY "KU coordinators can upload syllabi"
 ON storage.objects

@@ -1,0 +1,67 @@
+.subject-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  align-items: end;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-alt);
+}
+
+.subject-filters__field {
+  display: grid;
+  gap: 8px;
+}
+
+.subject-filters__field label {
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.subject-filters__field input,
+.subject-filters__field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg-card);
+  font: inherit;
+}
+
+.subject-filters__field input::placeholder {
+  color: var(--text-muted);
+}
+
+.subject-filters__field input:focus,
+.subject-filters__field select:focus {
+  outline: 2px solid var(--neon);
+  outline-offset: 1px;
+}
+
+.subject-filters__clear {
+  justify-self: start;
+  min-height: 44px;
+}
+
+/* The app's buttons have no disabled look; this one is disabled while no filter is set. */
+.subject-filters__clear:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.subject-filters__count {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.subject-filters__empty {
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}

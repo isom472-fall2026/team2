@@ -26,6 +26,8 @@ const TestingMode = lazy(() => import('./components/TestingMode'))
 const PartnerUniversityMap = lazy(() => import('./components/PartnerUniversityMap'))
 const AddPartnerUniversity = lazy(() => import('./components/AddPartnerUniversity'))
 const SubjectImport = lazy(() => import('./components/SubjectImport'))
+const SubjectCatalog = lazy(() => import('./components/SubjectCatalog'))
+const SubjectDetail = lazy(() => import('./components/SubjectCatalog').then((module) => ({ default: module.SubjectDetail })))
 const StudentAccount = lazy(() => import('./components/StudentAccount'))
 
 const authOptions = {
@@ -654,7 +656,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
   const [isDeletingCycle, setIsDeletingCycle] = useState(false)
   const returnView = useLocation().state?.view
   const [activeView, setActiveView] = useState(
-    isKuCoordinator && returnView === 'applications' ? 'applications' : isKuCoordinator ? 'manage' : 'nominations',
+    isKuCoordinator && ['applications', 'subjects'].includes(returnView) ? returnView : isKuCoordinator ? 'manage' : 'nominations',
   )
   const [selectedNominationCycle, setSelectedNominationCycle] = useState(null)
   const [isStartingCycle, setIsStartingCycle] = useState(false)
@@ -1833,6 +1835,11 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
               <span aria-hidden="true">▤</span> {application.label}
             </Link>
           )}
+          {profile?.role === 'incoming' && (
+            <Link className="portal-sidebar__action" to="/portal/subjects">
+              <span aria-hidden="true">▥</span> CBA subjects
+            </Link>
+          )}
         </nav>
         <div className="portal-sidebar__footer">
           <span className="portal-sidebar__secure">Signed in securely</span>
@@ -2488,6 +2495,8 @@ function App() {
             <Route path="/portal" element={session ? <ProtectedPortal onSignOut={handleSignOut} onDeleted={handleDeleted} onRetryMaintenanceStatus={refreshMaintenanceStatus} /> : <Navigate to="/auth/signin" replace />} />
             <Route path="/portal/inbound-application/*" element={session ? <InboundApplication /> : <Navigate to="/auth/signin" replace />} />
             <Route path="/portal/outbound-application/*" element={session ? <OutboundApplication /> : <Navigate to="/auth/signin" replace />} />
+            <Route path="/portal/subjects" element={session ? <SubjectCatalog /> : <Navigate to="/auth/signin" replace />} />
+            <Route path="/portal/subjects/:courseCode" element={session ? <SubjectDetail /> : <Navigate to="/auth/signin" replace />} />
             <Route path="/portal/applications/outbound/:applicationId" element={session ? <ManageApplicationRoute type="outbound" /> : <Navigate to="/auth/signin" replace />} />
             <Route path="/portal/applications/inbound/:applicationId" element={session ? <ManageApplicationRoute type="inbound" /> : <Navigate to="/auth/signin" replace />} />
             <Route path="/partners" element={<PartnerUniversitiesRoute />} />

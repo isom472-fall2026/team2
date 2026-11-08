@@ -66,6 +66,11 @@
   box-shadow: var(--glow-cyan);
 }
 
+.coordinator-applications__clear {
+  align-self: end;
+  min-height: 44px;
+}
+
 .coordinator-applications__filters select option {
   color: var(--text-strong);
   background: var(--bg-card-alt);
@@ -453,6 +458,50 @@
 .update-composer__field select:hover,
 .update-composer__field textarea:hover {
   border-color: var(--neon);
+}
+
+.offer-composer {
+  margin: 12px 0;
+}
+
+.offer-composer__choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.offer-composer__choices legend {
+  margin-bottom: 8px;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.offer-composer__choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.offer-history__item {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.offer-history__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.offer-history__heading .update-history__application {
+  margin: 0;
 }
 
 .coordinator-review__panel .update-composer__hint {

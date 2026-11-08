@@ -427,7 +427,7 @@ export default function TestingMode({
     }
     setEnabled(false)
     setAccounts([])
-    setMessage('Testing mode is off. Registered test data and accounts were removed.')
+    setMessage('Testing mode is off. Registered test data and accounts were removed, and partner universities were restored.')
     onTestingModeChanged(false)
     await loadTestingState()
     setBusyAction(null)
@@ -471,7 +471,8 @@ export default function TestingMode({
         <h1 id="testing-heading">Testing mode</h1>
         <p className="testing-card__intro">
           Generated accounts can change only records created while testing mode is on.
-          Turning it off removes registered test data and the generated accounts.
+          Turning it off removes registered test data and the generated accounts, and undoes any
+          edits or deletions KU coordinators made to real partner universities.
         </p>
 
         {loading ? (

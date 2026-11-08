@@ -4,6 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
 
 -- 1. Drop dependent tables before the tables they reference.
 DROP TABLE IF EXISTS
+    public.testing_backup,
     public.testing,
     public.feedback,
     public.outbound_offers,
@@ -107,12 +108,19 @@ CREATE TABLE public.partneruniversity (
     airport_latitude DECIMAL(9, 6) CONSTRAINT partneruniversity_airport_latitude_range
         CHECK (airport_latitude IS NULL OR airport_latitude BETWEEN -90 AND 90),
     airport_longitude DECIMAL(9, 6) CONSTRAINT partneruniversity_airport_longitude_range
-        CHECK (airport_longitude IS NULL OR airport_longitude BETWEEN -180 AND 180)
+        CHECK (airport_longitude IS NULL OR airport_longitude BETWEEN -180 AND 180),
+    -- Deleting a partner university only retires it (issue #138): the row stays so past
+    -- applications keep their history, but it is hidden everywhere and can never be offered again.
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT partneruniversity_deleted_unavailable
+        CHECK (deleted_at IS NULL OR available IS FALSE)
 );
 
 -- Two universities whose names differ only in case or surrounding spaces are the same one.
+-- A deleted university's name is free to use again.
 CREATE UNIQUE INDEX partneruniversity_name_unique
-    ON public.partneruniversity (lower(btrim(name)));
+    ON public.partneruniversity (lower(btrim(name)))
+    WHERE deleted_at IS NULL;
 
 CREATE TABLE public.coordinator (
     coordinator_id INT PRIMARY KEY CHECK (coordinator_id > 0),
@@ -420,6 +428,17 @@ CREATE TABLE public.testing (
 INSERT INTO public.testing (id, created_at, enabled)
 VALUES (1, now(), FALSE);
 
+-- Real records as they were before their first change in testing mode (issue #138).
+-- end_testing_mode puts them back, so testing can edit or delete real partner universities
+-- without the changes outliving the test. Only the database functions read or write it.
+CREATE TABLE public.testing_backup (
+    table_name TEXT NOT NULL CHECK (table_name IN ('partneruniversity', 'coordinator')),
+    record_id TEXT NOT NULL,
+    original JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (table_name, record_id)
+);
+
 CREATE OR REPLACE FUNCTION public.update_my_coordinator_account(
     requested_name TEXT,
     requested_email TEXT
@@ -658,6 +677,7 @@ ALTER TABLE public.outbound_offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.updates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.testing ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.testing_backup ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
 
 -- 4. Create helper functions and policies.
@@ -1028,6 +1048,33 @@ AFTER INSERT ON storage.objects
 FOR EACH ROW
 EXECUTE FUNCTION public.track_testing_insert();
 
+-- Keeps the first version of a real record changed during testing mode; later changes in the
+-- same test leave that snapshot alone. Records created during the test are deleted at the
+-- end instead, so they are not snapshotted. TG_ARGV[0] names the table's key column.
+CREATE OR REPLACE FUNCTION public.snapshot_before_testing_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    record_key TEXT := to_jsonb(OLD) ->> TG_ARGV[0];
+BEGIN
+    IF public.is_testing_mode_enabled() IS TRUE
+       AND NOT public.is_testing_record(TG_TABLE_NAME, record_key) THEN
+        INSERT INTO public.testing_backup (table_name, record_id, original)
+        VALUES (TG_TABLE_NAME, record_key, to_jsonb(OLD))
+        ON CONFLICT (table_name, record_id) DO NOTHING;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER partneruniversity_snapshot_before_testing_change
+BEFORE UPDATE ON public.partneruniversity
+FOR EACH ROW
+EXECUTE FUNCTION public.snapshot_before_testing_change('university_id');
+
 CREATE OR REPLACE FUNCTION public.has_inbound_application_for_student(
     requested_student_id INT
 )
@@ -1185,6 +1232,63 @@ REVOKE ALL ON FUNCTION public.request_outbound_withdrawal(BIGINT, TEXT) FROM PUB
 GRANT EXECUTE ON FUNCTION public.request_outbound_withdrawal(BIGINT, TEXT) TO authenticated;
 REVOKE ALL ON FUNCTION public.review_outbound_withdrawal(BIGINT, BOOLEAN) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.review_outbound_withdrawal(BIGINT, BOOLEAN) TO authenticated;
+
+-- Deleting a partner university (issue #138) retires it rather than removing the row:
+-- applications that chose it keep their history, it leaves every list that filters on
+-- available, and its partner coordinators lose access in the same step.
+CREATE OR REPLACE FUNCTION public.retire_partner_university(target_university_id INT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF NOT public.is_ku_coordinator() THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '42501',
+            MESSAGE = 'Only a KU coordinator can delete a partner university';
+    END IF;
+    IF target_university_id = 4 THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '42501',
+            MESSAGE = 'Kuwait University is the home institution and cannot be deleted';
+    END IF;
+    IF public.get_maintenance_mode() IS DISTINCT FROM FALSE THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '42501',
+            MESSAGE = 'Partner universities cannot be changed during maintenance';
+    END IF;
+
+    -- In testing mode the university row is snapshotted by its trigger; the access of its
+    -- real coordinators is kept here so end_testing_mode can give it back.
+    IF public.is_testing_mode_enabled() IS TRUE THEN
+        INSERT INTO public.testing_backup (table_name, record_id, original)
+        SELECT 'coordinator', coordinator.coordinator_id::TEXT, to_jsonb(coordinator)
+        FROM public.coordinator AS coordinator
+        WHERE coordinator.university = target_university_id
+          AND NOT public.is_testing_record('coordinator', coordinator.coordinator_id::TEXT)
+        ON CONFLICT (table_name, record_id) DO NOTHING;
+    END IF;
+
+    UPDATE public.partneruniversity
+    SET deleted_at = now(), available = FALSE
+    WHERE university_id = target_university_id
+      AND deleted_at IS NULL;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION USING
+            ERRCODE = 'P0002',
+            MESSAGE = 'Partner university not found or already deleted';
+    END IF;
+
+    UPDATE public.coordinator
+    SET email_accepted = FALSE
+    WHERE university = target_university_id;
+END;
+$$;
+
+ALTER FUNCTION public.retire_partner_university(INT) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.retire_partner_university(INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.retire_partner_university(INT) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.default_decision_update(accepted BOOLEAN)
 RETURNS TEXT
@@ -2124,7 +2228,18 @@ ON public.coordinator
 FOR UPDATE
 TO authenticated
 USING ((SELECT public.is_ku_coordinator()))
-WITH CHECK ((SELECT public.is_ku_coordinator()));
+WITH CHECK (
+    (SELECT public.is_ku_coordinator())
+    AND NOT (
+        email_accepted IS TRUE
+        AND EXISTS (
+            SELECT 1
+            FROM public.partneruniversity AS university
+            WHERE university.university_id = coordinator.university
+              AND university.deleted_at IS NOT NULL
+        )
+    )
+);
 
 CREATE POLICY "Users and KU coordinators can delete coordinator profiles"
 ON public.coordinator
@@ -2159,6 +2274,37 @@ ON public.partneruniversity
 FOR INSERT
 TO authenticated
 WITH CHECK ((SELECT public.is_ku_coordinator()));
+
+-- Kuwait University (4) is the home institution, not a partner, so it is never edited here.
+-- Deleting goes through retire_partner_university, so an edit cannot set deleted_at.
+CREATE POLICY "KU coordinators can edit partner universities"
+ON public.partneruniversity
+FOR UPDATE
+TO authenticated
+USING (
+    (SELECT public.is_ku_coordinator())
+    AND university_id <> 4
+    AND deleted_at IS NULL
+)
+WITH CHECK (
+    (SELECT public.is_ku_coordinator())
+    AND university_id <> 4
+    AND deleted_at IS NULL
+);
+
+-- Lets a coordinator whose university was deleted see that, instead of a pending-access screen.
+CREATE POLICY "Coordinators can read their own university"
+ON public.partneruniversity
+FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.coordinator
+        WHERE coordinator.university = partneruniversity.university_id
+          AND coordinator.user_id = (SELECT auth.uid())
+    )
+);
 
 CREATE POLICY "KU coordinators can read emergency contacts"
 ON public.emergency_contact
@@ -2203,6 +2349,12 @@ WITH CHECK (
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
           AND user_id = (SELECT auth.uid())
+          AND EXISTS (
+              SELECT 1
+              FROM public.partneruniversity AS university
+              WHERE university.university_id = coordinator.university
+                AND university.deleted_at IS NULL
+          )
     )
 );
 
@@ -2216,6 +2368,12 @@ USING (
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
           AND user_id = (SELECT auth.uid())
+          AND EXISTS (
+              SELECT 1
+              FROM public.partneruniversity AS university
+              WHERE university.university_id = coordinator.university
+                AND university.deleted_at IS NULL
+          )
     )
 )
 WITH CHECK (
@@ -2224,6 +2382,12 @@ WITH CHECK (
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
           AND user_id = (SELECT auth.uid())
+          AND EXISTS (
+              SELECT 1
+              FROM public.partneruniversity AS university
+              WHERE university.university_id = coordinator.university
+                AND university.deleted_at IS NULL
+          )
     )
 );
 
@@ -2746,13 +2910,29 @@ FOR INSERT
 TO authenticated
 WITH CHECK (public.testing_insert_allowed('partneruniversity', NULL));
 
+-- In testing mode a KU coordinator may also change real partner universities: the snapshot
+-- trigger keeps the original and end_testing_mode restores it (issue #138).
 CREATE POLICY "Control partner university changes"
 ON public.partneruniversity
 AS RESTRICTIVE
 FOR UPDATE
 TO authenticated
-USING (public.testing_change_allowed('partneruniversity', university_id::TEXT))
-WITH CHECK (public.testing_change_allowed('partneruniversity', university_id::TEXT));
+USING (
+    public.testing_change_allowed('partneruniversity', university_id::TEXT)
+    OR (
+        (SELECT public.is_ku_coordinator())
+        AND public.get_maintenance_mode() IS FALSE
+        AND public.is_testing_mode_enabled() IS TRUE
+    )
+)
+WITH CHECK (
+    public.testing_change_allowed('partneruniversity', university_id::TEXT)
+    OR (
+        (SELECT public.is_ku_coordinator())
+        AND public.get_maintenance_mode() IS FALSE
+        AND public.is_testing_mode_enabled() IS TRUE
+    )
+);
 
 CREATE POLICY "Control partner university deletes"
 ON public.partneruniversity
@@ -3145,6 +3325,42 @@ BEGIN
     USING public.testing AS testing
     WHERE testing.id <> 1
       AND testing.country_id = record.id;
+
+    -- Real records changed during the test go back to how they were (issue #138). This runs
+    -- after the test records are deleted, so a restored name cannot clash with one of them.
+    -- Names swapped during the test would clash with each other part-way through a single
+    -- update, so the restored rows first take a placeholder unique to their id.
+    UPDATE public.partneruniversity AS record
+    SET name = 'Restoring partner university ' || record.university_id
+    FROM public.testing_backup AS backup
+    WHERE backup.table_name = 'partneruniversity'
+      AND backup.record_id = record.university_id::TEXT;
+
+    UPDATE public.partneruniversity AS record
+    SET name = original.name,
+        logo_url = original.logo_url,
+        latitude = original.latitude,
+        longitude = original.longitude,
+        available = original.available,
+        location = original.location,
+        details = original.details,
+        airport_name = original.airport_name,
+        airport_code = original.airport_code,
+        airport_latitude = original.airport_latitude,
+        airport_longitude = original.airport_longitude,
+        deleted_at = original.deleted_at
+    FROM public.testing_backup AS backup
+    CROSS JOIN LATERAL jsonb_populate_record(NULL::public.partneruniversity, backup.original) AS original
+    WHERE backup.table_name = 'partneruniversity'
+      AND backup.record_id = record.university_id::TEXT;
+
+    UPDATE public.coordinator AS record
+    SET email_accepted = (backup.original ->> 'email_accepted')::BOOLEAN
+    FROM public.testing_backup AS backup
+    WHERE backup.table_name = 'coordinator'
+      AND backup.record_id = record.coordinator_id::TEXT;
+
+    DELETE FROM public.testing_backup;
 
     DELETE FROM public.testing
     WHERE id <> 1;

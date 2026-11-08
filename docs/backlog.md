@@ -68,6 +68,10 @@ the story ID, the title, who built it, and what happened to it.
 | #114 | KU coordinator adds a partner university to the website | Hadi Haidar | phase-4 |
 | #115 | KU coordinator compares two exchange cycles | Rawan Abdrabou | phase-4 |
 | #117 | Filter by author | Rawan Abdrabou | phase-4 |
+| #131 | Incoming student contacts the Student Exchange Office through a support request form | Yousef Almohammed | phase-4 |
+| #132 | Incoming student downloads an official exchange acceptance letter | Aysha Jan | phase-4 |
+| #133 | Incoming student views a pre-arrival guide for studying at Kuwait University | Almaha Alajmi | phase-4 |
+| #138 | KU coordinator manages Partner universities | Fatma Alshimmari | phase-4 |
 
 
 ## Phase 4 — saved 4 November

@@ -1,9 +1,11 @@
 # Store listing — KU Exchange CBA Syllabus Importer
 
 Text to paste into the Chrome Web Store, Microsoft Edge Add-ons and addons.mozilla.org
-(AMO) forms. A team member submits it; the extension package is the `extension/` folder
-zipped with `manifest.json` at the top level (leave out this file, `README.md`,
-`PRIVACY.md`, the `.ico` files and the `store-assets` folder).
+(AMO) forms. A team member submits it. For Chrome and Edge the extension package is the
+`extension/` folder zipped with `manifest.json` at the top level (leave out this file,
+`README.md`, `PRIVACY.md`, the `.ico` files, `build-firefox.mjs`, `manifest.firefox.json`
+and the `store-assets` folder). For AMO, run `npm run build:firefox-extension` and zip
+`extension-firefox/` the same way.
 
 ## Name
 

@@ -10,8 +10,8 @@ it does not.
 ## What the extension reads
 
 - **On `cmu-cba.ku.edu.kw`**, only in the tab the extension opened for an import, it reads
-  the public course list (course code, course name, department) and downloads each
-  course's syllabus file. It runs nowhere else on that site and does nothing in tabs you
+  the public course list (course code, course name, department), reads each course's
+  description and learning outcomes, and downloads each course's syllabus file. It runs nowhere else on that site and does nothing in tabs you
   opened yourself.
 - **On the KU Exchange portal** (`isom472-fall2026.github.io/team2`), it passes messages
   between the portal page and the extension, so the portal can start an import and

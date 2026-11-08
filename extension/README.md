@@ -18,9 +18,15 @@ The extension is not published to a store. Load it from this folder.
 
 **Firefox (140 or later)**
 
-1. Open `about:debugging#/runtime/this-firefox`.
-2. Click **Load Temporary Add-on…** and choose `extension/manifest.json`.
-3. Open `about:addons`, select the importer, open **Permissions**, and allow access to
+Firefox needs a different background setting from Chrome and Edge, so it loads a copy of
+this folder built with its own manifest (the Firefox-only keys are in
+`manifest.firefox.json`).
+
+1. In the repository folder, run `npm run build:firefox-extension`. This writes the copy to
+   `extension-firefox/`. Run it again after any change to the extension.
+2. Open `about:debugging#/runtime/this-firefox`.
+3. Click **Load Temporary Add-on…** and choose `extension-firefox/manifest.json`.
+4. Open `about:addons`, select the importer, open **Permissions**, and allow access to
    `cmu-cba.ku.edu.kw` and the KU Exchange site if they are switched off.
 
 Firefox removes a temporary add-on when it closes, so load it again next time.

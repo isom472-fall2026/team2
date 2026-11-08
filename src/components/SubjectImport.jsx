@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'react-router-dom'
+import { COURSE_CREDITS } from '../courseCredits'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { supabase } from '../supabase'
+import SubjectFilters from './SubjectFilters'
 import './SubjectImport.css'
 
 const FROM_APP = 'ku-exchange-app'
@@ -145,7 +148,7 @@ function SubjectImport() {
   const loadSubjects = useCallback(async () => {
     const { data, error } = await supabase
       .from('subjects')
-      .select('course_code, course_display_code, course_name, course_department, course_syllabus, course_link')
+      .select('course_code, course_display_code, course_name, course_department, course_syllabus')
       .order('course_department')
       .order('course_display_code')
     setSubjectsError(error ? getDatabaseErrorMessage(error) : '')
@@ -298,38 +301,48 @@ function SubjectImport() {
       ) : subjects.length === 0 ? (
         <p>No subjects have been imported yet.</p>
       ) : (
-        <div className="subject-import__table-wrap">
-          <table className="subject-import__table">
-            <thead>
-              <tr>
-                <th scope="col">Code</th>
-                <th scope="col">Course</th>
-                <th scope="col">Department</th>
-                <th scope="col">Syllabus</th>
-              </tr>
-            </thead>
-            <tbody>
-              {subjects.map((subject) => (
-                <tr key={subject.course_code}>
-                  <td>
-                    <a className="subject-import__link" href={subject.course_link} target="_blank" rel="noreferrer">
-                      {subject.course_display_code}
-                    </a>
-                  </td>
-                  <td>{subject.course_name}</td>
-                  <td>{subject.course_department}</td>
-                  <td>
-                    {subject.course_syllabus ? (
-                      <button className="subject-import__download" type="button" onClick={() => downloadSyllabus(subject)}>
-                        Download
-                      </button>
-                    ) : 'None'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SubjectFilters subjects={subjects}>
+          {(matches) => (
+            <div className="subject-import__table-wrap">
+              <table className="subject-import__table">
+                <thead>
+                  <tr>
+                    <th scope="col">Code</th>
+                    <th scope="col">Course</th>
+                    <th scope="col">Department</th>
+                    <th scope="col">Credits</th>
+                    <th scope="col">Syllabus</th>
+                  </tr>
+                </thead>
+                <tbody lang="en" dir="ltr">
+                  {matches.map((subject) => (
+                    <tr key={subject.course_code}>
+                      <td>
+                        <Link className="subject-import__link" to={`/portal/subjects/${subject.course_code}`}>
+                          {subject.course_display_code}
+                        </Link>
+                      </td>
+                      <td>
+                        <Link className="subject-import__link" to={`/portal/subjects/${subject.course_code}`}>
+                          {subject.course_name}
+                        </Link>
+                      </td>
+                      <td>{subject.course_department}</td>
+                      <td>{COURSE_CREDITS}</td>
+                      <td>
+                        {subject.course_syllabus ? (
+                          <button className="subject-import__download" type="button" onClick={() => downloadSyllabus(subject)}>
+                            Download
+                          </button>
+                        ) : 'Syllabus not available'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SubjectFilters>
       )}
     </section>
   )

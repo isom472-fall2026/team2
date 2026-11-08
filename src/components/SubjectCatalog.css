@@ -1,0 +1,78 @@
+.subject-catalog__card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.subject-catalog__back {
+  justify-self: start;
+  color: var(--neon);
+  text-decoration: underline;
+}
+
+.subject-catalog__link {
+  color: var(--neon);
+  text-decoration: underline;
+}
+
+.subject-catalog__table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.subject-catalog__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.subject-catalog__table th,
+.subject-catalog__table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.subject-catalog__table th {
+  color: var(--text-strong);
+}
+
+.subject-catalog__detail {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+}
+
+.subject-catalog__detail h2 {
+  margin-top: 12px;
+  color: var(--text-strong);
+}
+
+.subject-catalog__detail > .btn {
+  justify-self: start;
+}
+
+.subject-catalog__credits {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+/* The CBA site keeps the line breaks it was given in a description. */
+.subject-catalog__description {
+  white-space: pre-line;
+}
+
+.subject-catalog__locked {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+}
+
+.subject-catalog__clos {
+  display: grid;
+  gap: 6px;
+  padding-left: 1.5rem;
+}

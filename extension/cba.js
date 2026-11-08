@@ -1,4 +1,6 @@
-// Runs on every cmu-cba.ku.edu.kw page, but only acts in the tab the import opened.
+// Runs on every cmu-cba.ku.edu.kw page, but only acts in the tab the import opened. It runs
+// as soon as the page's HTML is read (document_end): the course list is in that HTML, and
+// waiting for the whole page, analytics included, held the import back by seconds.
 
 const api = globalThis.browser ?? globalThis.chrome
 const COURSES_PATH = '/syllabus/courses/'
@@ -8,7 +10,16 @@ const COURSE_LINK = /^\/syllabus\/courses\/(\d{4})\/(\d{3})\/$/
 const PARALLEL_COURSES = 3
 // The login page shows the same Continue button whether or not the user is signed in, and
 // a sign-in can finish without this tab navigating, so the tab asks the site itself.
-const SIGN_IN_CHECK_MS = 2000
+const SIGN_IN_CHECK_MS = 1000
+// A question sent while the background is waking up can go unanswered, so the tab asks
+// again every quarter second, for up to a minute, until it gets a reply.
+const IMPORT_TAB_CHECK_MS = 250
+const IMPORT_TAB_CHECK_ATTEMPTS = 240
+// The import starts the moment the tab lands back on the CBA site, and right after the
+// Microsoft sign-in the site can still answer a page as if the user were signed out. A
+// sign-in redirect is retried a few times before the import decides the sign-in ended.
+const SIGNED_OUT_RETRIES = 2
+const SIGNED_OUT_RETRY_MS = 1500
 // Firefox makes a content script's own fetch as the extension, without the site's sign-in
 // cookies; content.fetch makes it as the page. Chrome and Edge have only the page's fetch.
 const pageFetch = globalThis.content?.fetch
@@ -183,12 +194,22 @@ function readCourseList(doc) {
 }
 
 async function fetchFromSite(url, what) {
-  const response = await pageFetch(url, { credentials: 'include' })
-  if (new URL(response.url).pathname.startsWith('/accounts/')) {
-    throw new Error('Your CBA sign-in ended during the import.')
+  for (let attempt = 0; ; attempt += 1) {
+    // no-store, so a sign-in redirect the browser saw earlier is never reused.
+    const response = await pageFetch(url, { credentials: 'include', cache: 'no-store' })
+    if (!new URL(response.url).pathname.startsWith('/accounts/')) {
+      if (!response.ok) throw new Error(`Could not open ${what} (HTTP ${response.status}).`)
+      return response
+    }
+    // The CBA site also sends a signed-in account to its sign-in page when that account may
+    // not open a page. If the course list still opens, the sign-in is fine and retrying
+    // cannot help: the account in use is not allowed to open course pages or syllabi.
+    if (await isSignedIn().catch(() => false)) {
+      throw new Error(`The KU account signed in to the CBA site can see the course list but is not allowed to open ${what}. Sign out of the CBA site, sign in with a KU account that can open course syllabi, and start again.`)
+    }
+    if (attempt >= SIGNED_OUT_RETRIES) throw new Error('Your CBA sign-in ended during the import.')
+    await new Promise((resolve) => setTimeout(resolve, SIGNED_OUT_RETRY_MS))
   }
-  if (!response.ok) throw new Error(`Could not open ${what} (HTTP ${response.status}).`)
-  return response
 }
 
 function toBase64(blob) {
@@ -200,9 +221,15 @@ function toBase64(blob) {
   })
 }
 
-async function readSyllabus(course) {
-  const page = await fetchFromSite(course.url, `the CBA page for ${course.displayCode}`)
-  const doc = new DOMParser().parseFromString(await page.text(), 'text/html')
+// A course page has no ids or labels to select by; each section is an <h2> heading followed
+// by its content, so the heading's text is what identifies the section.
+function readSection(doc, heading) {
+  const title = [...doc.querySelectorAll('h2')]
+    .find((element) => element.textContent.trim().toLowerCase() === heading)
+  return title?.nextElementSibling ?? null
+}
+
+async function readSyllabus(course, doc) {
   const download = doc.querySelector('a[href*="/syllabus/download/"]')
   if (!download) return null
 
@@ -214,6 +241,19 @@ async function readSyllabus(course) {
   return {
     type: (response.headers.get('content-type') ?? '').split(';')[0].trim(),
     data: await toBase64(blob),
+  }
+}
+
+async function readCoursePage(course) {
+  const page = await fetchFromSite(course.url, `the CBA page for ${course.displayCode}`)
+  const doc = new DOMParser().parseFromString(await page.text(), 'text/html')
+  const clos = [...(readSection(doc, 'what you will be able to do')?.querySelectorAll('li') ?? [])]
+    .map((item) => item.textContent.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+  return {
+    description: readSection(doc, 'course description')?.textContent.trim() || null,
+    clos: clos.length > 0 ? clos : null,
+    file: await readSyllabus(course, doc),
   }
 }
 
@@ -250,7 +290,7 @@ async function runImport() {
     while (!failure && nextIndex < courses.length) {
       const course = courses[nextIndex++]
       try {
-        const file = await readSyllabus(course)
+        const { description, clos, file } = await readCoursePage(course)
         const reply = await send({
           type: 'subject',
           subject: {
@@ -258,6 +298,8 @@ async function runImport() {
             course_display_code: course.displayCode,
             course_name: course.name,
             course_department: course.department,
+            course_description: description,
+            course_clos: clos,
           },
           file,
         })
@@ -333,11 +375,12 @@ async function routeImportTab() {
   }
 }
 
-// The tab starts in one of two ways, whichever comes first: it asks the background, or the
-// background tells it when the page finishes loading. Asking alone was not enough: after the
-// Microsoft sign-in the background has usually been stopped for being idle, and the question
-// sat unanswered until the user clicked the page.
+// The tab starts in one of two ways, whichever comes first: it keeps asking the background,
+// or the background tells it when the page finishes loading. After the Microsoft sign-in the
+// background has usually been stopped for being idle, and a single question or a single
+// push could both be missed, leaving the import waiting until the user clicked the page.
 let hasStarted = false
+let hasAnswer = false
 
 function startImportTab() {
   if (hasStarted) return
@@ -352,8 +395,21 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false
 })
 
-send({ type: 'is-import-tab' })
-  .then(({ importing }) => {
-    if (importing) startImportTab()
-  })
-  .catch(() => {})
+let importTabChecks = 0
+const importTabTimer = setInterval(askIfImportTab, IMPORT_TAB_CHECK_MS)
+
+function askIfImportTab() {
+  importTabChecks += 1
+  if (hasAnswer || hasStarted || !api.runtime?.id || importTabChecks > IMPORT_TAB_CHECK_ATTEMPTS) {
+    clearInterval(importTabTimer)
+    return
+  }
+  send({ type: 'is-import-tab' })
+    .then((reply) => {
+      hasAnswer = true
+      if (reply?.importing) startImportTab()
+    })
+    .catch(() => {})
+}
+
+askIfImportTab()

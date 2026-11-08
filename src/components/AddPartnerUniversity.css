@@ -40,3 +40,5 @@
 
 .add-university__logo { display: grid; min-width: 0; gap: 12px; margin: 0; padding: 0; border: 0; }
 .add-university__logo legend { margin-bottom: 7px; padding: 0; color: var(--text-strong); font-size: 0.86rem; font-weight: 600; }
+
+.add-university__notice { margin: 0 0 16px; padding: 12px 14px; border: 1px solid rgba(240, 165, 0, 0.6); border-radius: var(--radius-sm); color: var(--text-strong); }

@@ -26,6 +26,27 @@ const emptyForm = {
   logoUrl: '',
 }
 
+function textOf(value) {
+  return value == null ? '' : String(value)
+}
+
+// An existing logo is kept as an image link, so saving without touching it leaves it as is.
+function formFromUniversity(university) {
+  return {
+    name: university.name,
+    country: textOf(university.location),
+    details: textOf(university.details),
+    latitude: textOf(university.latitude),
+    longitude: textOf(university.longitude),
+    airportName: textOf(university.airport_name),
+    airportCode: textOf(university.airport_code),
+    airportLatitude: textOf(university.airport_latitude),
+    airportLongitude: textOf(university.airport_longitude),
+    logoSource: university.logo_url ? 'url' : 'upload',
+    logoUrl: textOf(university.logo_url),
+  }
+}
+
 function generateUniversityId() {
   const randomValues = new Uint32Array(1)
   crypto.getRandomValues(randomValues)
@@ -77,12 +98,14 @@ function FieldError({ id, message }) {
   return message ? <span className="add-university__field-error" id={id} role="alert">{message}</span> : null
 }
 
-function LocationPicker({ pins, placing, onPlace }) {
+function LocationPicker({ pins, placing, onPlace, startAt }) {
   const container = useRef(null)
   const map = useRef(null)
   const markers = useRef({})
   const placingRef = useRef(placing)
   const onPlaceRef = useRef(onPlace)
+  // Only where the map first opens; later pin changes move the markers, not the view.
+  const startRef = useRef(startAt)
 
   useEffect(() => {
     placingRef.current = placing
@@ -95,8 +118,8 @@ function LocationPicker({ pins, placing, onPlace }) {
     map.current = new mapboxgl.Map({
       container: container.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [20, 25],
-      zoom: 1.3,
+      center: startRef.current ? [startRef.current.longitude, startRef.current.latitude] : [20, 25],
+      zoom: startRef.current ? 4 : 1.3,
     })
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
     map.current.on('click', (event) => onPlaceRef.current(placingRef.current, event.lngLat))
@@ -106,6 +129,8 @@ function LocationPicker({ pins, placing, onPlace }) {
     return () => {
       resizeObserver.disconnect()
       Object.values(placedMarkers).forEach((marker) => marker.remove())
+      // Forget the removed markers too, or a remounted map would think its pins are already placed.
+      Object.keys(placedMarkers).forEach((kind) => delete placedMarkers[kind])
       map.current?.remove()
       map.current = null
     }
@@ -144,8 +169,11 @@ function pinFrom(latitude, longitude) {
   return { latitude: lat, longitude: lng }
 }
 
-export default function AddPartnerUniversity() {
-  const [form, setForm] = useState(emptyForm)
+// Without a university this adds a new one (issue #114); with one it edits it (issue #138).
+export default function AddPartnerUniversity({ university = null, onBack }) {
+  const isEditing = Boolean(university)
+  const [form, setForm] = useState(() => (university ? formFromUniversity(university) : emptyForm))
+  const [startAt] = useState(() => (university ? pinFrom(university.latitude, university.longitude) : null))
   const [logo, setLogo] = useState(null)
   const [logoInputKey, setLogoInputKey] = useState(0)
   const [countries, setCountries] = useState([])
@@ -187,7 +215,7 @@ export default function AddPartnerUniversity() {
   // Only one logo source is kept: switching clears the other, so a file and an address are
   // never both submitted.
   const chooseLogoSource = (logoSource) => {
-    setForm((current) => ({ ...current, logoSource, logoUrl: '' }))
+    setForm((current) => ({ ...current, logoSource, logoUrl: logoSource === 'url' ? textOf(university?.logo_url) : '' }))
     setLogo(null)
     setLogoInputKey((key) => key + 1)
     setErrors((current) => ({ ...current, logo: '', logoUrl: '' }))
@@ -210,11 +238,13 @@ export default function AddPartnerUniversity() {
     }
 
     setIsSaving(true)
-    const existing = await supabase
+    let existingQuery = supabase
       .from('partneruniversity')
       .select('university_id')
       .ilike('name', escapeLikePattern(form.name.trim()))
-      .limit(1)
+      .is('deleted_at', null)
+    if (isEditing) existingQuery = existingQuery.neq('university_id', university.university_id)
+    const existing = await existingQuery.limit(1)
     if (existing.error) {
       setStatus({ error: getDatabaseErrorMessage(existing.error), saved: '' })
       setIsSaving(false)
@@ -227,7 +257,7 @@ export default function AddPartnerUniversity() {
       return
     }
 
-    let universityId = generateUniversityId()
+    let universityId = isEditing ? university.university_id : generateUniversityId()
     let logoUrl = form.logoSource === 'url' && form.logoUrl !== '' ? form.logoUrl : null
     if (form.logoSource === 'upload' && logo) {
       const path = `${universityId}/${crypto.randomUUID()}.${LOGO_EXTENSIONS[logo.type]}`
@@ -241,8 +271,7 @@ export default function AddPartnerUniversity() {
     }
 
     // Text is stored exactly as typed, in whatever language or script the coordinator used.
-    const row = () => ({
-      university_id: universityId,
+    const details = () => ({
       name: form.name,
       location: Number(form.country),
       details: form.details.trim() ? form.details : null,
@@ -253,8 +282,32 @@ export default function AddPartnerUniversity() {
       airport_code: form.airportCode,
       airport_latitude: Number(form.airportLatitude),
       airport_longitude: Number(form.airportLongitude),
-      available: true,
     })
+
+    if (isEditing) {
+      // A single update, so a rejected save leaves every stored value as it was.
+      const update = await supabase
+        .from('partneruniversity')
+        .update(details())
+        .eq('university_id', universityId)
+        .select('university_id')
+      setIsSaving(false)
+      if (update.error) {
+        const isDuplicate = update.error.code === '23505' && update.error.message.includes('name')
+        const message = isDuplicate ? duplicateNameMessage(form.name) : getDatabaseErrorMessage(update.error)
+        if (isDuplicate) setErrors((current) => ({ ...current, name: message }))
+        setStatus({ error: message, saved: '' })
+        return
+      }
+      if (update.data.length === 0) {
+        setStatus({ error: 'The changes were not saved. The university may have been deleted, or you may not have permission.', saved: '' })
+        return
+      }
+      setStatus({ error: '', saved: form.name })
+      return
+    }
+
+    const row = () => ({ university_id: universityId, ...details(), available: true })
     let insert = await supabase.from('partneruniversity').insert(row())
     // The id is random, so a clash with an existing id is retried once with a new one.
     if (insert.error?.code === '23505' && insert.error.message.includes('pkey')) {
@@ -290,8 +343,17 @@ export default function AddPartnerUniversity() {
   return (
     <>
       <span className="auth-card__eyebrow">Partner universities</span>
-      <h2 id="portal-heading">Add a partner university</h2>
-      <p>New universities are available to students as soon as they are saved.</p>
+      {isEditing ? (
+        <>
+          <h2 id="portal-heading">Edit <span dir="auto">{university.name}</span></h2>
+          <p>Changes appear in the partner directory and on the world map as soon as they are saved.</p>
+        </>
+      ) : (
+        <>
+          <h2 id="portal-heading">Add a partner university</h2>
+          <p>New universities are available to students as soon as they are saved.</p>
+        </>
+      )}
       <form className="cycle-form add-university" onSubmit={submit} noValidate>
         <div className="cycle-form__grid">
           <label htmlFor="add-university-name">Name
@@ -344,7 +406,7 @@ export default function AddPartnerUniversity() {
               </label>
             ))}
           </div>
-          <LocationPicker pins={pins} placing={placing} onPlace={placePin} />
+          <LocationPicker pins={pins} placing={placing} onPlace={placePin} startAt={startAt} />
           <div className="cycle-form__grid">
             <label htmlFor="add-university-latitude">University latitude
               <input id="add-university-latitude" name="latitude" type="number" step="any" min="-90" max="90" value={form.latitude} onChange={updateField} aria-invalid={Boolean(errors.latitude)} aria-describedby={describedBy('latitude')} />
@@ -376,12 +438,16 @@ export default function AddPartnerUniversity() {
         {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
         <div className="cycle-form__actions">
           <button className="btn btn--primary" type="submit" disabled={isSaving}>
-            {isSaving ? 'Saving university...' : 'Add university'}
+            {isSaving ? 'Saving university...' : isEditing ? 'Save changes' : 'Add university'}
           </button>
+          {onBack && <button className="btn btn--secondary" type="button" onClick={onBack} disabled={isSaving}>Back to partner universities</button>}
         </div>
         {status.saved && (
           <p className="add-university__saved" role="status">
-            <strong dir="auto">{status.saved}</strong> was added. It now appears on the <Link to="/partners">partner directory and world map</Link>.
+            {isEditing
+              ? <>Changes to <strong dir="auto">{status.saved}</strong> were saved.</>
+              : <><strong dir="auto">{status.saved}</strong> was added.</>}
+            {' '}It now appears on the <Link to="/partners">partner directory and world map</Link>.
           </p>
         )}
       </form>

@@ -25,6 +25,7 @@ const CoordinatorPasswordPage = lazy(() => import('./components/CoordinatorAccou
 const TestingMode = lazy(() => import('./components/TestingMode'))
 const PartnerUniversityMap = lazy(() => import('./components/PartnerUniversityMap'))
 const AddPartnerUniversity = lazy(() => import('./components/AddPartnerUniversity'))
+const ManagePartnerUniversities = lazy(() => import('./components/ManagePartnerUniversities'))
 const SubjectImport = lazy(() => import('./components/SubjectImport'))
 const SubjectCatalog = lazy(() => import('./components/SubjectCatalog'))
 const SubjectDetail = lazy(() => import('./components/SubjectCatalog').then((module) => ({ default: module.SubjectDetail })))
@@ -788,7 +789,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         })
       supabase
         .from('partneruniversity')
-        .select('university_id, name')
+        .select('university_id, name, deleted_at')
         .order('name')
         .then(({ data, error }) => {
           if (error) setStatus({ error: getDatabaseErrorMessage(error), message: '' })
@@ -1297,6 +1298,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
             </button>
           )}
           {isKuCoordinator && (
+            <button className={activeView === 'manage-universities' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('manage-universities')}>
+              <span aria-hidden="true">✎</span> Manage universities
+            </button>
+          )}
+          {isKuCoordinator && (
             <button className={activeView === 'subjects' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('subjects')}>
               <span aria-hidden="true">▥</span> CBA subjects
             </button>
@@ -1327,6 +1333,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       <section className="portal-card portal-card--wide portal-card--workspace">
         {activeView === 'account' && <Suspense fallback={null}><CoordinatorAccountSettings profile={profile} /></Suspense>}
         {isKuCoordinator && activeView === 'add-university' && <Suspense fallback={null}><AddPartnerUniversity /></Suspense>}
+        {isKuCoordinator && activeView === 'manage-universities' && (
+          <Suspense fallback={null}>
+            <ManagePartnerUniversities fallbackCoordinates={partnerUniversityCoordinates} fallbackAirports={partnerUniversityAirports} />
+          </Suspense>
+        )}
         {isKuCoordinator && activeView === 'subjects' && <Suspense fallback={null}><SubjectImport /></Suspense>}
         {isKuCoordinator && activeView === 'start' && (
           <>
@@ -1701,26 +1712,30 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {coordinators.map((coordinator) => (
-                        <tr key={coordinator.coordinator_id}>
-                          <th scope="row">{coordinator.name}</th>
-                          <td>{coordinator.email}</td>
-                          <td>{partnerUniversities.find(({ university_id }) => Number(university_id) === Number(coordinator.university))?.name || `University #${coordinator.university}`}</td>
-                          <td>{coordinator.email_accepted ? 'Granted' : 'Requested'}</td>
-                          <td>
-                            <div className="nomination-table__actions">
-                              {!coordinator.email_accepted && (
-                                <button className="btn btn--secondary" type="button" onClick={() => updateCoordinatorAccess(coordinator, true)}>
-                                  Accept
+                      {coordinators.map((coordinator) => {
+                        const university = partnerUniversities.find(({ university_id }) => Number(university_id) === Number(coordinator.university))
+                        const universityDeleted = Boolean(university?.deleted_at)
+                        return (
+                          <tr key={coordinator.coordinator_id}>
+                            <th scope="row">{coordinator.name}</th>
+                            <td>{coordinator.email}</td>
+                            <td>{university?.name || `University #${coordinator.university}`}</td>
+                            <td>{universityDeleted ? 'University deleted' : coordinator.email_accepted ? 'Granted' : 'Requested'}</td>
+                            <td>
+                              <div className="nomination-table__actions">
+                                {!coordinator.email_accepted && !universityDeleted && (
+                                  <button className="btn btn--secondary" type="button" onClick={() => updateCoordinatorAccess(coordinator, true)}>
+                                    Accept
+                                  </button>
+                                )}
+                                <button className="btn btn--danger" type="button" onClick={() => updateCoordinatorAccess(coordinator, false)}>
+                                  Refuse
                                 </button>
-                              )}
-                              <button className="btn btn--danger" type="button" onClick={() => updateCoordinatorAccess(coordinator, false)}>
-                                Refuse
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1754,7 +1769,41 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
   )
 }
 
-function CoordinatorAccessPending({ user, onSignOut, onDeleted }) {
+function CoordinatorAccessPending({ user, universityId, onSignOut, onDeleted }) {
+  const [deletedUniversity, setDeletedUniversity] = useState(null)
+
+  useEffect(() => {
+    let isCurrent = true
+    supabase
+      .from('partneruniversity')
+      .select('name, deleted_at')
+      .eq('university_id', universityId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (isCurrent && data?.deleted_at) setDeletedUniversity(data.name)
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [universityId])
+
+  if (deletedUniversity) {
+    return (
+      <section className="portal-page" aria-labelledby="access-pending-heading">
+        <div className="portal-card">
+          <span className="auth-card__eyebrow">Access removed</span>
+          <h1 id="access-pending-heading">Your university is no longer a partner</h1>
+          <p>
+            <strong dir="auto">{deletedUniversity}</strong> has been removed from the Kuwait University exchange
+            programme, so coordinator access for <strong>{user.email}</strong> has ended.
+          </p>
+          <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
+          <AccountDeleteButton onDeleted={onDeleted} />
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="portal-page" aria-labelledby="access-pending-heading">
       <div className="portal-card">
@@ -1782,7 +1831,7 @@ function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus, passw
   if (profile?.role === 'coordinator') {
     const isKuCoordinator = isKuCoordinatorProfile(profile, user.email)
     if (!isKuCoordinator && profile.email_accepted !== true) {
-      return <CoordinatorAccessPending user={user} onSignOut={onSignOut} onDeleted={onDeleted} />
+      return <CoordinatorAccessPending user={user} universityId={profile.university} onSignOut={onSignOut} onDeleted={onDeleted} />
     }
     if (passwordOnly) return <CoordinatorPasswordPage />
     return <CoordinatorPortal onDeleted={onDeleted} onSignOut={onSignOut} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
@@ -2020,18 +2069,21 @@ function PartnerUniversitiesRoute() {
       let result = await supabase
         .from('partneruniversity')
         .select('university_id, name, logo_url, details, latitude, longitude, airport_name, airport_code, airport_latitude, airport_longitude')
+        .eq('available', true)
         .order('name')
       // Until the #114 migration has run, the airport columns do not exist yet.
       if (result.error?.message.includes('airport')) {
         result = await supabase
           .from('partneruniversity')
           .select('university_id, name, logo_url, details, latitude, longitude')
+          .eq('available', true)
           .order('name')
       }
       if (result.error?.message.includes('latitude') || result.error?.message.includes('longitude')) {
         result = await supabase
           .from('partneruniversity')
           .select('university_id, name, logo_url, details')
+          .eq('available', true)
           .order('name')
       }
       if (!isCurrent) return

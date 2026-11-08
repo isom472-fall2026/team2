@@ -77,6 +77,70 @@
   margin-bottom: 28px;
 }
 
+.outbound-offers {
+  margin-bottom: 28px;
+}
+
+.outbound-offers__item {
+  display: grid;
+  gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+
+.outbound-offers__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.outbound-offers__heading h3 {
+  margin: 0;
+  color: var(--text-strong);
+}
+
+.outbound-offers__details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0;
+}
+
+.outbound-offers__details dt {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.outbound-offers__details dd {
+  margin: 2px 0 0;
+  color: var(--text-strong);
+}
+
+.outbound-offers__note strong {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+/* The coordinator's note is shown exactly as it was typed, line breaks included. */
+.outbound-offers__note p {
+  margin: 2px 0 0;
+  color: var(--text-strong);
+  white-space: pre-wrap;
+}
+
+.outbound-offers__confirm p {
+  margin: 0 0 10px;
+}
+
+.outbound-offers__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .outbound-application-list__item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

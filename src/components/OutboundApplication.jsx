@@ -845,6 +845,144 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
   )
 }
 
+const idleOfferAction = { loading: false, error: '', message: '' }
+
+function AlternativeOffers({ applications, cycles, universities, onChanged }) {
+  const [offers, setOffers] = useState([])
+  const [loadState, setLoadState] = useState({ loading: true, error: '' })
+  const [refresh, setRefresh] = useState(0)
+  const [confirming, setConfirming] = useState(null)
+  const [action, setAction] = useState(idleOfferAction)
+  const applicationIds = applications.map((application) => application.application_id).join(',')
+
+  useEffect(() => {
+    let current = true
+    const ids = applicationIds ? applicationIds.split(',') : []
+    if (ids.length === 0) {
+      setOffers([])
+      setLoadState({ loading: false, error: '' })
+      return () => { current = false }
+    }
+    supabase
+      .from('outbound_offers')
+      .select('id, application_id, university_id, note, offer_status, created_at, partneruniversity(name, country(name, city))')
+      .in('application_id', ids)
+      .order('created_at', { ascending: false })
+      .then(({ data, error: offersError }) => {
+        if (!current) return
+        setOffers(offersError ? [] : data || [])
+        setLoadState({ loading: false, error: offersError ? getDatabaseErrorMessage(offersError) : '' })
+      })
+    return () => { current = false }
+  }, [applicationIds, refresh])
+
+  const universityName = (id) => universities.find((university) => Number(university.university_id) === Number(id))?.name
+
+  const respond = async (offer, accept) => {
+    setAction({ loading: true, error: '', message: '' })
+    const { error: respondError } = await supabase.rpc('respond_to_outbound_offer', {
+      requested_offer_id: offer.id,
+      accept_offer: accept,
+    })
+    if (respondError) {
+      setAction({ loading: false, error: getDatabaseErrorMessage(respondError), message: '' })
+      return
+    }
+    setConfirming(null)
+    setRefresh((count) => count + 1)
+    await onChanged()
+    const name = offer.partneruniversity?.name || 'the offered university'
+    setAction({
+      loading: false,
+      error: '',
+      message: accept
+        ? `You accepted the offer. Your application is now for ${name}.`
+        : `You declined the offer from ${name}. Your application keeps its current university.`,
+    })
+  }
+
+  if (loadState.loading || (offers.length === 0 && !loadState.error && !action.message)) return null
+
+  return (
+    <section className="outbound-offers" aria-labelledby="outbound-offers-heading">
+      <h2 id="outbound-offers-heading" className="portal-section-heading">Alternative university offers</h2>
+      <p>The KU exchange coordinator offered these universities in place of your preferred choice.</p>
+      {loadState.error && <p className="outbound-application__error" role="alert">{loadState.error}</p>}
+      {offers.map((offer) => {
+        const application = applications.find((item) => String(item.application_id) === String(offer.application_id))
+        const cycle = cycles.find((item) => Number(item.id) === Number(application?.semester_applied_for))
+        const university = offer.partneruniversity
+        const currentName = universityName(application?.university_id) || 'your current choice'
+        const isConfirming = confirming?.id === offer.id
+        return (
+          <article className="outbound-offers__item" key={offer.id}>
+            <div className="outbound-offers__heading">
+              <h3>{university?.name || 'This university is no longer available'}</h3>
+              <span className={`outbound-application-list__status outbound-application-list__status--${offer.offer_status.toLowerCase()}`}>
+                {offer.offer_status}
+              </span>
+            </div>
+            <dl className="outbound-offers__details">
+              <div><dt>Country</dt><dd>{university?.country?.name || 'Not listed'}</dd></div>
+              <div><dt>City</dt><dd>{university?.country?.city || 'Not listed'}</dd></div>
+              <div>
+                <dt>For application</dt>
+                <dd>#{offer.application_id}{cycle ? ` · ${cycle.semester} ${cycle.academic_year}` : ''}</dd>
+              </div>
+            </dl>
+            {offer.note && (
+              <div className="outbound-offers__note">
+                <strong>Note from the coordinator</strong>
+                <p>{offer.note}</p>
+              </div>
+            )}
+            {offer.offer_status === 'Pending' && !isConfirming && (
+              <div className="outbound-offers__actions">
+                <button className="btn btn--primary" type="button" disabled={action.loading} onClick={() => {
+                  setConfirming({ id: offer.id, accept: true })
+                  setAction(idleOfferAction)
+                }}>
+                  Accept offer
+                </button>
+                <button className="btn btn--secondary" type="button" disabled={action.loading} onClick={() => {
+                  setConfirming({ id: offer.id, accept: false })
+                  setAction(idleOfferAction)
+                }}>
+                  Decline offer
+                </button>
+              </div>
+            )}
+            {offer.offer_status === 'Pending' && isConfirming && (
+              <div className="outbound-offers__confirm">
+                <p>
+                  {confirming.accept
+                    ? `Accept ${university?.name || 'this university'}? It replaces ${currentName} on your application, and your other pending offers on it are declined.`
+                    : `Decline ${university?.name || 'this university'}? Your application stays with ${currentName}.`}
+                </p>
+                <div className="outbound-offers__actions">
+                  <button
+                    className={confirming.accept ? 'btn btn--primary' : 'btn btn--danger'}
+                    type="button"
+                    disabled={action.loading}
+                    onClick={() => respond(offer, confirming.accept)}
+                  >
+                    {action.loading ? 'Saving…' : confirming.accept ? 'Confirm acceptance' : 'Confirm decline'}
+                  </button>
+                  <button className="btn btn--secondary" type="button" disabled={action.loading} onClick={() => setConfirming(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </article>
+        )
+      })}
+      {action.error && <p className="outbound-application__error" role="alert">{action.error}</p>}
+      {action.message && <p className="outbound-application__message" role="status">{action.message}</p>}
+    </section>
+  )
+}
+
 function OutboundApplication() {
   const user = useAppStore((state) => state.session?.user)
   const location = useLocation()
@@ -1569,6 +1707,14 @@ function OutboundApplication() {
         </button>
       </div>
       {openCycles.length === 0 && <p>No KU semester is currently accepting applications.</p>}
+      {student && (
+        <AlternativeOffers
+          applications={applications}
+          cycles={cycles}
+          universities={universities}
+          onChanged={() => loadApplications(student.student_id).catch((loadError) => setError(getDatabaseErrorMessage(loadError)))}
+        />
+      )}
       {applications.length > 0 ? (
         <div className="outbound-application-list">
           <h2 className="portal-section-heading">Your applications</h2>

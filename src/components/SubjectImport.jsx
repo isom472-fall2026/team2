@@ -12,7 +12,7 @@ const FROM_EXTENSION = 'cba-syllabus-importer'
 const SYLLABUS_BUCKET = 'syllabi'
 // The extension answers a ping at once, so silence after this long means it is not installed.
 const EXTENSION_CHECK_MS = 1500
-const EXTENSION_README = 'https://github.com/isom472-fall2026/team2/blob/main/extension/README.md'
+const CHROME_WEB_STORE = 'https://chrome.google.com/webstore/detail/ffcmglhjadnmbbfaieflgjcdbkalmgja'
 // The CBA site publishes syllabi as PDF and as Word files; these are the types the bucket accepts.
 const SYLLABUS_EXTENSIONS = {
   'application/pdf': 'pdf',
@@ -122,9 +122,9 @@ function ExtensionStatus({ state, version, onCheckAgain }) {
         </strong>
         {state === 'missing' && (
           <span>
-            Install it to enable the import.{' '}
-            <a className="subject-import__link" href={EXTENSION_README} target="_blank" rel="noreferrer">How to install it</a>
-            . In Chrome and Edge, reload this page after installing.
+            Install it from the{' '}
+            <a className="subject-import__link" href={CHROME_WEB_STORE} target="_blank" rel="noreferrer">Chrome Web Store</a>
+            {' '}to enable the import, then reload this page.
           </span>
         )}
       </div>

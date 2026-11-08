@@ -283,6 +283,58 @@ const defaultDecisionUpdates = {
   reject: 'You currently do not meet one of the general requirements for the student exchange program at KU. We encourage you to apply later.',
 }
 
+// Draft is left out by the story, and Modified because those rows are earlier versions of an
+// edited application that the list never shows.
+const statusFilterOptions = [
+  'Submitted', 'In Review', 'Pending Interview', 'Accepted', 'Approved',
+  'Rejected', 'Ineligible', 'Withdrawal Requested', 'Withdrawn',
+]
+const gpaBoundPattern = /^(\d+(\.\d*)?|\.\d+)$/
+const emptyGpaInput = { min: '', max: '' }
+const noGpaBounds = { min: null, max: null }
+
+function getGpaScale(application) {
+  return application.type === 'inbound' ? Number(application.max_gpa) || null : 4
+}
+
+// Incoming students report GPA on their home university's scale, so it is brought to KU's 4.0
+// scale before it is filtered or sorted against KU students' GPAs. It is rounded the way the
+// Manage page shows it, so a bound matches the number the coordinator reads.
+function getGpaOnFourScale(application) {
+  if (application.gpa === null || application.gpa === undefined || application.gpa === '') return null
+  const gpa = Number(application.gpa)
+  const scale = getGpaScale(application)
+  if (!Number.isFinite(gpa) || !scale) return null
+  return scale === 4 ? gpa : Math.round((gpa / scale) * 400) / 100
+}
+
+function formatGpa(application) {
+  const gpaOnFourScale = getGpaOnFourScale(application)
+  if (gpaOnFourScale === null) return 'Not provided'
+  if (application.type !== 'inbound') return String(application.gpa)
+  const scale = getGpaScale(application)
+  return `${application.gpa} of ${scale}${scale === 4 ? '' : ` (${gpaOnFourScale.toFixed(2)} on 4.0)`}`
+}
+
+function parseGpaBound(value, label) {
+  const text = value.trim()
+  if (!text) return { value: null }
+  if (!gpaBoundPattern.test(text) || Number(text) > 4) {
+    return { error: `${label} GPA must be a number from 0.0 to 4.0.` }
+  }
+  return { value: Number(text) }
+}
+
+function readGpaBounds(input) {
+  const min = parseGpaBound(input.min, 'Minimum')
+  const max = parseGpaBound(input.max, 'Maximum')
+  if (min.error || max.error) return { error: min.error || max.error }
+  if (min.value !== null && max.value !== null && min.value > max.value) {
+    return { error: 'The minimum GPA cannot be above the maximum GPA.' }
+  }
+  return { bounds: { min: min.value, max: max.value } }
+}
+
 function ApplicationList({ applications, profiles, cycles, universities, countries, contacts, onManage, onExport, loading, emptyMessage }) {
   if (loading) return <p role="status">Loading applications...</p>
   if (applications.length === 0) return <div className="portal-empty-state">{emptyMessage}</div>
@@ -297,6 +349,7 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
             <th scope="col">Destination university</th>
             <th scope="col">Nationality</th>
             <th scope="col">Travel semester</th>
+            <th scope="col">GPA</th>
             <th scope="col">Status</th>
             <th scope="col">Actions</th>
           </tr>
@@ -314,6 +367,7 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
                 <td>{university || 'Unavailable'}</td>
                 <td>{nationality || 'Unavailable'}</td>
                 <td>{getCycleLabel(application, cycles)}</td>
+                <td>{formatGpa(application)}</td>
                 <td>{application.application_status}</td>
                 <td>
                   <div className="nomination-table__actions">
@@ -357,6 +411,11 @@ export default function CoordinatorApplications() {
   const [nationalityFilter, setNationalityFilter] = useState('')
   const [universityFilter, setUniversityFilter] = useState('')
   const [semesterOrder, setSemesterOrder] = useState('descending')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [gpaInput, setGpaInput] = useState(emptyGpaInput)
+  const [gpaBounds, setGpaBounds] = useState(noGpaBounds)
+  const [gpaError, setGpaError] = useState('')
+  const [currentOrder, setCurrentOrder] = useState('name')
   const [exportError, setExportError] = useState('')
   const sectionRef = useRef(null)
 
@@ -439,6 +498,22 @@ export default function CoordinatorApplications() {
   const isHistory = section === 'history'
   const byStudentName = (left, right) => getStudentName(left, profiles[applicationType])
     .localeCompare(getStudentName(right, profiles[applicationType]))
+  const byGpaHighestFirst = (left, right) => {
+    const leftGpa = getGpaOnFourScale(left)
+    const rightGpa = getGpaOnFourScale(right)
+    if (leftGpa === rightGpa) return byStudentName(left, right)
+    if (leftGpa === null) return 1
+    if (rightGpa === null) return -1
+    return rightGpa - leftGpa
+  }
+  const isInGpaRange = (application) => {
+    if (gpaBounds.min === null && gpaBounds.max === null) return true
+    const gpa = getGpaOnFourScale(application)
+    return gpa !== null
+      && (gpaBounds.min === null || gpa >= gpaBounds.min)
+      && (gpaBounds.max === null || gpa <= gpaBounds.max)
+  }
+  const hasCurrentFilters = Boolean(statusFilter) || gpaBounds.min !== null || gpaBounds.max !== null
   const visibleApplications = isHistory
     ? historicalApplications
       .filter((application) => {
@@ -454,7 +529,30 @@ export default function CoordinatorApplications() {
         if (cycleSort !== 0) return semesterOrder === 'ascending' ? cycleSort : -cycleSort
         return byStudentName(left, right)
       })
-    : [...currentApplications].sort(byStudentName)
+    : currentApplications
+      .filter((application) => (!statusFilter || application.application_status === statusFilter) && isInGpaRange(application))
+      .sort(currentOrder === 'gpa' ? byGpaHighestFirst : byStudentName)
+
+  // An invalid bound keeps the last valid GPA filter in place, so the list never changes to
+  // match numbers the coordinator is told are wrong.
+  const changeGpaBound = (bound, value) => {
+    const nextInput = { ...gpaInput, [bound]: value }
+    setGpaInput(nextInput)
+    const { bounds, error: boundsError } = readGpaBounds(nextInput)
+    if (boundsError) {
+      setGpaError(`${boundsError} The GPA filter was not changed.`)
+      return
+    }
+    setGpaError('')
+    setGpaBounds(bounds)
+  }
+
+  const clearFilters = () => {
+    setStatusFilter('')
+    setGpaInput(emptyGpaInput)
+    setGpaBounds(noGpaBounds)
+    setGpaError('')
+  }
 
   const showSection = (nextSection) => {
     setSection(nextSection)
@@ -542,9 +640,48 @@ export default function CoordinatorApplications() {
           </select>
         </label>
       </div>}
+      {!isHistory && (
+        <>
+          <div className="coordinator-applications__filters" role="group" aria-label="Filter applications">
+            <label>
+              Status
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="">All statuses</option>
+                {statusFilterOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </label>
+            <label>
+              Minimum GPA
+              <input inputMode="decimal" placeholder="0.0" value={gpaInput.min} onChange={(event) => changeGpaBound('min', event.target.value)} />
+            </label>
+            <label>
+              Maximum GPA
+              <input inputMode="decimal" placeholder="4.0" value={gpaInput.max} onChange={(event) => changeGpaBound('max', event.target.value)} />
+            </label>
+            <label>
+              Sort by
+              <select value={currentOrder} onChange={(event) => setCurrentOrder(event.target.value)}>
+                <option value="name">Student name</option>
+                <option value="gpa">GPA, highest first</option>
+              </select>
+            </label>
+            <button className="btn btn--secondary coordinator-applications__clear" type="button" onClick={clearFilters}>
+              Clear filters
+            </button>
+          </div>
+          {applicationType === 'inbound' && (
+            <p className="coordinator-applications__cycle">Inbound GPAs are compared on KU&apos;s 4.0 scale.</p>
+          )}
+          {gpaError && <p className="auth-form__error" role="alert">{gpaError}</p>}
+        </>
+      )}
       {error && <p className="auth-form__error" role="alert">{error}</p>}
       {exportError && <p className="auth-form__error" role="alert">{exportError}</p>}
-      <p className="coordinator-applications__count" aria-live="polite">{visibleApplications.length} application(s)</p>
+      <p className="coordinator-applications__count" aria-live="polite">
+        {!isHistory && hasCurrentFilters
+          ? `${visibleApplications.length} of ${currentApplications.length} application(s) match the filters`
+          : `${visibleApplications.length} application(s)`}
+      </p>
       <ApplicationList
         applications={visibleApplications}
         profiles={profiles}
@@ -557,7 +694,9 @@ export default function CoordinatorApplications() {
         loading={isLoading}
         emptyMessage={isHistory
           ? 'No approved applications from previous cycles match these filters.'
-          : 'There are no applications for this KU semester yet.'}
+          : hasCurrentFilters && currentApplications.length > 0
+            ? 'No applications for this KU semester match these filters.'
+            : 'There are no applications for this KU semester yet.'}
       />
       {!isHistory && (
         <div className="coordinator-applications__history-link">
@@ -639,6 +778,171 @@ function UpdateHistory({ type, applicationId, refreshKey, headingId }) {
             <li key={update.id}>
               <time dateTime={update.created_at}>{formatUpdateTime(update.created_at)}</time>
               <p>{update.details}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
+}
+
+// The statuses offer_outbound_alternatives() accepts.
+const offerableStatuses = ['Submitted', 'Pending Interview']
+const idleOfferAction = { loading: false, error: '', message: '' }
+
+function AlternativeOffers({ application, universities }) {
+  const [state, setState] = useState({ key: null, offers: [], error: '' })
+  const [refresh, setRefresh] = useState(0)
+  const [isComposing, setIsComposing] = useState(false)
+  const [selected, setSelected] = useState([])
+  const [note, setNote] = useState('')
+  const [action, setAction] = useState(idleOfferAction)
+  const applicationId = application.application_id
+  // Accepting an offer changes the application's university, which reaches this page live, so
+  // the offers are read again when it changes.
+  const requestKey = `${applicationId}-${application.university_id}-${refresh}`
+
+  useEffect(() => {
+    let isCurrent = true
+    supabase
+      .from('outbound_offers')
+      .select('id, university_id, note, offer_status, created_at, status_updated_at')
+      .eq('application_id', applicationId)
+      .order('created_at', { ascending: false })
+      .then(({ data: rows, error: readError }) => {
+        if (!isCurrent) return
+        setState(readError
+          ? { key: requestKey, offers: [], error: readError.message || 'The offers could not be loaded.' }
+          : { key: requestKey, offers: rows || [], error: '' })
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [applicationId, requestKey])
+
+  const canOffer = offerableStatuses.includes(application.application_status)
+  const universityName = (id) => universities.find((university) => Number(university.university_id) === Number(id))?.name || `University #${id}`
+  const pendingUniversityIds = state.offers
+    .filter((offer) => offer.offer_status === 'Pending')
+    .map((offer) => Number(offer.university_id))
+  // Kuwait University (4) is the home university, so it is never offered as a destination.
+  const choices = universities.filter((university) => university.available !== false
+    && Number(university.university_id) !== 4
+    && Number(university.university_id) !== Number(application.university_id)
+    && !pendingUniversityIds.includes(Number(university.university_id)))
+
+  const toggleUniversity = (id) => {
+    setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+  }
+
+  const closeComposer = () => {
+    setIsComposing(false)
+    setSelected([])
+    setNote('')
+  }
+
+  const sendOffers = async (event) => {
+    event.preventDefault()
+    if (selected.length === 0) {
+      setAction({ loading: false, error: 'Select at least one partner university to offer.', message: '' })
+      return
+    }
+    setAction({ loading: true, error: '', message: '' })
+    const { data: rows, error: offerError } = await supabase.rpc('offer_outbound_alternatives', {
+      requested_application_id: applicationId,
+      requested_university_ids: selected,
+      // The note is sent exactly as typed; a note with no text at all means no note.
+      requested_note: note.trim() ? note : null,
+    })
+    if (offerError) {
+      setAction({ loading: false, error: offerError.message || 'The offers could not be sent.', message: '' })
+      return
+    }
+    closeComposer()
+    setRefresh((count) => count + 1)
+    const count = rows?.length ?? selected.length
+    setAction({ loading: false, error: '', message: `${count} ${count === 1 ? 'offer was' : 'offers were'} sent to the student.` })
+  }
+
+  const withdrawOffer = async (offerId) => {
+    setAction({ loading: true, error: '', message: '' })
+    const { error: withdrawError } = await supabase.rpc('withdraw_outbound_offer', { requested_offer_id: offerId })
+    if (withdrawError) {
+      setAction({ loading: false, error: withdrawError.message || 'The offer could not be withdrawn.', message: '' })
+      return
+    }
+    setRefresh((count) => count + 1)
+    setAction({ loading: false, error: '', message: 'The offer was withdrawn.' })
+  }
+
+  return (
+    <section className="coordinator-review__panel" aria-labelledby="review-offers-heading">
+      <h2 id="review-offers-heading">Alternative offers</h2>
+      {!canOffer && <p>Alternatives can only be offered while the application is Submitted or Pending Interview.</p>}
+      {canOffer && !isComposing && (
+        <div className="nomination-table__actions">
+          <button className="btn btn--primary" type="button" onClick={() => {
+            setIsComposing(true)
+            setAction(idleOfferAction)
+          }}>
+            Offer alternatives
+          </button>
+        </div>
+      )}
+      {canOffer && isComposing && (
+        <form className="offer-composer" onSubmit={sendOffers} noValidate>
+          <fieldset className="offer-composer__choices" disabled={action.loading}>
+            <legend>Partner universities to offer</legend>
+            {choices.length === 0 && <p>No other partner university is available to offer.</p>}
+            {choices.map((university) => {
+              const id = Number(university.university_id)
+              return (
+                <label key={id} className="offer-composer__choice">
+                  <input type="checkbox" checked={selected.includes(id)} onChange={() => toggleUniversity(id)} />
+                  {university.name}
+                </label>
+              )
+            })}
+          </fieldset>
+          <label className="update-composer__field">
+            Note for the student <span>(optional)</span>
+            <textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} disabled={action.loading} />
+          </label>
+          <div className="nomination-table__actions">
+            <button className="btn btn--primary" type="submit" disabled={action.loading}>
+              {action.loading ? 'Sending…' : 'Send offers'}
+            </button>
+            <button className="btn btn--secondary" type="button" onClick={() => {
+              closeComposer()
+              setAction(idleOfferAction)
+            }} disabled={action.loading}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      {action.error && <p className="auth-form__error" role="alert">{action.error}</p>}
+      {action.message && <p className="coordinator-review__message" role="status">{action.message}</p>}
+      {state.key === null && <p role="status">Loading offers...</p>}
+      {state.error && <p className="auth-form__error" role="alert">{state.error}</p>}
+      {state.key !== null && !state.error && state.offers.length === 0 && <p>No alternatives have been offered on this application.</p>}
+      {state.offers.length > 0 && (
+        <ol className="update-history">
+          {state.offers.map((offer) => (
+            <li key={offer.id} className="offer-history__item">
+              <div className="offer-history__heading">
+                <strong className="update-history__application">{universityName(offer.university_id)}</strong>
+                <span className={`coordinator-review__badge coordinator-review__badge--${offer.offer_status.toLowerCase()}`}>
+                  {offer.offer_status}
+                </span>
+              </div>
+              <time dateTime={offer.created_at}>Offered {formatUpdateTime(offer.created_at)}</time>
+              {offer.note && <p>{offer.note}</p>}
+              {offer.offer_status === 'Pending' && (
+                <button className="btn btn--secondary" type="button" onClick={() => withdrawOffer(offer.id)} disabled={action.loading}>
+                  Withdraw offer
+                </button>
+              )}
             </li>
           ))}
         </ol>
@@ -1192,6 +1496,8 @@ export function ManageApplication({ type }) {
                   {decision.error && <p className="auth-form__error" role="alert">{decision.error}</p>}
                   {decision.message && <p className="coordinator-review__message" role="status">{decision.message}</p>}
                 </section>
+
+                {type === 'outbound' && <AlternativeOffers application={application} universities={lookups.universities} />}
 
                 <UpdateHistory
                   type={type}

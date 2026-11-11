@@ -394,6 +394,8 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .auth-card__eyebrow {
+  /* Not inline: inline boxes ignore the transform that slides items to a new position. */
+  display: inline-block;
   color: var(--neon);
   font-size: 0.78rem;
   font-weight: 700;
@@ -469,6 +471,11 @@ svg { display: block; flex-shrink: 0; }
   display: flow-root;
 }
 
+/* Positioned so the sliding of its items can be measured from it (see useFlipLayout). */
+.auth-card__columns {
+  position: relative;
+}
+
 .typed-text {
   position: relative;
   display: block;
@@ -495,25 +502,37 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .fade-text {
+  position: relative;
   display: inline-block;
-  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
-.fade-text--out {
-  opacity: 0;
-  transform: translateY(-5px);
+/* While the old text fades out on top, the new text already holds its place in the layout. */
+.fade-text__next {
+  color: transparent;
+}
+
+.fade-text__old {
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: fade-text-out 0.16s ease forwards;
 }
 
 .fade-text--in {
   animation: fade-text-in 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Starts a beat late so the fields already there have slid out of the way first. */
 .auth-reveal {
-  animation: auth-reveal 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: auth-reveal 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.14s both;
 }
 
 @keyframes fade-text-in {
   from { opacity: 0; transform: translateY(6px); }
+}
+
+@keyframes fade-text-out {
+  to { opacity: 0; transform: translateY(-5px); }
 }
 
 @keyframes auth-reveal {
@@ -585,7 +604,7 @@ svg { display: block; flex-shrink: 0; }
 /* On wide screens the card moves aside so the hub and most of its routes stay in view. */
 @media (min-width: 1100px) {
   .exchange-routes {
-    --routes-hub-x: 0.74;
+    --routes-hub-x: 0.88;
     --routes-hub-y: 0.42;
   }
 
@@ -594,12 +613,44 @@ svg { display: block; flex-shrink: 0; }
     padding-inline: clamp(2rem, 8vw, 9rem);
   }
 
+  /* Wide screens have room across but not down: the card widens into two columns (who you are,
+     then the form) so signing in or up does not need scrolling. */
+  .auth-scene > .auth-page {
+    padding-block: clamp(16px, 4vh, 40px);
+  }
+
+  .auth-scene .auth-card {
+    width: clamp(840px, 64vw, 1040px);
+    padding: clamp(24px, 4vh, 40px) 48px;
+  }
+
+  .auth-scene .auth-card h1 {
+    font-size: clamp(1.6rem, 2.3vw, 2.1rem);
+  }
+
+  .auth-card__columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 48px;
+  }
+
+  .auth-card__body {
+    padding-left: 48px;
+    border-left: 1px solid var(--border);
+  }
+
+  .auth-card__body .auth-form {
+    margin-top: 0;
+  }
+
   .exchange-routes__legend {
     position: absolute;
     right: clamp(2rem, 4vw, 4rem);
     bottom: 28px;
     display: flex;
-    gap: 20px;
+    flex-direction: column;
+    gap: 6px;
     margin: 0;
     color: var(--text-muted);
     font-size: 0.78rem;
@@ -621,6 +672,13 @@ svg { display: block; flex-shrink: 0; }
 
   .exchange-routes__legend span + span::before {
     background: var(--neon-gold);
+  }
+}
+
+/* Between 1100 and 1280 the wide card leaves no room beside it for the legend. */
+@media (min-width: 1100px) and (max-width: 1279px) {
+  .exchange-routes__legend {
+    display: none;
   }
 }
 
@@ -762,6 +820,7 @@ svg { display: block; flex-shrink: 0; }
   .auth-scene .auth-card,
   .auth-type-choice__option:has(input:checked) .auth-type-choice__icon,
   .fade-text--in,
+  .fade-text__old,
   .auth-reveal,
   .auth-form :is(input, select)[data-keystroke],
   .auth-form__spark[data-keystroke] {
@@ -770,8 +829,7 @@ svg { display: block; flex-shrink: 0; }
 
   .auth-type-choice__indicator,
   .auth-type-choice__icon,
-  .animated-height,
-  .fade-text {
+  .animated-height {
     transition: none;
   }
 }
@@ -1015,8 +1073,7 @@ svg { display: block; flex-shrink: 0; }
 /* A gradient border-image cannot follow rounded corners, so the border is a gradient layer
    masked down to a ring. It sits at z-index -1 inside the element's own stacking context,
    above the element's background and below its content. */
-.portal-sidebar::before,
-.portal-sidebar__action::before {
+.portal-sidebar::before {
   content: '';
   position: absolute;
   inset: -1px;
@@ -1051,56 +1108,53 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .portal-sidebar__nav {
+  position: relative;
+  isolation: isolate;
   display: grid;
-  gap: 8px;
+  gap: 2px;
 }
 
-/* Registered so the angle can be animated; browsers without @property show the light on the
-   selected tab standing still instead of travelling. */
-@property --portal-tab-angle {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-
-@keyframes portal-tab-orbit {
-  to { --portal-tab-angle: 360deg; }
+/* The only decorated thing in the list: it slides to whichever tab is selected. */
+.portal-sidebar__highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 212, 255, 0.1);
+  box-shadow: inset 3px 0 0 var(--neon);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s ease;
 }
 
 @keyframes portal-tab-enter {
   from {
     opacity: 0;
-    transform: translateX(-12px);
+    transform: translateX(-10px);
   }
 }
 
 .portal-sidebar__action {
-  --glass-border: linear-gradient(135deg, rgba(0, 212, 255, 0.5), rgba(123, 95, 255, 0.3) 30%, rgba(255, 255, 255, 0.05) 50%, rgba(123, 95, 255, 0.3) 70%, rgba(0, 212, 255, 0.5));
-  position: relative;
-  isolation: isolate;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
   color: var(--text);
-  background-color: transparent;
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.18);
+  background: transparent;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   text-align: left;
   cursor: pointer;
-  transition:
-    transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.25),
-    background-color var(--transition),
-    color var(--transition),
-    box-shadow var(--transition);
-  /* Backwards only: a forwards fill would hold the entrance transform and block the hover. */
-  animation: portal-tab-enter 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-  animation-delay: calc(var(--portal-tab-index, 0) * 45ms);
+  transition: color var(--transition), background-color var(--transition);
+  animation: portal-tab-enter 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--portal-tab-index, 0) * 30ms);
 }
 
 .portal-sidebar__nav > :nth-child(2) { --portal-tab-index: 1; }
@@ -1117,98 +1171,40 @@ svg { display: block; flex-shrink: 0; }
 .portal-sidebar__nav > :nth-child(13) { --portal-tab-index: 12; }
 .portal-sidebar__nav > :nth-child(14) { --portal-tab-index: 13; }
 
-.portal-sidebar__action::before {
-  background-size: 220% 220%;
-  background-position: 0% 0%;
-  opacity: 0.7;
-  transition: background-position 0.6s ease, opacity var(--transition);
-}
-
-.portal-sidebar__action::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.16) 50%, transparent 65%) no-repeat;
-  background-size: 250% 100%;
-  background-position: 105% 0;
-  transition: background-position 0.7s ease;
-  pointer-events: none;
-}
-
 .portal-sidebar__action span {
   width: 20px;
   color: var(--neon);
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   line-height: 1;
   text-align: center;
-  transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4), text-shadow var(--transition);
+  transition: transform var(--transition);
 }
 
 .portal-sidebar__action:hover {
   color: var(--text-strong);
-  background-color: rgba(0, 212, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 8px 24px rgba(0, 212, 255, 0.16);
-  transform: translateX(4px);
-}
-
-.portal-sidebar__action:hover::before {
-  background-position: 100% 100%;
-  opacity: 1;
-}
-
-.portal-sidebar__action:hover::after {
-  background-position: -5% 0;
+  background-color: rgba(0, 212, 255, 0.06);
 }
 
 .portal-sidebar__action:hover span {
-  transform: scale(1.18) rotate(-8deg);
-}
-
-.portal-sidebar__action:active {
-  transform: translateX(4px) scale(0.98);
+  transform: translateX(2px);
 }
 
 .portal-sidebar__action:focus-visible {
   outline: 2px solid var(--neon);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
 .portal-sidebar__action--active {
   color: var(--text-strong);
-  background-color: rgba(0, 212, 255, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 22px rgba(0, 212, 255, 0.22);
-}
-
-.portal-sidebar__action--active::before {
-  padding: 1.5px;
-  background: conic-gradient(from var(--portal-tab-angle), var(--border-bright) 0deg 220deg, var(--neon) 290deg, var(--neon-2) 325deg, var(--border-bright) 360deg);
-  opacity: 1;
-  animation: portal-tab-orbit 3.2s linear infinite;
-}
-
-.portal-sidebar__action--active span {
-  text-shadow: 0 0 12px var(--neon);
+  font-weight: 600;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .portal-sidebar__action,
   .portal-sidebar__action span,
-  .portal-sidebar__action::before,
-  .portal-sidebar__action::after {
+  .portal-sidebar__highlight {
     animation: none;
     transition: none;
-  }
-
-  .portal-sidebar__action:hover,
-  .portal-sidebar__action:active,
-  .portal-sidebar__action:hover span {
-    transform: none;
-  }
-
-  .portal-sidebar__action:hover::after {
-    background-position: 105% 0;
   }
 }
 
@@ -1230,6 +1226,36 @@ svg { display: block; flex-shrink: 0; }
 .portal-sidebar__footer .btn {
   justify-content: center;
   margin-top: 4px;
+}
+
+/* A view fades up when it is opened, its first blocks one after another. Dialogs and toasts are
+   left out: they are positioned against the screen, and a transform on them would move that. */
+.portal-card--workspace > :not(.cycle-delete-dialog__backdrop, .success-toast),
+.cycle-list__item,
+.nomination-table tbody tr {
+  animation: portal-view-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--portal-enter-index, 0) * 45ms);
+}
+
+:is(.portal-card--workspace > *, .cycle-list__item, .nomination-table tbody tr):nth-child(2) { --portal-enter-index: 1; }
+:is(.portal-card--workspace > *, .cycle-list__item, .nomination-table tbody tr):nth-child(3) { --portal-enter-index: 2; }
+:is(.portal-card--workspace > *, .cycle-list__item, .nomination-table tbody tr):nth-child(4) { --portal-enter-index: 3; }
+:is(.portal-card--workspace > *, .cycle-list__item, .nomination-table tbody tr):nth-child(5) { --portal-enter-index: 4; }
+:is(.portal-card--workspace > *, .cycle-list__item, .nomination-table tbody tr):nth-child(n + 6) { --portal-enter-index: 5; }
+
+@keyframes portal-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-card--workspace > :not(.cycle-delete-dialog__backdrop, .success-toast),
+  .cycle-list__item,
+  .nomination-table tbody tr {
+    animation: none;
+  }
 }
 
 .portal-card--workspace h2 {
@@ -1438,24 +1464,12 @@ svg { display: block; flex-shrink: 0; }
   box-shadow: var(--glow-card), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-:root[data-theme='light'] .portal-sidebar__action {
-  --glass-border: linear-gradient(135deg, rgba(14, 172, 227, 0.6), rgba(8, 127, 178, 0.3) 30%, rgba(18, 61, 82, 0.06) 50%, rgba(8, 127, 178, 0.3) 70%, rgba(14, 172, 227, 0.6));
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.5));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 6px 16px rgba(18, 61, 82, 0.08);
-}
-
-:root[data-theme='light'] .portal-sidebar__action::after {
-  background-image: linear-gradient(110deg, transparent 35%, rgba(14, 172, 227, 0.16) 50%, transparent 65%);
+:root[data-theme='light'] .portal-sidebar__highlight {
+  background: rgba(14, 172, 227, 0.14);
 }
 
 :root[data-theme='light'] .portal-sidebar__action:hover {
-  background-color: rgba(14, 172, 227, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 22px rgba(14, 172, 227, 0.18);
-}
-
-:root[data-theme='light'] .portal-sidebar__action--active {
-  background-color: rgba(14, 172, 227, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 20px rgba(14, 172, 227, 0.2);
+  background-color: rgba(14, 172, 227, 0.08);
 }
 
 :root[data-theme='light'] .cycle-list__item {

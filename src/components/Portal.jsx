@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import DateField from './DateField'
 import ConfirmDialog from './ConfirmDialog'
@@ -19,6 +19,33 @@ const AddPartnerUniversity = lazy(() => import('./AddPartnerUniversity'))
 const ManagePartnerUniversities = lazy(() => import('./ManagePartnerUniversities'))
 const SubjectImport = lazy(() => import('./SubjectImport'))
 const StudentAccount = lazy(() => import('./StudentAccount'))
+
+
+// One highlight for the whole sidebar. It slides to the selected tab, so the tabs themselves can
+// stay plain. Rendered as the last child of the nav it belongs to.
+function SidebarHighlight({ activeView }) {
+  const highlightRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const highlight = highlightRef.current
+    const nav = highlight.parentElement
+    const place = () => {
+      const tab = nav.querySelector('.portal-sidebar__action--active')
+      highlight.style.opacity = tab ? '1' : '0'
+      if (!tab) return
+      highlight.style.width = `${tab.offsetWidth}px`
+      highlight.style.height = `${tab.offsetHeight}px`
+      highlight.style.transform = `translate(${tab.offsetLeft}px, ${tab.offsetTop}px)`
+    }
+    place()
+    // Tabs move when the sidebar changes width or a label wraps.
+    const observer = new ResizeObserver(place)
+    observer.observe(nav)
+    return () => observer.disconnect()
+  }, [activeView])
+
+  return <span ref={highlightRef} className="portal-sidebar__highlight" aria-hidden="true" />
+}
 
 function generateNominationId() {
   const randomValues = new Uint32Array(1)
@@ -825,6 +852,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
               <span aria-hidden="true">◉</span> Testing mode
             </Link>
           )}
+          <SidebarHighlight activeView={activeView} />
         </nav>
         <div className="portal-sidebar__footer">
           <span className="portal-sidebar__secure">Signed in securely</span>
@@ -1392,6 +1420,7 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
               <span aria-hidden="true">▥</span> CBA subjects
             </Link>
           )}
+          <SidebarHighlight activeView={shownView} />
         </nav>
         <div className="portal-sidebar__footer">
           <span className="portal-sidebar__secure">Signed in securely</span>

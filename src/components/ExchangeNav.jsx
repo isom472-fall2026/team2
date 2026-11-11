@@ -23,7 +23,13 @@ export default function ExchangeNav({ theme, links, actions, onHomeClick, site =
 
   const brand = (
     <>
-      <span className="exchange-brand-logo" data-theme={theme} aria-hidden="true">
+      {/* The crest's own outline masks the light that sweeps across it. */}
+      <span
+        className="exchange-brand-logo"
+        data-theme={theme}
+        aria-hidden="true"
+        style={{ '--logo-mask': `url(${import.meta.env.BASE_URL}images/kulogodarkmode.png)` }}
+      >
         <img className="exchange-brand-logo--light" src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="" />
         <img className="exchange-brand-logo--dark" src={`${import.meta.env.BASE_URL}images/kulogodarkmode.png`} alt="" />
       </span>

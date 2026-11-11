@@ -8,6 +8,7 @@ import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { isKuCoordinatorProfile } from '../coordinatorProfile'
 import { useAppStore } from '../stores/appStore'
+import { useFlipLayout } from '../useFlipLayout'
 
 const authOptions = {
   ku: {
@@ -99,6 +100,8 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
   const setProfile = useAppStore((state) => state.setProfile)
   const [form, setForm] = useState({ email: '', password: '', name: '', studentId: '', university: '' })
   const sparkRef = useRef(null)
+  const columnsRef = useRef(null)
+  useFlipLayout(columnsRef, '.auth-card__intro > *, .auth-form > :not(.auth-form__spark), .auth-card__switch')
   const [universities, setUniversities] = useState([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -310,85 +313,91 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
   return (
     <section className="auth-page" aria-labelledby="auth-heading">
       <AnimatedHeight className="auth-card">
-        <span className="auth-card__eyebrow"><FadeText text={coordinatorOnly ? 'KU Coordinator' : options.label} /></span>
-        <h1 id="auth-heading">
-          <TypedText text={coordinatorOnly ? 'Sign in as a KU coordinator' : isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`} />
-        </h1>
-        <p className="auth-card__description">
-          <FadeText text={coordinatorOnly ? 'Sign in to disable maintenance mode and restore public access.' : options.description} />
-        </p>
-        {sessionEndedMessage && <p className="session-ended-message" role="status">{sessionEndedMessage}</p>}
-        {!coordinatorOnly && (
-          <fieldset className="auth-type-choice" data-selected={type}>
-            <legend>I am a</legend>
-            <div className="auth-type-choice__options" style={{ '--choice-index': Object.keys(authOptions).indexOf(type) }}>
-              <span className="auth-type-choice__indicator" aria-hidden="true" />
-              {Object.entries(authOptions).map(([userType, userOptions]) => (
-                <label key={userType} className="auth-type-choice__option">
-                  <input
-                    type="radio"
-                    name="userType"
-                    value={userType}
-                    checked={type === userType}
-                    onChange={() => {
-                      setError('')
-                      setMessage('')
-                      onTypeChange(userType)
-                    }}
-                  />
-                  <svg className="auth-type-choice__icon" viewBox="0 0 24 24" aria-hidden="true">{userTypeIcons[userType]}</svg>
-                  <span>{userOptions.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        )}
-        {type === 'coordinator' && (
-          <p className="auth-warning auth-reveal" role="alert">
-            {coordinatorOnly
-              ? 'Only authorized KU coordinators may sign in while maintenance mode is enabled.'
-              : 'only for partner university coordinators, attempts at misuse by students will be caught and legally prosecuted'}
-          </p>
-        )}
-        <form className="auth-form" onSubmit={handleSubmit} onInput={(event) => animateKeystroke(event, sparkRef.current)}>
-          {isSignUp && (
-            <>
-              <label className="auth-reveal" htmlFor="name">Full name</label>
-              <input className="auth-reveal" id="name" name="name" value={form.name} onChange={updateField} required autoComplete="name" />
-              {type === 'ku' && (
+        <div ref={columnsRef} className="auth-card__columns">
+          <div className="auth-card__intro">
+            <span className="auth-card__eyebrow"><FadeText text={coordinatorOnly ? 'KU Coordinator' : options.label} /></span>
+            <h1 id="auth-heading">
+              <TypedText text={coordinatorOnly ? 'Sign in as a KU coordinator' : isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`} />
+            </h1>
+            <p className="auth-card__description">
+              <FadeText text={coordinatorOnly ? 'Sign in to disable maintenance mode and restore public access.' : options.description} />
+            </p>
+            {sessionEndedMessage && <p className="session-ended-message" role="status">{sessionEndedMessage}</p>}
+            {!coordinatorOnly && (
+              <fieldset className="auth-type-choice" data-selected={type}>
+                <legend>I am a</legend>
+                <div className="auth-type-choice__options" style={{ '--choice-index': Object.keys(authOptions).indexOf(type) }}>
+                  <span className="auth-type-choice__indicator" aria-hidden="true" />
+                  {Object.entries(authOptions).map(([userType, userOptions]) => (
+                    <label key={userType} className="auth-type-choice__option">
+                      <input
+                        type="radio"
+                        name="userType"
+                        value={userType}
+                        checked={type === userType}
+                        onChange={() => {
+                          setError('')
+                          setMessage('')
+                          onTypeChange(userType)
+                        }}
+                      />
+                      <svg className="auth-type-choice__icon" viewBox="0 0 24 24" aria-hidden="true">{userTypeIcons[userType]}</svg>
+                      <span>{userOptions.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            {type === 'coordinator' && (
+              <p className="auth-warning auth-reveal" role="alert">
+                {coordinatorOnly
+                  ? 'Only authorized KU coordinators may sign in while maintenance mode is enabled.'
+                  : 'only for partner university coordinators, attempts at misuse by students will be caught and legally prosecuted'}
+              </p>
+            )}
+          </div>
+          <div className="auth-card__body">
+            <form className="auth-form" onSubmit={handleSubmit} onInput={(event) => animateKeystroke(event, sparkRef.current)}>
+              {isSignUp && (
                 <>
-                  <label className="auth-reveal" htmlFor="studentId">Student ID</label>
-                  <input className="auth-reveal" id="studentId" name="studentId" value={form.studentId} onChange={updateField} required inputMode="numeric" />
+                  <label className="auth-reveal" htmlFor="name">Full name</label>
+                  <input className="auth-reveal" id="name" name="name" value={form.name} onChange={updateField} required autoComplete="name" />
+                  {type === 'ku' && (
+                    <>
+                      <label className="auth-reveal" htmlFor="studentId">Student ID</label>
+                      <input className="auth-reveal" id="studentId" name="studentId" value={form.studentId} onChange={updateField} required inputMode="numeric" />
+                    </>
+                  )}
+                  {type === 'coordinator' && (
+                    <>
+                      <label className="auth-reveal" htmlFor="university">University</label>
+                      <select className="auth-reveal" id="university" name="university" value={form.university} onChange={updateField} required>
+                        <option value="">Choose your university</option>
+                        {universities.map((university) => (
+                          <option key={university.university_id} value={university.university_id}>{university.name}</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
                 </>
               )}
-              {type === 'coordinator' && (
-                <>
-                  <label className="auth-reveal" htmlFor="university">University</label>
-                  <select className="auth-reveal" id="university" name="university" value={form.university} onChange={updateField} required>
-                    <option value="">Choose your university</option>
-                    {universities.map((university) => (
-                      <option key={university.university_id} value={university.university_id}>{university.name}</option>
-                    ))}
-                  </select>
-                </>
-              )}
-            </>
-          )}
-          <label htmlFor="email">Email</label>
-          <input id="email" name="email" type="email" value={form.email} onChange={updateField} required autoComplete="email" />
-          <label htmlFor="password">Password</label>
-          <input id="password" name="password" type="password" value={form.password} onChange={updateField} required minLength="6" autoComplete={isSignUp ? 'new-password' : 'current-password'} />
-          {error && <p className="auth-form__error" role="alert">{error}</p>}
-          <button className="btn btn--primary btn--full" type="submit" disabled={isSubmitting}>
-            <FadeText text={isSubmitting ? 'Working...' : isSignUp && type === 'coordinator' && Number(form.university) !== 4 ? 'Request access' : isSignUp ? 'Create account' : 'Sign in'} />
-          </button>
-          <span ref={sparkRef} className="auth-form__spark" aria-hidden="true" />
-        </form>
-        {!coordinatorOnly && (
-          <button className="auth-card__switch" type="button" onClick={() => onModeChange(isSignUp ? 'signin' : 'signup')}>
-            <FadeText text={isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'} />
-          </button>
-        )}
+              <label htmlFor="email">Email</label>
+              <input id="email" name="email" type="email" value={form.email} onChange={updateField} required autoComplete="email" />
+              <label htmlFor="password">Password</label>
+              <input id="password" name="password" type="password" value={form.password} onChange={updateField} required minLength="6" autoComplete={isSignUp ? 'new-password' : 'current-password'} />
+              {error && <p className="auth-form__error" role="alert">{error}</p>}
+              <button className="btn btn--primary btn--full" type="submit" disabled={isSubmitting}>
+                <FadeText text={isSubmitting ? 'Working...' : isSignUp && type === 'coordinator' && Number(form.university) !== 4 ? 'Request access' : isSignUp ? 'Create account' : 'Sign in'} />
+              </button>
+              <span ref={sparkRef} className="auth-form__spark" aria-hidden="true" />
+            </form>
+            {!coordinatorOnly && (
+              <button className="auth-card__switch" type="button" onClick={() => onModeChange(isSignUp ? 'signin' : 'signup')}>
+                <FadeText text={isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'} />
+              </button>
+            )}
+          </div>
+        </div>
       </AnimatedHeight>
       {message && (
         <SuccessToast

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const DELETE_MS = 10
 const TYPE_MS = 24
@@ -49,11 +49,31 @@ export function TypedText({ text }) {
   )
 }
 
-// Fades the old text out, then brings the new text in.
+// Fades the old text out, then brings the new text in. The new text takes its place in the layout
+// straight away (transparent) so anything below moves once, with the rest of the card, instead of
+// shifting again when the swap happens.
 export function FadeText({ text }) {
   const [shown, setShown] = useState(text)
   const [swaps, setSwaps] = useState(0)
+  const boxRef = useRef(null)
+  const oldRef = useRef(null)
+  const lastWidth = useRef(0)
   const leaving = text !== shown
+
+  useLayoutEffect(() => {
+    const old = oldRef.current
+    if (!old) {
+      lastWidth.current = boxRef.current.offsetWidth
+      return
+    }
+    // The old text keeps the width it had, so it does not rewrap inside the new text's box, and
+    // stays centred where the text around it is centred (the button label).
+    old.style.width = `${lastWidth.current}px`
+    if (getComputedStyle(boxRef.current).textAlign === 'center') {
+      old.style.left = '50%'
+      old.style.marginLeft = `${-lastWidth.current / 2}px`
+    }
+  })
 
   useEffect(() => {
     if (!leaving) return undefined
@@ -64,6 +84,13 @@ export function FadeText({ text }) {
     return () => window.clearTimeout(timer)
   }, [leaving, text])
 
-  const state = leaving ? ' fade-text--out' : swaps ? ' fade-text--in' : ''
-  return <span key={swaps} className={`fade-text${state}`}>{shown}</span>
+  if (!leaving) {
+    return <span key={swaps} ref={boxRef} className={`fade-text${swaps ? ' fade-text--in' : ''}`}>{shown}</span>
+  }
+  return (
+    <span key="swapping" ref={boxRef} className="fade-text">
+      <span className="fade-text__next">{text}</span>
+      <span ref={oldRef} className="fade-text__old" aria-hidden="true">{shown}</span>
+    </span>
+  )
 }

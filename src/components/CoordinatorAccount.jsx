@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { supabase } from '../supabase'
+import { getPartnerUniversities } from '../referenceData'
 import { useAppStore } from '../stores/appStore'
 import './CoordinatorAccount.css'
 
@@ -17,14 +18,10 @@ function CoordinatorAccountSettings({ profile }) {
 
   useEffect(() => {
     let isCurrent = true
-    supabase
-      .from('partneruniversity')
-      .select('name')
-      .eq('university_id', profile.university)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (isCurrent) setUniversityName(data?.name || 'Unknown university')
-      })
+    getPartnerUniversities().then(({ data }) => {
+      const university = data.find(({ university_id: id }) => Number(id) === Number(profile.university))
+      if (isCurrent) setUniversityName(university?.name || 'Unknown university')
+    })
     return () => { isCurrent = false }
   }, [profile.university])
 

@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import { useAppStore } from '../stores/appStore'
 import { toggleTheme } from '../themeTransition'
 import { isKuCoordinatorProfile } from '../coordinatorProfile'
+import { preloadAuthPage, preloadPortal } from '../routeLoaders'
 
 function portalLabel(profile, userEmail) {
   if (profile?.role === 'ku') return 'KU student'
@@ -59,11 +60,16 @@ export default function SiteNavbar({ onHomeClick }) {
           </button>
           {!session && (
             <>
-              <Link className="exchange-nav-portal" to="/auth/signup">Sign up</Link>
-              <Link className="exchange-nav-portal" to="/auth/signin">Log in</Link>
+              <Link className="exchange-nav-portal" to="/auth/signup" onPointerEnter={preloadAuthPage} onFocus={preloadAuthPage}>Sign up</Link>
+              <Link className="exchange-nav-portal" to="/auth/signin" onPointerEnter={preloadAuthPage} onFocus={preloadAuthPage}>Log in</Link>
             </>
           )}
-          <Link className="exchange-nav-portal exchange-nav-portal--primary" to={session ? '/portal' : '/auth/signin'}>
+          <Link
+            className="exchange-nav-portal exchange-nav-portal--primary"
+            to={session ? '/portal' : '/auth/signin'}
+            onPointerEnter={session ? preloadPortal : preloadAuthPage}
+            onFocus={session ? preloadPortal : preloadAuthPage}
+          >
             {userType ? `Portal: ${userType}` : 'Portal'}
           </Link>
           {session && <button className="exchange-nav-portal" type="button" onClick={signOut}>Log out</button>}

@@ -7,6 +7,7 @@ import { useAppStore } from '../stores/appStore'
 import DateField from './DateField'
 import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles'
 import ReplacementFileField from './ReplacementFileField'
+import WizardProgress from './WizardProgress'
 import './OutboundApplication.css'
 
 const DATE_TYPES = ['date', 'month', 'datetime-local']
@@ -711,7 +712,6 @@ function InboundApplication() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState({})
   const [error, setError] = useState('')
-  const [scrollProgress, setScrollProgress] = useState(0)
   const pageContentRef = useRef(null)
   const wizardScrollRef = useRef(null)
   const autosaveTimerRef = useRef(null)
@@ -749,49 +749,6 @@ function InboundApplication() {
     setIsConfirmingWithdrawal(false)
     setWithdrawalState({ loading: false, error: '', message: 'Withdrawal requested. The coordinator will review it.' })
   }
-
-  useEffect(() => {
-    const pageContent = pageContentRef.current
-    const wizardScroller = wizardScrollRef.current
-    if (!pageContent || !wizardScroller) return undefined
-
-    let animationFrame = 0
-    pageContent.scrollTop = 0
-    wizardScroller.scrollTop = 0
-    const updateProgress = () => {
-      window.cancelAnimationFrame(animationFrame)
-      animationFrame = window.requestAnimationFrame(() => {
-        const fieldScrollDistance = Math.max(0, pageContent.scrollHeight - pageContent.clientHeight)
-        const pageScrollDistance = Math.max(0, wizardScroller.scrollHeight - wizardScroller.clientHeight)
-        const windowScrollDistance = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
-        const totalScrollDistance = fieldScrollDistance + pageScrollDistance + windowScrollDistance
-        if (totalScrollDistance === 0) {
-          setScrollProgress(100)
-          return
-        }
-
-        const progress = ((pageContent.scrollTop + wizardScroller.scrollTop + window.scrollY) / totalScrollDistance) * 100
-        setScrollProgress(Math.max(0, Math.min(100, progress)))
-      })
-    }
-
-    updateProgress()
-    window.addEventListener('resize', updateProgress)
-    window.addEventListener('scroll', updateProgress, { passive: true })
-    wizardScroller.addEventListener('scroll', updateProgress, { passive: true })
-    pageContent.addEventListener('scroll', updateProgress, { passive: true })
-    const resizeObserver = new ResizeObserver(updateProgress)
-    resizeObserver.observe(pageContent)
-    resizeObserver.observe(wizardScroller)
-    return () => {
-      window.cancelAnimationFrame(animationFrame)
-      window.removeEventListener('resize', updateProgress)
-      window.removeEventListener('scroll', updateProgress)
-      wizardScroller.removeEventListener('scroll', updateProgress)
-      pageContent.removeEventListener('scroll', updateProgress)
-      resizeObserver.disconnect()
-    }
-  }, [activeStep, loading, location.pathname, routeApplicationId])
 
   useEffect(() => {
     let current = true
@@ -1399,22 +1356,15 @@ function InboundApplication() {
 
   const renderWizardPage = (pageIndex) => (
     <>
-      <nav className="outbound-progress" aria-label="Application progress">
-        {steps.map((item, index) => (
-          <div className="outbound-progress__step" key={item.title} aria-current={pageIndex === index ? 'step' : undefined}>
-            <span className="outbound-progress__label">
-              <span className="outbound-progress__number">{String(index + 1).padStart(2, '0')}</span>
-              <span className="outbound-progress__title"> · {item.title}</span>
-            </span>
-            <span className="outbound-progress__track" aria-hidden="true">
-              <span
-                className="outbound-progress__fill"
-                style={{ '--outbound-progress': `${index < pageIndex ? 100 : index === pageIndex ? scrollProgress : 0}%` }}
-              />
-            </span>
-          </div>
-        ))}
-      </nav>
+      {/* Keyed by route so each new page remounts the bar, which resets it and scrolls the
+          page back to the top. */}
+      <WizardProgress
+        key={location.pathname}
+        steps={steps}
+        pageIndex={pageIndex}
+        pageContentRef={pageContentRef}
+        wizardScrollRef={wizardScrollRef}
+      />
       <form className="outbound-form" onSubmit={pageIndex === steps.length - 1 ? handleSubmit : handleNext} noValidate>
         <div ref={pageContentRef} className="outbound-form__scroll">
           <h1>{steps[pageIndex].title}</h1>
@@ -1635,6 +1585,10 @@ function InboundApplication() {
     </section>
   )
 
+  // Every route's element is built on each render, matched or not, so only the step the URL
+  // is on is built and all the step routes share it.
+  const wizardPage = routeStep >= 0 ? renderWizardPage(routeStep) : null
+
   return (
     <section
       ref={wizardScrollRef}
@@ -1647,11 +1601,11 @@ function InboundApplication() {
         <Routes>
           <Route index element={renderApplicationsPage} />
           <Route path=":applicationId/submitted" element={renderSubmittedPage} />
-          {steps.map((item, index) => (
-            <Route key={`new-${item.path}`} path={`new/:nominationId/${item.path}`} element={renderWizardPage(index)} />
+          {steps.map((item) => (
+            <Route key={`new-${item.path}`} path={`new/:nominationId/${item.path}`} element={wizardPage} />
           ))}
-          {steps.map((item, index) => (
-            <Route key={`draft-${item.path}`} path={`:applicationId/${item.path}`} element={renderWizardPage(index)} />
+          {steps.map((item) => (
+            <Route key={`draft-${item.path}`} path={`:applicationId/${item.path}`} element={wizardPage} />
           ))}
           <Route path="*" element={<Navigate to="/portal/inbound-application" replace />} />
         </Routes>

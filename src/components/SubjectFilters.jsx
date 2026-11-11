@@ -21,13 +21,19 @@ function SubjectFilters({ subjects, children }) {
     [subjects],
   )
 
+  // Each subject's searchable text is prepared once per list rather than on every keystroke.
+  const searchable = useMemo(
+    () => subjects.map((subject) => ({ subject, code: compact(subject.course_display_code), name: compact(subject.course_name) })),
+    [subjects],
+  )
+
   const needle = compact(search)
-  const matches = subjects.filter((subject) => (
-    (department === ALL_DEPARTMENTS || subject.course_department === department)
-    && (!needle
-      || compact(subject.course_display_code).includes(needle)
-      || compact(subject.course_name).includes(needle))
-  ))
+  const matches = useMemo(() => searchable
+    .filter(({ subject, code, name }) => (
+      (department === ALL_DEPARTMENTS || subject.course_department === department)
+      && (!needle || code.includes(needle) || name.includes(needle))
+    ))
+    .map(({ subject }) => subject), [searchable, department, needle])
   const hasFilters = needle !== '' || department !== ALL_DEPARTMENTS
 
   const clearFilters = () => {

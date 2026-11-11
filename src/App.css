@@ -662,16 +662,38 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .portal-sidebar {
+  --glass-border: linear-gradient(160deg, rgba(0, 212, 255, 0.55), rgba(123, 95, 255, 0.35) 40%, rgba(0, 212, 255, 0.08) 70%, rgba(123, 95, 255, 0.3));
   position: sticky;
   top: calc(var(--navbar-height) + 24px);
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   min-height: calc(100svh - 176px);
   padding: 28px 18px;
-  border: 1px solid var(--border-bright);
+  border: 1px solid transparent;
   border-radius: var(--radius-lg);
-  background: rgba(6, 14, 32, 0.86);
-  box-shadow: var(--glow-card);
+  background: linear-gradient(160deg, rgba(14, 28, 56, 0.62), rgba(6, 14, 32, 0.48));
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: var(--glow-card), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* A gradient border-image cannot follow rounded corners, so the border is a gradient layer
+   masked down to a ring. It sits at z-index -1 inside the element's own stacking context,
+   above the element's background and below its content. */
+.portal-sidebar::before,
+.portal-sidebar__action::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--glass-border);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .portal-sidebar__eyebrow {
@@ -699,21 +721,86 @@ svg { display: block; flex-shrink: 0; }
   gap: 8px;
 }
 
+/* Registered so the angle can be animated; browsers without @property show the light on the
+   selected tab standing still instead of travelling. */
+@property --portal-tab-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes portal-tab-orbit {
+  to { --portal-tab-angle: 360deg; }
+}
+
+@keyframes portal-tab-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
 .portal-sidebar__action {
+  --glass-border: linear-gradient(135deg, rgba(0, 212, 255, 0.5), rgba(123, 95, 255, 0.3) 30%, rgba(255, 255, 255, 0.05) 50%, rgba(123, 95, 255, 0.3) 70%, rgba(0, 212, 255, 0.5));
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   padding: 12px;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--text);
-  background: transparent;
+  background-color: transparent;
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.18);
   font: inherit;
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition), color var(--transition);
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.25),
+    background-color var(--transition),
+    color var(--transition),
+    box-shadow var(--transition);
+  /* Backwards only: a forwards fill would hold the entrance transform and block the hover. */
+  animation: portal-tab-enter 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--portal-tab-index, 0) * 45ms);
+}
+
+.portal-sidebar__nav > :nth-child(2) { --portal-tab-index: 1; }
+.portal-sidebar__nav > :nth-child(3) { --portal-tab-index: 2; }
+.portal-sidebar__nav > :nth-child(4) { --portal-tab-index: 3; }
+.portal-sidebar__nav > :nth-child(5) { --portal-tab-index: 4; }
+.portal-sidebar__nav > :nth-child(6) { --portal-tab-index: 5; }
+.portal-sidebar__nav > :nth-child(7) { --portal-tab-index: 6; }
+.portal-sidebar__nav > :nth-child(8) { --portal-tab-index: 7; }
+.portal-sidebar__nav > :nth-child(9) { --portal-tab-index: 8; }
+.portal-sidebar__nav > :nth-child(10) { --portal-tab-index: 9; }
+.portal-sidebar__nav > :nth-child(11) { --portal-tab-index: 10; }
+.portal-sidebar__nav > :nth-child(12) { --portal-tab-index: 11; }
+.portal-sidebar__nav > :nth-child(13) { --portal-tab-index: 12; }
+.portal-sidebar__nav > :nth-child(14) { --portal-tab-index: 13; }
+
+.portal-sidebar__action::before {
+  background-size: 220% 220%;
+  background-position: 0% 0%;
+  opacity: 0.7;
+  transition: background-position 0.6s ease, opacity var(--transition);
+}
+
+.portal-sidebar__action::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.16) 50%, transparent 65%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 105% 0;
+  transition: background-position 0.7s ease;
+  pointer-events: none;
 }
 
 .portal-sidebar__action span {
@@ -722,17 +809,73 @@ svg { display: block; flex-shrink: 0; }
   font-size: 1.25rem;
   line-height: 1;
   text-align: center;
+  transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4), text-shadow var(--transition);
 }
 
-.portal-sidebar__action:hover,
-.portal-sidebar__action--active {
-  border-color: var(--border-bright);
+.portal-sidebar__action:hover {
   color: var(--text-strong);
-  background: rgba(0, 212, 255, 0.1);
+  background-color: rgba(0, 212, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 8px 24px rgba(0, 212, 255, 0.16);
+  transform: translateX(4px);
+}
+
+.portal-sidebar__action:hover::before {
+  background-position: 100% 100%;
+  opacity: 1;
+}
+
+.portal-sidebar__action:hover::after {
+  background-position: -5% 0;
+}
+
+.portal-sidebar__action:hover span {
+  transform: scale(1.18) rotate(-8deg);
+}
+
+.portal-sidebar__action:active {
+  transform: translateX(4px) scale(0.98);
+}
+
+.portal-sidebar__action:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 3px;
 }
 
 .portal-sidebar__action--active {
-  box-shadow: inset 3px 0 0 var(--neon);
+  color: var(--text-strong);
+  background-color: rgba(0, 212, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 22px rgba(0, 212, 255, 0.22);
+}
+
+.portal-sidebar__action--active::before {
+  padding: 1.5px;
+  background: conic-gradient(from var(--portal-tab-angle), var(--border-bright) 0deg 220deg, var(--neon) 290deg, var(--neon-2) 325deg, var(--border-bright) 360deg);
+  opacity: 1;
+  animation: portal-tab-orbit 3.2s linear infinite;
+}
+
+.portal-sidebar__action--active span {
+  text-shadow: 0 0 12px var(--neon);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-sidebar__action,
+  .portal-sidebar__action span,
+  .portal-sidebar__action::before,
+  .portal-sidebar__action::after {
+    animation: none;
+    transition: none;
+  }
+
+  .portal-sidebar__action:hover,
+  .portal-sidebar__action:active,
+  .portal-sidebar__action:hover span {
+    transform: none;
+  }
+
+  .portal-sidebar__action:hover::after {
+    background-position: 105% 0;
+  }
 }
 
 .portal-sidebar__footer {
@@ -956,7 +1099,29 @@ svg { display: block; flex-shrink: 0; }
 }
 
 :root[data-theme='light'] .portal-sidebar {
-  background: var(--bg-card);
+  --glass-border: linear-gradient(160deg, rgba(14, 172, 227, 0.6), rgba(8, 127, 178, 0.25) 40%, rgba(14, 172, 227, 0.1) 70%, rgba(8, 127, 178, 0.35));
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.6));
+  box-shadow: var(--glow-card), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+:root[data-theme='light'] .portal-sidebar__action {
+  --glass-border: linear-gradient(135deg, rgba(14, 172, 227, 0.6), rgba(8, 127, 178, 0.3) 30%, rgba(18, 61, 82, 0.06) 50%, rgba(8, 127, 178, 0.3) 70%, rgba(14, 172, 227, 0.6));
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.5));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 6px 16px rgba(18, 61, 82, 0.08);
+}
+
+:root[data-theme='light'] .portal-sidebar__action::after {
+  background-image: linear-gradient(110deg, transparent 35%, rgba(14, 172, 227, 0.16) 50%, transparent 65%);
+}
+
+:root[data-theme='light'] .portal-sidebar__action:hover {
+  background-color: rgba(14, 172, 227, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 22px rgba(14, 172, 227, 0.18);
+}
+
+:root[data-theme='light'] .portal-sidebar__action--active {
+  background-color: rgba(14, 172, 227, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 20px rgba(14, 172, 227, 0.2);
 }
 
 :root[data-theme='light'] .cycle-list__item {
@@ -2225,8 +2390,10 @@ svg { display: block; flex-shrink: 0; }
     grid-template-columns: 1fr;
   }
 
+  /* Relative rather than static so the sidebar's gradient border layer stays on the panel. */
   .portal-sidebar {
-    position: static;
+    position: relative;
+    top: auto;
     min-height: auto;
   }
 

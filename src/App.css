@@ -413,33 +413,367 @@ svg { display: block; flex-shrink: 0; }
   margin-top: 24px;
 }
 
+.auth-scene {
+  position: relative;
+  isolation: isolate;
+  /* clip, not hidden: hidden would make this a scroll container and stop the routes sticking. */
+  overflow: clip;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(0, 212, 255, 0.08), transparent 60%),
+    var(--bg);
+}
+
+/* Sized to the screen below the navbar rather than to the page, so the card growing or shrinking
+   (another user type, sign-up fields) never resizes the canvas and restarts the animation. The
+   negative margin lets the page sit on top of it instead of below it. */
+.exchange-routes {
+  --routes-hub-x: 0.86;
+  --routes-hub-y: 0.4;
+  position: sticky;
+  top: var(--navbar-height);
+  z-index: -1;
+  height: calc(100svh - var(--navbar-height));
+  margin-bottom: calc(var(--navbar-height) - 100svh);
+  pointer-events: none;
+  animation: exchange-routes-in 1.4s ease-out both;
+}
+
+.exchange-routes canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.auth-scene > .auth-page {
+  background: transparent;
+}
+
+/* The dark card is translucent; laid over the page colour it stays readable above moving routes. */
+.auth-scene .auth-card {
+  background: linear-gradient(var(--bg-card), var(--bg-card)), var(--bg);
+  animation: auth-card-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animated-height {
+  transition: height 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.animated-height[data-resizing] {
+  overflow: hidden;
+}
+
+/* Stops the first and last children's margins collapsing through, which would hide them from the
+   measured height. */
+.animated-height__content {
+  display: flow-root;
+}
+
+.typed-text {
+  position: relative;
+  display: block;
+}
+
+.typed-text__final {
+  color: transparent;
+}
+
+.typed-text__live {
+  position: absolute;
+  inset: 0;
+}
+
+.typed-text__caret {
+  display: inline-block;
+  width: 3px;
+  height: 0.85em;
+  margin-left: 3px;
+  border-radius: 1px;
+  background: var(--neon);
+  box-shadow: 0 0 8px var(--neon);
+  vertical-align: -0.08em;
+}
+
+.fade-text {
+  display: inline-block;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.fade-text--out {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+.fade-text--in {
+  animation: fade-text-in 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.auth-reveal {
+  animation: auth-reveal 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes fade-text-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+@keyframes auth-reveal {
+  from { opacity: 0; transform: translateY(-6px); }
+}
+
+.auth-form {
+  position: relative;
+}
+
+.auth-form :is(input, select)[data-keystroke='a'] {
+  animation: auth-keystroke-a 0.35s ease-out;
+}
+
+.auth-form :is(input, select)[data-keystroke='b'] {
+  animation: auth-keystroke-b 0.35s ease-out;
+}
+
+.auth-form__spark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 1.5px solid var(--neon);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--neon);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auth-form__spark[data-keystroke='a'] {
+  animation: auth-spark-a 0.4s ease-out;
+}
+
+.auth-form__spark[data-keystroke='b'] {
+  animation: auth-spark-b 0.4s ease-out;
+}
+
+@keyframes auth-keystroke-a {
+  from {
+    border-color: var(--neon);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.16), 0 0 18px rgba(0, 212, 255, 0.28);
+  }
+}
+
+@keyframes auth-keystroke-b {
+  from {
+    border-color: var(--neon);
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.16), 0 0 18px rgba(0, 212, 255, 0.28);
+  }
+}
+
+@keyframes auth-spark-a {
+  from { opacity: 0.9; transform: translate(var(--spark-x), var(--spark-y)) scale(0.2); }
+  to { opacity: 0; transform: translate(var(--spark-x), var(--spark-y)) scale(1.3); }
+}
+
+@keyframes auth-spark-b {
+  from { opacity: 0.9; transform: translate(var(--spark-x), var(--spark-y)) scale(0.2); }
+  to { opacity: 0; transform: translate(var(--spark-x), var(--spark-y)) scale(1.3); }
+}
+
+.exchange-routes__legend {
+  display: none;
+}
+
+/* On wide screens the card moves aside so the hub and most of its routes stay in view. */
+@media (min-width: 1100px) {
+  .exchange-routes {
+    --routes-hub-x: 0.74;
+    --routes-hub-y: 0.42;
+  }
+
+  .auth-scene > .auth-page {
+    justify-items: start;
+    padding-inline: clamp(2rem, 8vw, 9rem);
+  }
+
+  .exchange-routes__legend {
+    position: absolute;
+    right: clamp(2rem, 4vw, 4rem);
+    bottom: 28px;
+    display: flex;
+    gap: 20px;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+  }
+
+  .exchange-routes__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .exchange-routes__legend span::before {
+    content: "";
+    width: 18px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--neon);
+  }
+
+  .exchange-routes__legend span + span::before {
+    background: var(--neon-gold);
+  }
+}
+
+@keyframes exchange-routes-in {
+  from { opacity: 0; }
+}
+
+@keyframes auth-card-in {
+  from { opacity: 0; transform: translateY(14px); }
+}
+
 .auth-type-choice {
-  display: flex;
-  gap: 16px;
+  --choice-color: var(--neon);
+  --choice-tint: rgba(0, 212, 255, 0.1);
+  min-width: 0;
   margin: 24px 0 0;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  padding: 0;
+  border: 0;
+}
+
+/* Student types take the colour of their routes on the map behind the card. */
+.auth-type-choice[data-selected='incoming'] {
+  --choice-color: var(--neon-gold);
+  --choice-tint: rgba(240, 165, 0, 0.1);
+}
+
+.auth-type-choice[data-selected='coordinator'] {
+  --choice-color: var(--neon-2);
+  --choice-tint: rgba(123, 95, 255, 0.14);
 }
 
 .auth-type-choice legend {
-  padding: 0 6px;
+  margin-bottom: 8px;
+  padding: 0;
   color: var(--text-strong);
   font-size: 0.86rem;
   font-weight: 600;
 }
 
-.auth-type-choice__option {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text);
-  font-size: 0.86rem;
-  cursor: pointer;
+.auth-type-choice__options {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(3, 8, 15, 0.45);
 }
 
+.auth-type-choice__indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 16px) / 3);
+  border: 1px solid var(--choice-color);
+  border-radius: calc(var(--radius-md) - 4px);
+  background: var(--choice-tint);
+  box-shadow: inset 0 -2px 0 var(--choice-color);
+  transform: translateX(calc(var(--choice-index, 0) * (100% + 4px)));
+  transition:
+    transform 0.45s cubic-bezier(0.3, 1.25, 0.5, 1),
+    border-color 0.3s ease,
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.auth-type-choice__option {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 6px;
+  min-height: 74px;
+  padding: 10px 6px;
+  border-radius: calc(var(--radius-md) - 4px);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+/* Hidden but still focusable, so arrow keys move between types as with any radio group. */
 .auth-type-choice__option input {
-  accent-color: var(--neon);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auth-type-choice__option:hover {
+  color: var(--text-strong);
+  background: rgba(0, 212, 255, 0.04);
+}
+
+.auth-type-choice__option:has(input:checked) {
+  color: var(--text-strong);
+  background: transparent;
+}
+
+.auth-type-choice__option:has(input:focus-visible) {
+  outline: 2px solid var(--choice-color);
+  outline-offset: 2px;
+}
+
+.auth-type-choice__icon {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.25s ease, color 0.2s ease;
+}
+
+.auth-type-choice__option:hover .auth-type-choice__icon {
+  transform: translateY(-2px);
+}
+
+.auth-type-choice__option:has(input:checked) .auth-type-choice__icon {
+  color: var(--choice-color);
+  animation: auth-type-pick 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+@keyframes auth-type-pick {
+  0% { transform: scale(0.7) rotate(-8deg); }
+  60% { transform: scale(1.12) rotate(3deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exchange-routes,
+  .auth-scene .auth-card,
+  .auth-type-choice__option:has(input:checked) .auth-type-choice__icon,
+  .fade-text--in,
+  .auth-reveal,
+  .auth-form :is(input, select)[data-keystroke],
+  .auth-form__spark[data-keystroke] {
+    animation: none;
+  }
+
+  .auth-type-choice__indicator,
+  .auth-type-choice__icon,
+  .animated-height,
+  .fade-text {
+    transition: none;
+  }
 }
 
 .auth-form label {
@@ -1147,6 +1481,26 @@ svg { display: block; flex-shrink: 0; }
 :root[data-theme='light'] .cycle-form input,
 :root[data-theme='light'] .cycle-form select {
   background: #ffffff;
+}
+
+/* The light tokens are pale on white, so the chooser uses darker shades of the same hues. */
+:root[data-theme='light'] .auth-type-choice {
+  --choice-color: #0a8fc0;
+  --choice-tint: rgba(14, 172, 227, 0.1);
+}
+
+:root[data-theme='light'] .auth-type-choice[data-selected='incoming'] {
+  --choice-color: #8a6d00;
+  --choice-tint: rgba(195, 158, 0, 0.14);
+}
+
+:root[data-theme='light'] .auth-type-choice[data-selected='coordinator'] {
+  --choice-color: #6a4fe0;
+  --choice-tint: rgba(106, 79, 224, 0.1);
+}
+
+:root[data-theme='light'] .auth-type-choice__options {
+  background: rgba(14, 172, 227, 0.04);
 }
 
 :root[data-theme='light'] .hero-section,

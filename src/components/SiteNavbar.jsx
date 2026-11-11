@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import ExchangeNav from './ExchangeNav'
 import { supabase } from '../supabase'
 import { useAppStore } from '../stores/appStore'
@@ -32,8 +32,8 @@ export default function SiteNavbar({ onHomeClick }) {
       onHomeClick={onHomeClick}
       links={
         <>
-          <Link to="/">Home</Link>
-          <Link to="/partners">Partner Universities</Link>
+          <NavLink to="/" end>Home</NavLink>
+          <NavLink to="/partners">Partner Universities</NavLink>
           <a href="https://www.ku.edu.kw" target="_blank" rel="noopener noreferrer">Kuwait University</a>
         </>
       }
@@ -52,7 +52,8 @@ export default function SiteNavbar({ onHomeClick }) {
             title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
           >
             {/* Drawn icons rather than the ☀ and ☾ characters, which render at different sizes. */}
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+            {/* Keyed by theme so the icon's spin replays on every switch. */}
+            <svg key={theme} viewBox="0 0 24 24" aria-hidden="true">
               {theme === 'light'
                 ? <path d="M21.16 14.11A9.4 9.4 0 0 1 9.89 2.84a9.4 9.4 0 1 0 11.27 11.27Z" />
                 : <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.6v2.1M12 19.3v2.1M2.6 12h2.1M19.3 12h2.1M5.4 5.4l1.5 1.5M17.1 17.1l1.5 1.5M5.4 18.6l1.5-1.5M17.1 6.9l1.5-1.5" /></>}

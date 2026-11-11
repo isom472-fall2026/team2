@@ -66,6 +66,57 @@
   color: var(--text-strong);
 }
 
+.subject-import__stores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.subject-import__stores-label {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.subject-import__store {
+  padding: 10px 16px;
+  font-size: 0.9rem;
+}
+
+.subject-import__store img {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+/* The app's secondary button lifts and glows on hover even when disabled. */
+.subject-import__store:disabled,
+.subject-import__store:disabled:hover {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.subject-import__store-soon {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(240, 165, 0, 0.16);
+  color: var(--neon-gold);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The light theme's gold is too pale to read on its own tint inside a dimmed button. */
+:root[data-theme='light'] .subject-import__store-soon {
+  background: rgba(195, 158, 0, 0.2);
+  color: #6b5000;
+}
+
 .subject-import__status {
   display: grid;
   gap: 4px;

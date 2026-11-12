@@ -13,6 +13,8 @@ import { useStatusToast } from '../useStatusToast'
 const CoordinatorApplications = lazy(() => import('./CoordinatorApplications'))
 const SendApplicationUpdate = lazy(() => import('./CoordinatorApplications').then((module) => ({ default: module.SendApplicationUpdate })))
 const StudentInbox = lazy(() => import('./StudentInbox'))
+const SupportRequests = lazy(() => import('./SupportRequests'))
+const CoordinatorSupportRequests = lazy(() => import('./CoordinatorSupportRequests'))
 const CoordinatorAccountSettings = lazy(() => import('./CoordinatorAccount'))
 const CoordinatorPasswordPage = lazy(() => import('./CoordinatorAccount').then((module) => ({ default: module.CoordinatorPasswordPage })))
 const AddPartnerUniversity = lazy(() => import('./AddPartnerUniversity'))
@@ -823,6 +825,11 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
             </button>
           )}
           {isKuCoordinator && (
+            <button className={activeView === 'support-requests' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('support-requests')}>
+              <span aria-hidden="true">?</span> Support requests
+            </button>
+          )}
+          {isKuCoordinator && (
             <button className={activeView === 'add-university' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('add-university')}>
               <span aria-hidden="true">⌖</span> Add university
             </button>
@@ -1012,6 +1019,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           </>
         )}
         {isKuCoordinator && activeView === 'applications' && <Suspense fallback={null}><CoordinatorApplications /></Suspense>}
+        {isKuCoordinator && activeView === 'support-requests' && <Suspense fallback={null}><CoordinatorSupportRequests /></Suspense>}
         {isKuCoordinator && activeView === 'send-update' && <Suspense fallback={null}><SendApplicationUpdate /></Suspense>}
         {!isKuCoordinator && activeView === 'progress' && (
           <section aria-labelledby="progress-heading">
@@ -1374,6 +1382,7 @@ export default function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenan
 const studentPortalViews = [
   { id: 'home', icon: '⌂', label: 'Home' },
   { id: 'inbox', icon: '✉', label: 'Inbox' },
+  { id: 'support', icon: '?', label: 'Contact the office', role: 'incoming' },
   { id: 'account', icon: '♙', label: 'My account' },
 ]
 
@@ -1387,7 +1396,9 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
     : profile?.role === 'ku'
       ? { to: '/portal/outbound-application', label: 'Outbound application' }
       : null
-  const views = isStudent ? studentPortalViews : studentPortalViews.filter((view) => view.id === 'home')
+  const views = isStudent
+    ? studentPortalViews.filter((view) => !view.role || view.role === profile.role)
+    : studentPortalViews.filter((view) => view.id === 'home')
   const shownView = views.some((view) => view.id === activeView) ? activeView : 'home'
 
   return (
@@ -1447,6 +1458,7 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
             <Suspense fallback={null}><StudentInbox role={profile.role} /></Suspense>
           </>
         )}
+        {shownView === 'support' && <Suspense fallback={null}><SupportRequests profile={profile} /></Suspense>}
         {shownView === 'account' && (
           <>
             <Suspense fallback={null}><StudentAccount profile={profile} /></Suspense>

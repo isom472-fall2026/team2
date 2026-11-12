@@ -96,6 +96,7 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |
 |---|---|---|---|---|
+| Incoming student contacts the Student Exchange Office through a support request form [#131](https://github.com/isom472-fall2026/team2/issues/131) | VS Agents | 94K Tokens | Story and acceptance criteria, `db/schema.sql` (updates, incomingstudentauth, coordinator and feedback tables, the testing registry and its functions, testing and maintenance policies, the inbound storage bucket and its RLS), `StudentInbox.jsx`, the student and coordinator portal code, our answers on the categories, attachment limits and how replies work | none |
 |  |  |  |  |  |
 
 ## Phase 6

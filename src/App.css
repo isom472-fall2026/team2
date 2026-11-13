@@ -1169,7 +1169,7 @@ svg { display: block; flex-shrink: 0; }
 .portal-sidebar__nav > :nth-child(11) { --portal-tab-index: 10; }
 .portal-sidebar__nav > :nth-child(12) { --portal-tab-index: 11; }
 .portal-sidebar__nav > :nth-child(13) { --portal-tab-index: 12; }
-.portal-sidebar__nav > :nth-child(14) { --portal-tab-index: 13; }
+.portal-sidebar__nav > :nth-child(n + 14) { --portal-tab-index: 13; }
 
 .portal-sidebar__action span {
   width: 20px;

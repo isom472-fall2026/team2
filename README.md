@@ -5,7 +5,7 @@ Client: Student Exchange Office under the Vice President for Academic Affairs (V
 
 A web-based portal that automates student exchange application intake, evaluates academic eligibility criteria, and streamlines coordinator review.
 
-Where we are: Phase 4, our second working increment, is due Monday 9 nov .Wednesday 4 November. 18 stories are planned.
+Where we are: Phase 5, our third working increment, is due Monday 23 November. 14 stories are planned as of the beginning of the phase, and that may change throughout the phase.
  The rules and phase requirements are in `docs/how-we-work.md`. 
 This line gets updated at the start of every phase, because it is the first thing the team reads.
  
@@ -89,8 +89,8 @@ cuts the tag.
 | 1 — team, environment, proposal | Rawan Abdrabou | Wed 23 Sep |
 | 2 — design sprint | Almaha Alajmi | Wed 7 Oct |
 | 3 — sprint 1 | Aysha Jan | Mon 26 Oct |
-| 4 — sprint 2 | Fatma Alshimmari | Wed 4 Nov |
-| 5 — sprint 3 | TODO | Wed 18 Nov |
+| 4 — sprint 2 | Fatma Alshimmari | Mon 9 Nov |
+| 5 — sprint 3 | Yousef Almohammad | Mon 23 Nov |
 | 6 — final sprint | TODO | Wed 9 Dec |
 
 ## What is in this repository

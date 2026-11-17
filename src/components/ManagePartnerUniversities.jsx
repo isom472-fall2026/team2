@@ -130,7 +130,6 @@ export default function ManagePartnerUniversities({ fallbackCoordinates = {}, fa
           }}
         />
       )}
-      <span className="auth-card__eyebrow">Partner universities</span>
       <h2 id="portal-heading">Manage partner universities</h2>
       <p>Edit a university&apos;s details, logo and map pins, or delete it from the exchange programme.</p>
       {/* Changes made while testing are undone by the database when testing mode ends, which

@@ -66,7 +66,6 @@ export default function CoordinatorSupportRequests() {
 
   return (
     <>
-      <span className="auth-card__eyebrow">Student support</span>
       <h2 id="portal-heading">Support requests</h2>
       <p>Questions incoming students sent to the office. Sending a reply marks the request Answered and adds it to the student&apos;s inbox.</p>
       {state.loading ? <p role="status">Loading support requests...</p>

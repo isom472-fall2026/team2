@@ -282,7 +282,6 @@ function SubjectImport() {
 
   return (
     <section className="subject-import" aria-labelledby="subject-import-heading">
-      <span className="auth-card__eyebrow">College of Business Administration</span>
       <h2 id="subject-import-heading">CBA subjects and syllabi</h2>
       <p>
         Import every CBA subject and its current syllabus from the CBA syllabus site. The import runs in a new

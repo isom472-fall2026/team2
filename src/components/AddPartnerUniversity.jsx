@@ -347,7 +347,6 @@ export default function AddPartnerUniversity({ university = null, onBack }) {
 
   return (
     <>
-      <span className="auth-card__eyebrow">Partner universities</span>
       {isEditing ? (
         <>
           <h2 id="portal-heading">Edit <span dir="auto">{university.name}</span></h2>

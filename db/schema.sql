@@ -72,7 +72,21 @@ CREATE TABLE public.incomingstudentauth (
     ),
     name VARCHAR(255) NOT NULL CHECK (length(btrim(name)) > 0),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    user_id UUID UNIQUE REFERENCES auth.users(id)
+    user_id UUID UNIQUE REFERENCES auth.users(id),
+    preferred_subject_codes TEXT[] NOT NULL DEFAULT '{}',
+    subject_preferences_created_at TIMESTAMPTZ,
+    subject_preferences_updated_at TIMESTAMPTZ,
+    CONSTRAINT incoming_subject_preferences_dates CHECK (
+        (cardinality(preferred_subject_codes) = 0
+            AND subject_preferences_created_at IS NULL
+            AND subject_preferences_updated_at IS NULL)
+        OR (cardinality(preferred_subject_codes) > 0
+            AND array_ndims(preferred_subject_codes) = 1
+            AND array_position(preferred_subject_codes, NULL) IS NULL
+            AND subject_preferences_created_at IS NOT NULL
+            AND subject_preferences_updated_at IS NOT NULL
+            AND subject_preferences_updated_at >= subject_preferences_created_at)
+    )
 );
 
 CREATE TABLE public.emergency_contact (
@@ -2340,7 +2354,12 @@ CREATE POLICY "Users can register their incoming student profile"
 ON public.incomingstudentauth
 FOR INSERT
 TO authenticated
-WITH CHECK (user_id = (SELECT auth.uid()));
+WITH CHECK (
+    user_id = (SELECT auth.uid())
+    AND cardinality(preferred_subject_codes) = 0
+    AND subject_preferences_created_at IS NULL
+    AND subject_preferences_updated_at IS NULL
+);
 
 CREATE POLICY "Users can delete their incoming student profile"
 ON public.incomingstudentauth
@@ -4601,3 +4620,95 @@ USING (
     bucket_id = 'support-request-files'
     AND (SELECT public.is_ku_coordinator())
 );
+
+-- Preferences belong to the student, so replacing an application cannot lose them (#159).
+CREATE OR REPLACE FUNCTION public.can_select_incoming_subjects()
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT public.get_maintenance_mode() IS FALSE AND EXISTS (
+        SELECT 1
+        FROM public.incomingstudentauth AS student
+        WHERE student.user_id = auth.uid()
+          AND (
+              EXISTS (
+                  SELECT 1 FROM public.studentnominations AS nomination
+                  WHERE lower(nomination.student_email) = lower(student.student_email)
+              )
+              OR EXISTS (
+                  SELECT 1 FROM public.inboundapplication AS application
+                  WHERE application.student_id = student.student_id
+                    AND application.application_status IN ('Accepted', 'Approved')
+              )
+          )
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.can_select_incoming_subjects() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.can_select_incoming_subjects() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.save_incoming_subject_preferences(requested_subject_codes TEXT[])
+RETURNS public.incomingstudentauth
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    student_row public.incomingstudentauth;
+    selected_codes TEXT[];
+    saved_at TIMESTAMPTZ;
+BEGIN
+    SELECT * INTO student_row
+    FROM public.incomingstudentauth
+    WHERE user_id = auth.uid()
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'An incoming student account is required';
+    END IF;
+    IF public.testing_change_allowed('incomingstudentauth', student_row.student_id::TEXT) IS DISTINCT FROM TRUE THEN
+        RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Subject preferences cannot be changed in the current mode';
+    END IF;
+    IF public.can_select_incoming_subjects() IS DISTINCT FROM TRUE THEN
+        RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'A nomination or accepted inbound application is required';
+    END IF;
+    IF requested_subject_codes IS NULL OR cardinality(requested_subject_codes) = 0 THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Select at least one CBA subject';
+    END IF;
+    IF array_ndims(requested_subject_codes) <> 1 THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Choose subjects from the CBA catalog';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM unnest(requested_subject_codes) AS selected(code)
+        WHERE selected.code IS NULL OR NOT EXISTS (
+            SELECT 1 FROM public.subjects AS subject WHERE subject.course_code = selected.code
+        )
+    ) THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'One or more selected subjects are no longer in the CBA catalog';
+    END IF;
+
+    SELECT array_agg(DISTINCT code ORDER BY code) INTO selected_codes
+    FROM unnest(requested_subject_codes) AS selected(code);
+
+    -- Re-saving the same set must not change when it was last modified.
+    IF student_row.preferred_subject_codes = selected_codes THEN
+        RETURN student_row;
+    END IF;
+
+    saved_at := clock_timestamp();
+    UPDATE public.incomingstudentauth
+    SET preferred_subject_codes = selected_codes,
+        subject_preferences_created_at = COALESCE(subject_preferences_created_at, saved_at),
+        subject_preferences_updated_at = saved_at
+    WHERE student_id = student_row.student_id
+    RETURNING * INTO student_row;
+
+    RETURN student_row;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.save_incoming_subject_preferences(TEXT[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.save_incoming_subject_preferences(TEXT[]) TO authenticated;

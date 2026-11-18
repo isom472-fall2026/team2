@@ -11,6 +11,7 @@ import { forgetCycles, getCycles, getPartnerUniversities } from '../referenceDat
 import { useAppStore } from '../stores/appStore'
 import { useStatusToast } from '../useStatusToast'
 
+const CycleReport = lazy(() => import('./CycleReport'))
 const CoordinatorApplications = lazy(() => import('./CoordinatorApplications'))
 const SendApplicationUpdate = lazy(() => import('./CoordinatorApplications').then((module) => ({ default: module.SendApplicationUpdate })))
 const StudentInbox = lazy(() => import('./StudentInbox'))
@@ -139,12 +140,13 @@ function SidebarNav({ groups, activeView, onOpenView }) {
 
 // A KU coordinator has enough views to need grouping by what they act on. A partner coordinator
 // has four, which read faster as one short list.
-const kuCoordinatorNav = [
+const kuCoordinatorNav = (canViewCycleReport) => [
   {
     title: 'Kuwait University',
     items: [
       { view: 'start', label: 'Start KU semester' },
       { view: 'manage', label: 'Manage KU semester' },
+      ...(canViewCycleReport ? [{ view: 'cycle-graphs', label: 'Exchange cycle graphs' }] : []),
       { view: 'subjects', label: 'CBA subjects' },
     ],
   },
@@ -370,6 +372,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
   const isKuCoordinator = Number(universityId) === 4
     || profileEmailIsKu
     || authenticatedEmailIsKu
+  const canViewCycleReport = Number(universityId) === 4 && profileEmailIsKu
   const [nominations, setNominations] = useState([])
   const [isLoadingNominations, setIsLoadingNominations] = useState(true)
   const [applicationStatuses, setApplicationStatuses] = useState({})
@@ -925,7 +928,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         <h1 className="portal-sidebar__title">{isKuCoordinator ? 'KU coordinator portal' : 'Partner coordinator portal'}</h1>
         <p className="portal-sidebar__user">{profile.name}</p>
         <SidebarNav
-          groups={isKuCoordinator ? kuCoordinatorNav : partnerCoordinatorNav}
+          groups={isKuCoordinator ? kuCoordinatorNav(canViewCycleReport) : partnerCoordinatorNav}
           activeView={activeView}
           onOpenView={(view) => {
             if (view === 'start') clearStatus()
@@ -947,6 +950,9 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           </Suspense>
         )}
         {isKuCoordinator && activeView === 'subjects' && <Suspense fallback={null}><SubjectImport /></Suspense>}
+        {canViewCycleReport && activeView === 'cycle-graphs' && (
+          <Suspense fallback={null}><CycleReport cycles={cycles} /></Suspense>
+        )}
         {isKuCoordinator && activeView === 'start' && (
           <>
             <h2 id="portal-heading">Start a KU semester</h2>

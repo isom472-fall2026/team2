@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { phoneCountryCodes } from '../phoneCountryCodes'
+import './EmergencyContact.css'
 
 const emptyContact = { name: '', code: '', phone: '', email: '' }
 
@@ -115,52 +116,75 @@ export default function EmergencyContact({ studentId }) {
 }
 
 export function EmergencyContactLookup() {
-  const [query, setQuery] = useState('')
-  const [contacts, setContacts] = useState(null)
-  const [searching, setSearching] = useState(false)
-  const [error, setError] = useState('')
+  const [lookup, setLookup] = useState({ query: '', submitted: false })
+  const [result, setResult] = useState(null)
+  const term = lookup.query.trim()
 
-  async function search(event) {
-    event.preventDefault()
-    const term = query.trim()
+  useEffect(() => {
     if (!term) return
-    setContacts(null)
-    setError('')
-    setSearching(true)
-    try {
-      const { data, error: searchError } = await supabase.rpc('find_emergency_contacts', { search_term: term })
-      if (searchError) setError(getDatabaseErrorMessage(searchError))
-      else setContacts(data)
-    } finally {
-      setSearching(false)
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      const { data, error } = await supabase.rpc('find_emergency_contacts', { search_term: term })
+        .abortSignal(controller.signal)
+      if (!controller.signal.aborted) {
+        setResult({ lookup, contacts: data ?? [], error: error && getDatabaseErrorMessage(error) })
+      }
+    }, lookup.submitted ? 0 : 250)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
     }
+  }, [lookup, term])
+
+  const current = result?.lookup === lookup ? result : null
+  const contacts = current?.contacts ?? []
+
+  function search(event) {
+    event.preventDefault()
+    if (term) setLookup({ query: lookup.query, submitted: true })
   }
 
   return (
-    <section>
-      <h2>Emergency contacts</h2>
-      <form className="auth-form" onSubmit={search}>
-        <label>Student name or email
-          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={255} disabled={searching} required />
-        </label>
-        <button className="btn btn--primary" disabled={searching || !query.trim()}>
-          {searching ? 'Searching…' : 'Search'}
-        </button>
+    <section className="emergency-lookup" aria-labelledby="emergency-lookup-heading">
+      <h2 id="emergency-lookup-heading">Emergency contacts</h2>
+      <form className="auth-form emergency-lookup__form" role="search" aria-label="Emergency contacts" onSubmit={search}>
+        <label htmlFor="emergency-lookup-query">Student name or email</label>
+        <div className="emergency-lookup__controls">
+          <input id="emergency-lookup-query" type="search" value={lookup.query}
+            onChange={(event) => setLookup({ query: event.target.value, submitted: false })}
+            maxLength={255} autoComplete="off" />
+          <button className="btn btn--primary" disabled={!term}>Search</button>
+        </div>
       </form>
-      {error && <p className="auth-form__error" role="alert">{error}</p>}
-      {contacts?.length === 0 && <p role="status">No emergency contacts match your search.</p>}
-      {contacts?.length === 50 && <p role="status">Showing the first 50 matches. Enter a more specific name or email to narrow the results.</p>}
-      {contacts?.map((contact) => (
-        <article className="portal-card" key={contact.student_id}>
-          <h3>{contact.student_name}</h3>
-          <p>{contact.student_email}</p>
-          <dl>
-            <dt>Contact name</dt><dd>{contact.contact_name}</dd>
-            <dt>Phone number</dt><dd>{contact.contact_phone}</dd>
-            {contact.contact_email && <><dt>Contact email</dt><dd>{contact.contact_email}</dd></>}
-          </dl>
-        </article>
-      ))}
+      <p className="emergency-lookup__status" role="status">
+        {term && !current && 'Searching…'}
+        {current && !current.error && contacts.length === 0 && 'No emergency contacts match your search.'}
+        {contacts.length === 1 && '1 student found'}
+        {contacts.length > 1 && contacts.length < 50 && `${contacts.length} students found`}
+        {contacts.length === 50 && 'Showing the first 50 matches. Refine your search to narrow the results.'}
+      </p>
+      {current?.error && <p className="auth-form__error" role="alert">{current.error}</p>}
+      {contacts.length > 0 && (
+        <ul className="emergency-lookup__results" aria-label="Matching students">
+          {contacts.map((contact) => (
+            <li key={contact.student_id}>
+              <details open={lookup.submitted && contacts.length === 1}>
+                <summary>
+                  <strong>{contact.student_name}</strong>
+                  <span>{contact.student_email}</span>
+                </summary>
+                <dl>
+                  <div><dt>Contact name</dt><dd>{contact.contact_name}</dd></div>
+                  <div><dt>Phone number</dt><dd><a href={`tel:${contact.contact_phone.replace(/[^+\d]/g, '')}`}>{contact.contact_phone}</a></dd></div>
+                  {contact.contact_email && (
+                    <div><dt>Contact email</dt><dd><a href={`mailto:${contact.contact_email}`}>{contact.contact_email}</a></dd></div>
+                  )}
+                </dl>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

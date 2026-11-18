@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { getPartnerUniversities } from '../referenceData'
+import { getCountries, getPartnerUniversities } from '../referenceData'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
-import { readCycleApplications, summarizeCycle } from './cycleReportData'
+import { dayMs, readCycleApplications, summarizeCycles } from './cycleReportData'
 import './CycleReport.css'
 
 const width = 840
 const plotRight = width - 32
 const plotTop = 57
-const dayLabel = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+const dayLabel = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+const creditAverage = new Intl.NumberFormat('en', { maximumFractionDigits: 1 })
 const palettes = {
-  light: { background: '#f4faff', ink: '#10263a', muted: '#425b75', grid: '#c4d6e4', accent: '#0e70a3' },
-  dark: { background: '#101927', ink: '#f1f7ff', muted: '#b0c2d8', grid: '#34465d', accent: '#5edacf' },
+  light: { background: '#f4faff', ink: '#10263a', muted: '#425b75', grid: '#c4d6e4', inbound: '#13816b', outbound: '#0e70a3' },
+  dark: { background: '#101927', ink: '#f1f7ff', muted: '#b0c2d8', grid: '#34465d', inbound: '#5edacf', outbound: '#83beff' },
 }
 
 function countAxis(data) {
@@ -68,13 +69,18 @@ function DailyPlot({ data, colors, height, showPoint }) {
   const right = plotRight - 16
   const bottom = height - 65
   const { ticks, max } = countAxis(data)
-  const step = data.length > 1 ? (right - left) / (data.length - 1) : 0
-  const x = (index) => step ? left + index * step : (left + right) / 2
+  const firstDay = data[0].day
+  const span = (data.at(-1).day - firstDay) / dayMs
+  const step = span ? (right - left) / span : 0
+  const x = (day) => step ? left + (day - firstDay) / dayMs * step : (left + right) / 2
   const y = (count) => bottom - count / max * (bottom - plotTop - 20)
-  const labelCount = Math.min(data.length, 6)
-  const labelIndexes = Array.from({ length: labelCount }, (_, i) => (
-    labelCount === 1 ? 0 : Math.round(i * (data.length - 1) / (labelCount - 1))
+  const labelCount = Math.min(span + 1, 6)
+  const axisDays = Array.from({ length: labelCount }, (_, i) => (
+    firstDay + Math.round(i * span / Math.max(labelCount - 1, 1)) * dayMs
   ))
+  const path = data.map(({ day, count, startsWindow }) => (
+    `${startsWindow ? 'M' : 'L'}${x(day)},${y(count)}`
+  )).join(' ')
 
   return (
     <>
@@ -85,23 +91,24 @@ function DailyPlot({ data, colors, height, showPoint }) {
           <text x={left - 10} y={y(tick) + 4} textAnchor="end" fill={colors.muted} fontSize="12">{tick}</text>
         </g>
       ))}
-      <polyline points={data.map(({ count }, i) => `${x(i)},${y(count)}`).join(' ')}
+      <path d={path}
         fill="none" stroke={colors.accent} strokeWidth={3} strokeLinejoin="round" />
-      {data.map(({ label, count }, i) => {
-        const point = `${label}: ${count} submitted application${count === 1 ? '' : 's'}`
+      {data.map(({ day, count, startsWindow }) => {
+        const date = new Date(day).toISOString().slice(0, 10)
+        const point = `${date}: ${count} submitted application${count === 1 ? '' : 's'}`
         return (
-          <g key={label} tabIndex={count > 0 ? 0 : undefined} aria-label={point}
+          <g key={day} tabIndex={count > 0 ? 0 : undefined} aria-label={point}
             onPointerEnter={() => showPoint(point)} onPointerLeave={() => showPoint('')}
             onFocus={() => showPoint(point)} onBlur={() => showPoint('')}>
-            <rect x={step ? x(i) - step / 2 : left} y={plotTop + 15} width={step || right - left}
+            <rect x={step ? x(day) - step / 2 : left} y={plotTop + 15} width={step || right - left}
               height={bottom - plotTop} fill="transparent" />
-            {(count > 0 || data.length === 1) && <circle cx={x(i)} cy={y(count)} r={4} fill={colors.accent} />}
+            {(count > 0 || startsWindow) && <circle cx={x(day)} cy={y(count)} r={4} fill={colors.accent} />}
           </g>
         )
       })}
-      {labelIndexes.map((index) => (
-        <text key={index} x={x(index)} y={bottom + 24} textAnchor="middle" fill={colors.muted} fontSize="12">
-          {dayLabel.format(new Date(data[index].label))}
+      {axisDays.map((day) => (
+        <text key={day} x={x(day)} y={bottom + 24} textAnchor="middle" fill={colors.muted} fontSize="12">
+          {dayLabel.format(day)}
         </text>
       ))}
       <text x={(left + right) / 2} y={height - 17} textAnchor="middle" fill={colors.muted} fontSize="13">Date (Kuwait time)</text>
@@ -153,7 +160,7 @@ function Graph({ title, file, data, categoryAxis, cycleLabel, colors }) {
   return (
     <figure className="cycle-report__graph">
       <figcaption>
-        <h3>{title}</h3>
+        <h4>{title}</h4>
         {data && <button type="button" className="btn btn--secondary" onClick={download} aria-label={`Download ${title} as PNG`}>Download PNG</button>}
       </figcaption>
       {error && <p role="alert" className="auth-form__error">{error}</p>}
@@ -178,7 +185,65 @@ function Graph({ title, file, data, categoryAxis, cycleLabel, colors }) {
   )
 }
 
-function CycleGraphs({ cycle }) {
+function LeadingCategory({ label, leader }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      {leader ? (
+        <dd>
+          {leader.labels.join(', ')}
+          <small>{leader.count} application{leader.count === 1 ? '' : 's'}{leader.labels.length > 1 ? ' each (tie)' : ''}</small>
+        </dd>
+      ) : <dd>Unavailable</dd>}
+    </div>
+  )
+}
+
+function DirectionReport({ direction, data, cycleLabel, palette }) {
+  const inbound = direction === 'Inbound'
+  const key = direction.toLowerCase()
+  const breakdown = inbound ? 'nationality' : 'destination university'
+  const colors = { ...palette, accent: palette[key] }
+
+  return (
+    <section className="cycle-report__direction" aria-labelledby={`cycle-report-${key}`}>
+      <h3 id={`cycle-report-${key}`}>{direction} applications</h3>
+      {data.total > 0 ? (
+        <>
+          <dl className="cycle-report__metrics">
+            {inbound ? (
+              <>
+                <LeadingCategory label="Nationality with the most applications" leader={data.topNationality} />
+                <LeadingCategory label="Partner university with the most applications" leader={data.topPartner} />
+              </>
+            ) : (
+              <>
+                <div>
+                  <dt>Average GPA</dt>
+                  <dd>{data.averageGpa === null ? 'Unavailable' : `${data.averageGpa.toFixed(2)} / 4.00`}</dd>
+                </div>
+                <div>
+                  <dt>Average completed credits</dt>
+                  <dd>{data.averageCredits === null ? 'Unavailable' : `${creditAverage.format(data.averageCredits)} credits`}</dd>
+                </div>
+              </>
+            )}
+          </dl>
+          <div className="cycle-report__graphs">
+            <Graph title={`${direction} applications by status`} file={`${key}-by-status`} data={data.statuses}
+              categoryAxis="Status" cycleLabel={cycleLabel} colors={colors} />
+            <Graph title={`${direction} applications by ${breakdown}`} file={`${key}-by-${inbound ? 'nationality' : 'destination'}`}
+              data={data.breakdown} categoryAxis={inbound ? 'Nationality' : 'Destination university'} cycleLabel={cycleLabel} colors={colors} />
+            <Graph title={`${direction} submissions per day`} file={`${key}-daily-submissions`}
+              data={data.daily} cycleLabel={cycleLabel} colors={colors} />
+          </div>
+        </>
+      ) : <p>No submitted {key} applications.</p>}
+    </section>
+  )
+}
+
+function CycleGraphs({ cycle, cycles }) {
   const [report, setReport] = useState(null)
   const [error, setError] = useState('')
   const theme = useAppStore((state) => state.theme)
@@ -187,45 +252,50 @@ function CycleGraphs({ cycle }) {
     const controller = new AbortController()
     async function load() {
       try {
-        const [[inbound, outbound], universities] = await Promise.all([
-          readCycleApplications(cycle.id, controller.signal), getPartnerUniversities(),
+        const [[inbound, outbound], universities, countries] = await Promise.all([
+          readCycleApplications(cycle?.id, controller.signal), getPartnerUniversities(), getCountries(),
         ])
         if (universities.error) throw universities.error
-        if (!controller.signal.aborted) setReport(summarizeCycle(cycle, inbound, outbound, universities.data))
+        if (countries.error) throw countries.error
+        if (!controller.signal.aborted) {
+          setReport(summarizeCycles(cycle ? [cycle] : cycles, inbound, outbound, universities.data, countries.data))
+        }
       } catch (loadError) {
         if (!controller.signal.aborted) setError(getDatabaseErrorMessage(loadError))
       }
     }
     load()
     return () => controller.abort()
-  }, [cycle])
+  }, [cycle, cycles])
 
   if (error) return <p role="alert" className="auth-form__error">{error}</p>
   if (!report) return <p role="status">Loading cycle graphs…</p>
-  if (!report.total) return <p role="status">No data for this cycle</p>
-  const colors = palettes[theme] ?? palettes.dark
-  const cycleLabel = `${cycle.semester} ${cycle.academic_year}`
+  if (report.inbound.total + report.outbound.total === 0) {
+    return <p role="status">{cycle ? 'No data for this cycle' : 'No data across all cycles'}</p>
+  }
+  const palette = palettes[theme] ?? palettes.dark
+  const cycleLabel = cycle ? `${cycle.semester} ${cycle.academic_year}` : 'All cycles'
   return (
-    <div className="cycle-report__graphs">
-      <Graph title="Applications by status" file="applications-by-status" data={report.statuses} categoryAxis="Status" cycleLabel={cycleLabel} colors={colors} />
-      <Graph title="Applications by destination university" file="applications-by-destination" data={report.destinations}
-        categoryAxis="Destination university" cycleLabel={cycleLabel} colors={colors} />
-      <Graph title="Submitted applications per day" file="daily-submissions" data={report.daily} cycleLabel={cycleLabel} colors={colors} />
-    </div>
+    <>
+      <DirectionReport direction="Inbound" data={report.inbound} cycleLabel={cycleLabel} palette={palette} />
+      <DirectionReport direction="Outbound" data={report.outbound} cycleLabel={cycleLabel} palette={palette} />
+    </>
   )
 }
 
 export default function CycleReport({ cycles }) {
   const [selection, setSelection] = useState('')
-  const cycle = cycles.find(({ id }) => String(id) === selection) ?? cycles[0]
+  const cycle = selection === 'all' ? null : cycles.find(({ id }) => String(id) === selection) ?? cycles[0]
+  const selectionKey = cycle?.id ?? 'all'
   return (
     <section className="cycle-report" aria-labelledby="cycle-report-heading">
       <header>
         <h2 id="cycle-report-heading">Exchange cycle graphs</h2>
-        {cycle && (
+        {cycles.length > 0 && (
           <div className="cycle-report__cycle">
             <label htmlFor="cycle-report-selection">Exchange cycle</label>
-            <select id="cycle-report-selection" value={cycle.id} onChange={(event) => setSelection(event.target.value)}>
+            <select id="cycle-report-selection" value={selectionKey} onChange={(event) => setSelection(event.target.value)}>
+              <option value="all">All cycles</option>
               {cycles.map(({ id, semester, academic_year }) => (
                 <option key={id} value={id}>{semester} {academic_year}</option>
               ))}
@@ -233,7 +303,7 @@ export default function CycleReport({ cycles }) {
           </div>
         )}
       </header>
-      {cycle ? <CycleGraphs key={cycle.id} cycle={cycle} /> : <p>No exchange cycles are available.</p>}
+      {cycles.length > 0 ? <CycleGraphs key={selectionKey} cycle={cycle} cycles={cycles} /> : <p>No exchange cycles are available.</p>}
     </section>
   )
 }

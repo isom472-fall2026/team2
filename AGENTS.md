@@ -146,3 +146,40 @@ English layout with Arabic text and hope it reads.
 
 Say what you do not know and stop. A question costs a minute. A wrong assumption merged
 into `main` costs the team a sprint.
+
+
+## Usage log — required for every story
+
+You keep the usage log for this team. You cannot see the model picker, the usage gauge or
+planning done in another tool, so you ask the student. Ask briefly and in one message.
+
+**When work on a story starts**, run `date -u +%Y-%m-%dT%H:%MZ`, then ask:
+
+1. Which model is selected? (It is named in the model picker under the prompt box.)
+2. Did you plan this story before coming here? Where (Gemini Enterprise, here, on paper,
+   no plan), and about how many prompts and minutes?
+3. Is this a normal story, or one of the experiments (plan first, no plan, narrow context,
+   wide context, small model, large model)?
+4. In the model picker, open View Usage. What does "Weekly limit remaining" show?
+
+**Before you say a task is done, and before every commit**, ask: did you change the model,
+and what does "Weekly limit remaining" show now? Then write or update
+`docs/usage/<issue-number>.md` with exactly these lines:
+
+- story: #<issue number> · branch: <branch name>
+- model: <as the student told you; list both if it changed>
+- plan: <where · prompts · minutes, or "no plan">
+- experiment: <normal, or which one>
+- started: <UTC time> · ended: <UTC time from `date`> · minutes: <difference>
+- prompts: <messages the student sent in this conversation, not counting answers to your questions>
+- fix prompts: <how many of those asked you to correct something you produced earlier>
+- fixes: <one short line per fix prompt: what was wrong>
+- context given: <files you were pointed to or pasted text, in one line>
+- usage gauge: <start % to end %>
+- changed: <last line of `git diff --stat main`>
+
+Ask each question once per conversation. If the student does not answer, write "not given".
+Never guess a value, never estimate tokens, and never fill a line from memory of another story.
+If the file exists, add a new block under a `## session N` heading; never rewrite an earlier
+block. Count honestly: a wrong low number is worse than a high one. Commit this file with the
+story. Do not skip this step when asked to hurry.

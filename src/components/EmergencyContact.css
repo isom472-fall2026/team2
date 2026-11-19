@@ -1,0 +1,88 @@
+.emergency-lookup {
+  max-width: 48rem;
+}
+
+.emergency-lookup__form {
+  gap: 6px;
+}
+
+.emergency-lookup__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.emergency-lookup__controls input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.emergency-lookup__status {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.emergency-lookup__status:empty {
+  display: none;
+}
+
+.emergency-lookup__results {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.emergency-lookup__results details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+.emergency-lookup__results summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  color: var(--text-strong);
+}
+
+.emergency-lookup__results summary:hover {
+  background: color-mix(in srgb, var(--text-strong) 6%, transparent);
+}
+
+.emergency-lookup__results summary:focus-visible {
+  outline: 2px solid var(--text-strong);
+  outline-offset: -3px;
+  border-radius: var(--radius-sm);
+}
+
+.emergency-lookup__results summary span {
+  display: block;
+  margin: 4px 0 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.emergency-lookup__results dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 12px 20px;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  padding: 12px 16px 14px;
+}
+
+.emergency-lookup__results dt {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.emergency-lookup__results dd {
+  margin: 4px 0 0;
+}
+
+.emergency-lookup__results a {
+  color: var(--text-strong);
+  text-decoration: underline;
+}

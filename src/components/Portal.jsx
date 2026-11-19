@@ -23,6 +23,8 @@ const ManagePartnerUniversities = lazy(() => import('./ManagePartnerUniversities
 const SubjectImport = lazy(() => import('./SubjectImport'))
 const StudentAccount = lazy(() => import('./StudentAccount'))
 const IncomingSubjectPreferences = lazy(() => import('./IncomingSubjectPreferences'))
+const EmergencyContact = lazy(() => import('./EmergencyContact'))
+const EmergencyContactLookup = lazy(() => import('./EmergencyContact').then((module) => ({ default: module.EmergencyContactLookup })))
 
 
 // One highlight for the whole sidebar. It slides to the selected tab, so the tabs themselves can
@@ -154,6 +156,7 @@ const kuCoordinatorNav = [
       { view: 'send-update', label: 'Send an update' },
       { view: 'withdrawals', label: 'Withdrawal requests' },
       { view: 'support-requests', label: 'Support requests' },
+      { view: 'emergency-contacts', label: 'Emergency contacts' },
     ],
   },
   {
@@ -1084,6 +1087,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         )}
         {isKuCoordinator && activeView === 'applications' && <Suspense fallback={null}><CoordinatorApplications /></Suspense>}
         {isKuCoordinator && activeView === 'support-requests' && <Suspense fallback={null}><CoordinatorSupportRequests /></Suspense>}
+        {isKuCoordinator && activeView === 'emergency-contacts' && <Suspense fallback={null}><EmergencyContactLookup /></Suspense>}
         {isKuCoordinator && activeView === 'send-update' && <Suspense fallback={null}><SendApplicationUpdate /></Suspense>}
         {!isKuCoordinator && activeView === 'progress' && (
           <section aria-labelledby="progress-heading">
@@ -1463,6 +1467,7 @@ const studentPortalViews = [
   { id: 'inbox', label: 'Inbox' },
   { id: 'subject-preferences', label: 'Preferred CBA subjects', role: 'incoming' },
   { id: 'support', label: 'Contact the office', role: 'incoming' },
+  { id: 'emergency-contact', label: 'Emergency contact', role: 'incoming' },
   { id: 'account', label: 'My account' },
 ]
 
@@ -1517,6 +1522,7 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
           </>
         )}
         {shownView === 'support' && <Suspense fallback={null}><SupportRequests profile={profile} /></Suspense>}
+        {shownView === 'emergency-contact' && <Suspense fallback={null}><EmergencyContact key={profile.student_id} studentId={profile.student_id} /></Suspense>}
         {shownView === 'subject-preferences' && <Suspense fallback={null}><IncomingSubjectPreferences key={profile.student_id} profile={profile} /></Suspense>}
         {shownView === 'account' && (
           <>

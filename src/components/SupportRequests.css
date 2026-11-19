@@ -1,0 +1,278 @@
+.support-form {
+  display: grid;
+  gap: 8px;
+  max-width: 640px;
+  margin-top: 24px;
+}
+
+.support-form label {
+  margin-top: 8px;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.support-form select,
+.support-form input,
+.support-form textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: rgba(3, 8, 15, 0.7);
+  font: inherit;
+}
+
+.support-form textarea {
+  resize: vertical;
+}
+
+.support-form :is(select, input, textarea):focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 1px;
+}
+
+.support-form [aria-invalid='true'] {
+  border-color: #ff8f9d;
+}
+
+.support-form .btn {
+  justify-self: start;
+  margin-top: 12px;
+}
+
+.support-form .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.support-form__count {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.support-form__count--over {
+  color: #ff8f9d;
+  font-weight: 600;
+}
+
+/* The browser's own "3 files" label would go stale once files are added one by one or removed,
+   so only the button is shown and the list below is the record of what will be sent. */
+.support-form input[type='file'] {
+  color: transparent;
+}
+
+.support-form__files {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.support-form__files li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.support-form__files small {
+  color: var(--text-muted);
+}
+
+.support-form__files button {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid #ff8f9d;
+  border-radius: 999px;
+  background: transparent;
+  color: #ff8f9d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.support-form__files button:hover {
+  background: rgba(255, 143, 157, 0.1);
+}
+
+.support-form--reply {
+  max-width: none;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.support-confirmation {
+  display: grid;
+  gap: 4px;
+  max-width: 640px;
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid rgba(18, 183, 106, 0.5);
+  border-radius: var(--radius-sm);
+  background: rgba(18, 183, 106, 0.1);
+  color: var(--text-strong);
+}
+
+.support-limit {
+  max-width: 640px;
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: 1px solid rgba(240, 165, 0, 0.5);
+  border-radius: var(--radius-sm);
+  background: rgba(240, 165, 0, 0.1);
+  color: var(--text-strong);
+}
+
+.support-request-count {
+  margin: 16px 0 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.support-request-list {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.support-request {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(3, 8, 15, 0.35);
+}
+
+.support-request__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.support-request__heading h3 {
+  margin: 2px 0 0;
+  color: var(--text-strong);
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.support-request__reference {
+  color: var(--neon);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.support-request__status {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.support-request__status--open {
+  background: rgba(240, 165, 0, 0.16);
+  color: var(--neon-gold);
+}
+
+.support-request__status--answered {
+  background: rgba(18, 183, 106, 0.16);
+  color: #4ade9a;
+}
+
+.support-request__meta {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+/* pre-wrap keeps the line breaks the writer typed; plaintext lets Arabic and other
+   right-to-left text set its own direction instead of following the English page. */
+.support-request__text {
+  margin: 10px 0 0;
+  color: var(--text-strong);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+.support-request__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.support-request__files button {
+  padding: 5px 10px;
+  border: 1px solid var(--border-bright);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--neon);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.support-request__files button:hover {
+  background: rgba(0, 212, 255, 0.08);
+}
+
+.support-request__reply {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-left: 3px solid #12b76a;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: rgba(18, 183, 106, 0.07);
+}
+
+.support-request__reply strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+}
+
+.support-request__reply time {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* The light theme's gold and green are too pale to read on their own tints. */
+:root[data-theme='light'] .support-request__status--open {
+  background: rgba(195, 158, 0, 0.2);
+  color: #6b5000;
+}
+
+:root[data-theme='light'] .support-request__status--answered,
+:root[data-theme='light'] .support-confirmation b {
+  color: #0b6b3f;
+}
+
+:root[data-theme='light'] .support-form__files button {
+  border-color: #c0273b;
+  color: #c0273b;
+}
+
+:root[data-theme='light'] .support-request {
+  background: var(--bg-card);
+}
+
+:root[data-theme='light'] .support-form :is(select, input, textarea) {
+  background: #ffffff;
+}

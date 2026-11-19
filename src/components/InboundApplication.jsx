@@ -2,13 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
-import { phoneCountryCodes } from '../phoneCountryCodes'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
 import DateField from './DateField'
 import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles'
 import ReplacementFileField from './ReplacementFileField'
-import WizardProgress from './WizardProgress'
 import './OutboundApplication.css'
 
 const DATE_TYPES = ['date', 'month', 'datetime-local']
@@ -66,6 +64,29 @@ const requiredAcademicFields = [
   'max_credits',
   'expected_graduation_date',
 ]
+
+const phoneCountryCodes = [
+  ['Afghanistan', '+93'], ['Albania', '+355'], ['Algeria', '+213'], ['Argentina', '+54'],
+  ['Australia', '+61'], ['Austria', '+43'], ['Bahrain', '+973'], ['Bangladesh', '+880'],
+  ['Belgium', '+32'], ['Brazil', '+55'], ['Bulgaria', '+359'], ['Cambodia', '+855'],
+  ['Cameroon', '+237'], ['Canada', '+1'], ['Chile', '+56'], ['China', '+86'],
+  ['Colombia', '+57'], ['Croatia', '+385'], ['Cyprus', '+357'], ['Czechia', '+420'],
+  ['Denmark', '+45'], ['Egypt', '+20'], ['Ethiopia', '+251'], ['Finland', '+358'],
+  ['France', '+33'], ['Georgia', '+995'], ['Germany', '+49'], ['Ghana', '+233'],
+  ['Greece', '+30'], ['India', '+91'], ['Indonesia', '+62'], ['Iran', '+98'],
+  ['Iraq', '+964'], ['Ireland', '+353'], ['Italy', '+39'], ['Japan', '+81'],
+  ['Jordan', '+962'], ['Kazakhstan', '+7'], ['Kenya', '+254'], ['Kuwait', '+965'],
+  ['Lebanon', '+961'], ['Malaysia', '+60'], ['Mexico', '+52'], ['Morocco', '+212'],
+  ['Nepal', '+977'], ['Netherlands', '+31'], ['New Zealand', '+64'], ['Nigeria', '+234'],
+  ['Norway', '+47'], ['Oman', '+968'], ['Pakistan', '+92'], ['Palestine', '+970'],
+  ['Philippines', '+63'], ['Poland', '+48'], ['Portugal', '+351'], ['Qatar', '+974'],
+  ['Romania', '+40'], ['Russia', '+7'], ['Saudi Arabia', '+966'], ['Singapore', '+65'],
+  ['South Africa', '+27'], ['South Korea', '+82'], ['Spain', '+34'], ['Sri Lanka', '+94'],
+  ['Sweden', '+46'], ['Switzerland', '+41'], ['Syria', '+963'], ['Taiwan', '+886'],
+  ['Thailand', '+66'], ['Tunisia', '+216'], ['Turkey', '+90'], ['Ukraine', '+380'],
+  ['United Arab Emirates', '+971'], ['United Kingdom', '+44'], ['United States', '+1'],
+  ['Vietnam', '+84'], ['Yemen', '+967'],
+].map(([country, code]) => ({ country, code }))
 
 function dateValue(value) {
   return value ? String(value).slice(0, 10) : ''
@@ -690,6 +711,7 @@ function InboundApplication() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState({})
   const [error, setError] = useState('')
+  const [scrollProgress, setScrollProgress] = useState(0)
   const pageContentRef = useRef(null)
   const wizardScrollRef = useRef(null)
   const autosaveTimerRef = useRef(null)
@@ -727,6 +749,49 @@ function InboundApplication() {
     setIsConfirmingWithdrawal(false)
     setWithdrawalState({ loading: false, error: '', message: 'Withdrawal requested. The coordinator will review it.' })
   }
+
+  useEffect(() => {
+    const pageContent = pageContentRef.current
+    const wizardScroller = wizardScrollRef.current
+    if (!pageContent || !wizardScroller) return undefined
+
+    let animationFrame = 0
+    pageContent.scrollTop = 0
+    wizardScroller.scrollTop = 0
+    const updateProgress = () => {
+      window.cancelAnimationFrame(animationFrame)
+      animationFrame = window.requestAnimationFrame(() => {
+        const fieldScrollDistance = Math.max(0, pageContent.scrollHeight - pageContent.clientHeight)
+        const pageScrollDistance = Math.max(0, wizardScroller.scrollHeight - wizardScroller.clientHeight)
+        const windowScrollDistance = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+        const totalScrollDistance = fieldScrollDistance + pageScrollDistance + windowScrollDistance
+        if (totalScrollDistance === 0) {
+          setScrollProgress(100)
+          return
+        }
+
+        const progress = ((pageContent.scrollTop + wizardScroller.scrollTop + window.scrollY) / totalScrollDistance) * 100
+        setScrollProgress(Math.max(0, Math.min(100, progress)))
+      })
+    }
+
+    updateProgress()
+    window.addEventListener('resize', updateProgress)
+    window.addEventListener('scroll', updateProgress, { passive: true })
+    wizardScroller.addEventListener('scroll', updateProgress, { passive: true })
+    pageContent.addEventListener('scroll', updateProgress, { passive: true })
+    const resizeObserver = new ResizeObserver(updateProgress)
+    resizeObserver.observe(pageContent)
+    resizeObserver.observe(wizardScroller)
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      window.removeEventListener('resize', updateProgress)
+      window.removeEventListener('scroll', updateProgress)
+      wizardScroller.removeEventListener('scroll', updateProgress)
+      pageContent.removeEventListener('scroll', updateProgress)
+      resizeObserver.disconnect()
+    }
+  }, [activeStep, loading, location.pathname, routeApplicationId])
 
   useEffect(() => {
     let current = true
@@ -1334,15 +1399,22 @@ function InboundApplication() {
 
   const renderWizardPage = (pageIndex) => (
     <>
-      {/* Keyed by route so each new page remounts the bar, which resets it and scrolls the
-          page back to the top. */}
-      <WizardProgress
-        key={location.pathname}
-        steps={steps}
-        pageIndex={pageIndex}
-        pageContentRef={pageContentRef}
-        wizardScrollRef={wizardScrollRef}
-      />
+      <nav className="outbound-progress" aria-label="Application progress">
+        {steps.map((item, index) => (
+          <div className="outbound-progress__step" key={item.title} aria-current={pageIndex === index ? 'step' : undefined}>
+            <span className="outbound-progress__label">
+              <span className="outbound-progress__number">{String(index + 1).padStart(2, '0')}</span>
+              <span className="outbound-progress__title"> · {item.title}</span>
+            </span>
+            <span className="outbound-progress__track" aria-hidden="true">
+              <span
+                className="outbound-progress__fill"
+                style={{ '--outbound-progress': `${index < pageIndex ? 100 : index === pageIndex ? scrollProgress : 0}%` }}
+              />
+            </span>
+          </div>
+        ))}
+      </nav>
       <form className="outbound-form" onSubmit={pageIndex === steps.length - 1 ? handleSubmit : handleNext} noValidate>
         <div ref={pageContentRef} className="outbound-form__scroll">
           <h1>{steps[pageIndex].title}</h1>
@@ -1563,10 +1635,6 @@ function InboundApplication() {
     </section>
   )
 
-  // Every route's element is built on each render, matched or not, so only the step the URL
-  // is on is built and all the step routes share it.
-  const wizardPage = routeStep >= 0 ? renderWizardPage(routeStep) : null
-
   return (
     <section
       ref={wizardScrollRef}
@@ -1579,11 +1647,11 @@ function InboundApplication() {
         <Routes>
           <Route index element={renderApplicationsPage} />
           <Route path=":applicationId/submitted" element={renderSubmittedPage} />
-          {steps.map((item) => (
-            <Route key={`new-${item.path}`} path={`new/:nominationId/${item.path}`} element={wizardPage} />
+          {steps.map((item, index) => (
+            <Route key={`new-${item.path}`} path={`new/:nominationId/${item.path}`} element={renderWizardPage(index)} />
           ))}
-          {steps.map((item) => (
-            <Route key={`draft-${item.path}`} path={`:applicationId/${item.path}`} element={wizardPage} />
+          {steps.map((item, index) => (
+            <Route key={`draft-${item.path}`} path={`:applicationId/${item.path}`} element={renderWizardPage(index)} />
           ))}
           <Route path="*" element={<Navigate to="/portal/inbound-application" replace />} />
         </Routes>

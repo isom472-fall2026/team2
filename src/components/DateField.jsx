@@ -6,16 +6,6 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour)
 const pad = (number) => String(number).padStart(2, '0')
-// One formatter for every day button; toLocaleDateString with options builds a new one per call.
-const dayLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-
-function calendarDays({ year, month }) {
-  const firstWeekday = new Date(year, month, 1).getDay()
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(year, month, index - firstWeekday + 1)
-    return { year: date.getFullYear(), month: date.getMonth(), day: date.getDate() }
-  })
-}
 
 function parseValue(type, value) {
   const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:T(\d{2}):(\d{2}))?/.exec(value || '')
@@ -215,12 +205,12 @@ export default function DateField({ type = 'date', value = '', min, max, disable
     else setCursor({ ...cursor, year: cursor.year + direction * (view === 'years' ? 12 : 1) })
   }
 
-  // Built only while the picker is open: forms re-render every field on each keystroke, and a
-  // closed picker shows none of this.
-  const days = open ? calendarDays(cursor) : []
-  const minutes = open
-    ? [...new Set([...Array.from({ length: 12 }, (_, index) => index * 5), (selected || cursor).minute])].sort((a, b) => a - b)
-    : []
+  const firstWeekday = new Date(cursor.year, cursor.month, 1).getDay()
+  const days = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(cursor.year, cursor.month, index - firstWeekday + 1)
+    return { year: date.getFullYear(), month: date.getMonth(), day: date.getDate() }
+  })
+  const minutes = [...new Set([...Array.from({ length: 12 }, (_, index) => index * 5), (selected || cursor).minute])].sort((a, b) => a - b)
   const shown = selected || cursor
 
   const popover = open && createPortal(
@@ -280,7 +270,7 @@ export default function DateField({ type = 'date', value = '', min, max, disable
                     data-focus-target={isCursor}
                     disabled={outOfRange(key)}
                     aria-pressed={Boolean(isSelected)}
-                    aria-label={dayLabel.format(new Date(year, month, day))}
+                    aria-label={new Date(year, month, day).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                     onClick={() => pickDay(year, month, day)}
                   >
                     {day}

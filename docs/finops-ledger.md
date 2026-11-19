@@ -96,10 +96,6 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |
 |---|---|---|---|---|
-| Incoming student contacts the Student Exchange Office through a support request form [#131](https://github.com/isom472-fall2026/team2/issues/131) | VS Agents | 94K Tokens | Story and acceptance criteria, `db/schema.sql` (updates, incomingstudentauth, coordinator and feedback tables, the testing registry and its functions, testing and maintenance policies, the inbound storage bucket and its RLS), `StudentInbox.jsx`, the student and coordinator portal code, our answers on the categories, attachment limits and how replies work | none |
-| Nominated or accepted incoming student selects preferred CBA subjects [#159](https://github.com/isom472-fall2026/team2/issues/159) | VS agents | 75.21K tokens | Story and acceptance criteria, db/schema.sql, incoming student portal, subject catalog and detail view, coordinator application view, RLS, testing and maintenance rules | None |
-| Incoming student adds an emergency contact [#101](https://github.com/isom472-fall2026/team2/issues/101) | GPT-6.2 Sol | 25K tokens / 2 story prompts, including 1 follow-up. Weekly limit remaining went from 49% to 48%. | Story and acceptance criteria, `AGENTS.md`, `db/schema.sql`, incoming student and KU coordinator portal code, and feedback on live search and result layout | None |
-| KU coordinator generates graphs summarizing an exchange cycle [#113](https://github.com/isom472-fall2026/team2/issues/113) | GPT-6.2 Sol | 45K Tokens / 2 story prompts, including 1 follow-up. Weekly limit remaining went from 48% to 45%. | Story and acceptance criteria, `AGENTS.md`, `db/schema.sql`, the coordinator portal code, and feedback on separating inbound and outbound analytics | None |
 |  |  |  |  |  |
 
 ## Phase 6

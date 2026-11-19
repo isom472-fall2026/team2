@@ -28,7 +28,6 @@ __pycache__/
 .vscode/
 .idea/
 .claude/
-claude.md
 *.swp
 *.swo
 *~

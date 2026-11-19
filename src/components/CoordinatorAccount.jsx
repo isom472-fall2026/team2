@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { supabase } from '../supabase'
-import { getPartnerUniversities } from '../referenceData'
 import { useAppStore } from '../stores/appStore'
 import './CoordinatorAccount.css'
 
@@ -18,10 +17,14 @@ function CoordinatorAccountSettings({ profile }) {
 
   useEffect(() => {
     let isCurrent = true
-    getPartnerUniversities().then(({ data }) => {
-      const university = data.find(({ university_id: id }) => Number(id) === Number(profile.university))
-      if (isCurrent) setUniversityName(university?.name || 'Unknown university')
-    })
+    supabase
+      .from('partneruniversity')
+      .select('name')
+      .eq('university_id', profile.university)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (isCurrent) setUniversityName(data?.name || 'Unknown university')
+      })
     return () => { isCurrent = false }
   }, [profile.university])
 
@@ -86,6 +89,7 @@ function CoordinatorAccountSettings({ profile }) {
 
   return (
     <section className="account-settings" aria-labelledby="account-settings-heading">
+      <span className="auth-card__eyebrow">Coordinator account</span>
       <h2 id="account-settings-heading">My account</h2>
       <p>Update your contact details. Your university and coordinator access are unchanged.</p>
       <form className="account-settings__form" onSubmit={saveAccount}>
@@ -149,6 +153,7 @@ export function CoordinatorPasswordPage() {
   return (
     <section className="portal-page" aria-labelledby="password-heading">
       <div className="portal-card account-settings">
+        <span className="auth-card__eyebrow">Account security</span>
         <h1 id="password-heading">Change password</h1>
         <form className="account-settings__form" onSubmit={changePassword}>
           <label>

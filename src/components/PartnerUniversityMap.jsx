@@ -123,8 +123,7 @@ export default function PartnerUniversityMap({ airports, universities, homeUnive
     if (!map.current || !nextStyle || nextStyleId === styleId) return
     onResetSelection()
     setStyleId(nextStyleId)
-    // Markers are page elements laid over the map, not part of its style, so they stay in place
-    // through the style change and are not built again.
+    map.current.once('style.load', addMarkers)
     map.current.setStyle(nextStyle.url)
   }
 

@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { MAPBOX_ACCESS_TOKEN } from '../../js/config.js'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
-import { forgetPartnerUniversities, getCountries } from '../referenceData'
 import './AddPartnerUniversity.css'
 
 const LOGO_BUCKET = 'partner-university-logos'
@@ -186,7 +185,7 @@ export default function AddPartnerUniversity({ university = null, onBack }) {
 
   useEffect(() => {
     let isCurrent = true
-    getCountries().then(({ data, error }) => {
+    supabase.from('country').select('id, name').order('name').then(({ data, error }) => {
       if (!isCurrent) return
       if (error) setCountryError(getDatabaseErrorMessage(error))
       else setCountries(data || [])
@@ -304,7 +303,6 @@ export default function AddPartnerUniversity({ university = null, onBack }) {
         setStatus({ error: 'The changes were not saved. The university may have been deleted, or you may not have permission.', saved: '' })
         return
       }
-      forgetPartnerUniversities()
       setStatus({ error: '', saved: form.name })
       return
     }
@@ -329,7 +327,6 @@ export default function AddPartnerUniversity({ university = null, onBack }) {
       return
     }
 
-    forgetPartnerUniversities()
     setStatus({ error: '', saved: form.name })
     setForm(emptyForm)
     setLogo(null)
@@ -337,16 +334,15 @@ export default function AddPartnerUniversity({ university = null, onBack }) {
     setPlacing('university')
   }
 
-  // The map moves its markers whenever this object changes, so it changes only with the
-  // coordinates and not with every keystroke in the other fields.
-  const pins = useMemo(() => ({
+  const pins = {
     university: pinFrom(form.latitude, form.longitude),
     airport: pinFrom(form.airportLatitude, form.airportLongitude),
-  }), [form.latitude, form.longitude, form.airportLatitude, form.airportLongitude])
+  }
   const describedBy = (field) => (errors[field] ? `add-university-${field}-error` : undefined)
 
   return (
     <>
+      <span className="auth-card__eyebrow">Partner universities</span>
       {isEditing ? (
         <>
           <h2 id="portal-heading">Edit <span dir="auto">{university.name}</span></h2>

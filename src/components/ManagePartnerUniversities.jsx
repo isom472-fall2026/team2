@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
+import { forgetPartnerUniversities, getCountries, getPartnerUniversities } from '../referenceData'
 import AddPartnerUniversity from './AddPartnerUniversity'
-
-const UNIVERSITY_COLUMNS = 'university_id, name, location, details, logo_url, latitude, longitude, airport_name, airport_code, airport_latitude, airport_longitude'
+import ConfirmDialog from './ConfirmDialog'
 
 // The original universities were seeded before coordinates and airports were stored, so
 // editing one starts from the researched values the directory already shows for it.
@@ -23,25 +23,21 @@ function withResearchedLocation(university, fallbackCoordinates, fallbackAirport
 
 function DeleteDialog({ university, coordinatorCount, isDeleting, error, onConfirm, onCancel }) {
   return (
-    <div className="cycle-delete-dialog__backdrop">
-      <section className="cycle-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="university-delete-heading" aria-describedby="university-delete-description">
-        <span className="cycle-delete-dialog__icon" aria-hidden="true">!</span>
-        <h2 id="university-delete-heading">Delete partner university?</h2>
-        <p id="university-delete-description">
-          <strong dir="auto">{university.name}</strong> will no longer appear in the partner directory, on the world
-          map or as a choice in applications.
-          {coordinatorCount > 0 && ` Its ${coordinatorCount} partner coordinator ${coordinatorCount === 1 ? 'account loses' : 'accounts lose'} access.`}
-          {' '}Past applications keep their record. This cannot be undone from the website.
-        </p>
-        {error && <p className="auth-form__error" role="alert">{error}</p>}
-        <div className="cycle-delete-dialog__actions">
-          <button className="btn btn--secondary" type="button" onClick={onCancel} disabled={isDeleting}>Cancel</button>
-          <button className="btn btn--danger" type="button" onClick={onConfirm} disabled={isDeleting}>
-            {isDeleting ? 'Deleting...' : 'Delete university'}
-          </button>
-        </div>
-      </section>
-    </div>
+    <ConfirmDialog
+      id="university-delete"
+      title="Delete partner university?"
+      error={error}
+      busy={isDeleting}
+      confirmLabel="Delete university"
+      busyLabel="Deleting..."
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
+      <strong dir="auto">{university.name}</strong> will no longer appear in the partner directory, on the world
+      map or as a choice in applications.
+      {coordinatorCount > 0 && ` Its ${coordinatorCount} partner coordinator ${coordinatorCount === 1 ? 'account loses' : 'accounts lose'} access.`}
+      {' '}Past applications keep their record. This cannot be undone from the website.
+    </ConfirmDialog>
   )
 }
 
@@ -63,9 +59,8 @@ export default function ManagePartnerUniversities({ fallbackCoordinates = {}, fa
   useEffect(() => {
     let isCurrent = true
     Promise.all([
-      // Kuwait University (4) is the home institution, not a partner.
-      supabase.from('partneruniversity').select(UNIVERSITY_COLUMNS).is('deleted_at', null).neq('university_id', 4).order('name'),
-      supabase.from('country').select('id, name'),
+      getPartnerUniversities(),
+      getCountries(),
       supabase.from('coordinator').select('university'),
       supabase.rpc('is_testing_mode_enabled'),
     ]).then(([universityResult, countryResult, coordinatorResult, testingResult]) => {
@@ -74,7 +69,8 @@ export default function ManagePartnerUniversities({ fallbackCoordinates = {}, fa
       if (error) setLoadError(getDatabaseErrorMessage(error))
       else {
         setLoadError('')
-        setUniversities(universityResult.data || [])
+        // Kuwait University (4) is the home institution, not a partner.
+        setUniversities(universityResult.data.filter((university) => university.deleted_at === null && Number(university.university_id) !== 4))
         setCountries(Object.fromEntries((countryResult.data || []).map((country) => [country.id, country.name])))
         const counts = {}
         ;(coordinatorResult.data || []).forEach(({ university }) => { counts[university] = (counts[university] || 0) + 1 })
@@ -103,6 +99,7 @@ export default function ManagePartnerUniversities({ fallbackCoordinates = {}, fa
       setDeleteError(getDatabaseErrorMessage(error))
       return
     }
+    forgetPartnerUniversities()
     setUniversities((current) => current.filter((university) => university.university_id !== pendingDelete.university_id))
     setMessage(`${pendingDelete.name} was deleted. It no longer appears in the directory or in applications.`)
     setPendingDelete(null)

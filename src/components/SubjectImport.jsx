@@ -13,6 +13,13 @@ const SYLLABUS_BUCKET = 'syllabi'
 // The extension answers a ping at once, so silence after this long means it is not installed.
 const EXTENSION_CHECK_MS = 1500
 const CHROME_WEB_STORE = 'https://chrome.google.com/webstore/detail/ffcmglhjadnmbbfaieflgjcdbkalmgja'
+const FIREFOX_ADD_ONS = 'https://addons.mozilla.org/en-US/firefox/addon/cba-syllabus-importer/'
+// Edge has not approved the extension yet, so it has no store link and its button is disabled.
+const extensionStores = [
+  { browser: 'Chrome', icon: 'chrome.svg', href: CHROME_WEB_STORE },
+  { browser: 'Firefox', icon: 'firefox.svg', href: FIREFOX_ADD_ONS },
+  { browser: 'Edge', icon: 'edge.svg', href: null },
+]
 // The CBA site publishes syllabi as PDF and as Word files; these are the types the bucket accepts.
 const SYLLABUS_EXTENSIONS = {
   'application/pdf': 'pdf',
@@ -121,16 +128,35 @@ function ExtensionStatus({ state, version, onCheckAgain }) {
           {state === 'ready' && version ? ` (version ${version})` : ''}
         </strong>
         {state === 'missing' && (
-          <span>
-            Install it from the{' '}
-            <a className="subject-import__link" href={CHROME_WEB_STORE} target="_blank" rel="noreferrer">Chrome Web Store</a>
-            {' '}to enable the import, then reload this page.
-          </span>
+          <span>Install it for your browser with a button below to enable the import, then reload this page.</span>
         )}
       </div>
       {state === 'missing' && (
         <button className="btn btn--secondary" type="button" onClick={onCheckAgain}>Check again</button>
       )}
+    </div>
+  )
+}
+
+function ExtensionStores() {
+  return (
+    <div className="subject-import__stores" role="group" aria-labelledby="subject-import-stores-label">
+      <span className="subject-import__stores-label" id="subject-import-stores-label">Get the importer extension</span>
+      {extensionStores.map(({ browser, icon, href }) => {
+        const logo = <img src={`${import.meta.env.BASE_URL}images/browsers/${icon}`} alt="" width="20" height="20" />
+        return href ? (
+          <a key={browser} className="btn btn--secondary subject-import__store" href={href} target="_blank" rel="noreferrer">
+            {logo}
+            Add to {browser}
+          </a>
+        ) : (
+          <button key={browser} className="btn btn--secondary subject-import__store" type="button" disabled>
+            {logo}
+            Add to {browser}
+            <span className="subject-import__store-soon">Coming soon</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -271,6 +297,8 @@ function SubjectImport() {
           checkExtension()
         }}
       />
+
+      <ExtensionStores />
 
       <button
         className="btn btn--primary"

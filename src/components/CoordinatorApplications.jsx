@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { jsPDF } from 'jspdf'
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
+import { getCountries, getCycles, getPartnerUniversities } from '../referenceData'
 import { useAppStore } from '../stores/appStore'
 import { formatUpdateTime } from '../formatUpdateTime'
 import './CoordinatorApplications.css'
@@ -15,18 +15,31 @@ const applicationEditors = {
 
 const pageSize = 500
 
-async function readAllRows(table) {
+// Only what the application lists show, with the student's profile in the same request; an
+// application is read in full when it is exported or opened. Modified rows are earlier versions
+// of an edited application, shown as its history on the Manage page and never in a list.
+const listColumns = {
+  inboundapplication: 'application_id, student_id, first_name, middle_name, last_name, nationality, university_id, semester_applied_for, gpa, max_gpa, application_status, student:incomingstudentauth(name, student_email)',
+  outboundapplication: 'application_id, student_id, first_name, middle_name, last_name, nationality, university_id, semester_applied_for, gpa, application_status, student:kustudentauth(name, student_email)',
+}
+
+async function readListRows(table) {
   const rows = []
   for (let start = 0; ; start += pageSize) {
     const { data, error } = await supabase
       .from(table)
-      .select('*')
+      .select(listColumns[table])
+      .neq('application_status', 'Modified')
       .order('application_id')
       .range(start, start + pageSize - 1)
     if (error) throw error
     rows.push(...(data || []))
     if (!data || data.length < pageSize) return rows
   }
+}
+
+function profilesFromRows(rows) {
+  return new Map(rows.filter(({ student }) => student).map(({ student_id, student }) => [String(student_id), student]))
 }
 
 async function readProfiles(table, applications) {
@@ -48,9 +61,9 @@ function getCycleLabel(application, cycles) {
   return cycle ? `${cycle.semester} ${cycle.academic_year}` : 'Cycle unavailable'
 }
 
-function compareCycles(left, right, cycles) {
-  const leftCycle = cycles.find(({ id }) => Number(id) === Number(left.semester_applied_for))
-  const rightCycle = cycles.find(({ id }) => Number(id) === Number(right.semester_applied_for))
+function compareCycles(leftRecord, rightRecord) {
+  const { cycle: leftCycle, application: left } = leftRecord
+  const { cycle: rightCycle, application: right } = rightRecord
   if (!leftCycle || !rightCycle) {
     return Number(left.semester_applied_for || 0) - Number(right.semester_applied_for || 0)
   }
@@ -149,8 +162,11 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
   const university = data.universities.find(
     ({ university_id }) => Number(university_id) === Number(application.university_id),
   )?.name || 'University unavailable'
-  const logos = await loadLogos()
-  const doc = new jsPDF({ format: 'a4' })
+  // jsPDF is most of this page's download and only the export needs it, so it loads on the
+  // first export instead of with the applications table.
+  const [{ jsPDF }, logos] = await Promise.all([import('jspdf'), loadLogos()])
+  // Uncompressed, the two logos alone made every export about 4 MB.
+  const doc = new jsPDF({ format: 'a4', compress: true })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 16
@@ -340,6 +356,11 @@ function readGpaBounds(input) {
 }
 
 function ApplicationList({ applications, profiles, cycles, universities, countries, onManage, onExport, loading, emptyMessage }) {
+  const names = useMemo(() => ({
+    country: new Map(countries.map(({ id, name }) => [Number(id), name])),
+    university: new Map(universities.map(({ university_id: id, name }) => [Number(id), name])),
+  }), [countries, universities])
+
   if (loading) return <p role="status">Loading applications...</p>
   if (applications.length === 0) return <div className="portal-empty-state">{emptyMessage}</div>
 
@@ -362,8 +383,8 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
           {applications.map((application) => {
             const profilesByType = profiles[application.type]
             const studentName = getStudentName(application, profilesByType)
-            const nationality = countries.find(({ id }) => Number(id) === Number(application.nationality))?.name
-            const university = universities.find(({ university_id }) => Number(university_id) === Number(application.university_id))?.name
+            const nationality = names.country.get(Number(application.nationality))
+            const university = names.university.get(Number(application.university_id))
             return (
               <tr key={`${application.type}-${application.application_id}`}>
                 <th scope="row">{studentName}</th>
@@ -428,26 +449,22 @@ export default function CoordinatorApplications() {
     const loadApplications = async () => {
       try {
         const [inbound, outbound, cyclesResult, universitiesResult, countriesResult, contactsResult] = await Promise.all([
-          readAllRows('inboundapplication'),
-          readAllRows('outboundapplication'),
-          supabase.from('exchange_cycle').select('*').order('id'),
-          supabase.from('partneruniversity').select('university_id, name').order('name'),
-          supabase.from('country').select('id, name').order('name'),
+          readListRows('inboundapplication'),
+          readListRows('outboundapplication'),
+          getCycles(),
+          getPartnerUniversities(),
+          getCountries(),
           supabase.from('emergency_contact').select('*'),
         ])
         for (const result of [cyclesResult, universitiesResult, countriesResult, contactsResult]) {
           if (result.error) throw result.error
         }
-        const [inboundProfiles, outboundProfiles] = await Promise.all([
-          readProfiles('incomingstudentauth', inbound),
-          readProfiles('kustudentauth', outbound),
-        ])
         if (!isCurrent) return
         setData({
           inbound,
           outbound,
-          inboundProfiles,
-          outboundProfiles,
+          inboundProfiles: profilesFromRows(inbound),
+          outboundProfiles: profilesFromRows(outbound),
           cycles: cyclesResult.data || [],
           universities: universitiesResult.data || [],
           countries: countriesResult.data || [],
@@ -482,60 +499,66 @@ export default function CoordinatorApplications() {
       .sort((left, right) => new Date(left.cycle_start) - new Date(right.cycle_start))[0] || null
   }, [data.cycles, now])
 
-  const profiles = {
+  const profiles = useMemo(() => ({
     inbound: data.inboundProfiles,
     outbound: data.outboundProfiles,
-  }
-  // Modified rows are earlier versions of an edited application; they are shown as its
-  // history on the Manage page, not as applications of their own.
-  const records = data[applicationType]
-    .filter((application) => application.application_status !== 'Modified')
-    .map((application) => ({ ...application, type: applicationType }))
-  const currentApplications = records.filter(
-    (application) => currentCycle && Number(application.semester_applied_for) === Number(currentCycle.id),
-  )
-  const historicalApplications = records.filter(
-    (application) => approvedStatuses.includes(application.application_status)
+  }), [data.inboundProfiles, data.outboundProfiles])
+  // Each row's name, GPA and cycle are worked out once here, not inside every sort comparison
+  // and again on every keystroke in the filters.
+  const records = useMemo(() => {
+    const cycleById = new Map(data.cycles.map((cycle) => [Number(cycle.id), cycle]))
+    return data[applicationType].map((row) => {
+      const application = { ...row, type: applicationType }
+      const name = getStudentName(application, profiles[applicationType])
+      return {
+        application,
+        name,
+        searchName: name.toLowerCase(),
+        gpa: getGpaOnFourScale(application),
+        cycle: cycleById.get(Number(application.semester_applied_for)),
+      }
+    })
+  }, [data, applicationType, profiles])
+  const currentRecords = useMemo(() => records.filter(
+    ({ application }) => currentCycle && Number(application.semester_applied_for) === Number(currentCycle.id),
+  ), [records, currentCycle])
+  const historicalRecords = useMemo(() => records.filter(
+    ({ application }) => approvedStatuses.includes(application.application_status)
       && (!currentCycle || Number(application.semester_applied_for) !== Number(currentCycle.id)),
-  )
+  ), [records, currentCycle])
 
   const isHistory = section === 'history'
-  const byStudentName = (left, right) => getStudentName(left, profiles[applicationType])
-    .localeCompare(getStudentName(right, profiles[applicationType]))
-  const byGpaHighestFirst = (left, right) => {
-    const leftGpa = getGpaOnFourScale(left)
-    const rightGpa = getGpaOnFourScale(right)
-    if (leftGpa === rightGpa) return byStudentName(left, right)
-    if (leftGpa === null) return 1
-    if (rightGpa === null) return -1
-    return rightGpa - leftGpa
-  }
-  const isInGpaRange = (application) => {
-    if (gpaBounds.min === null && gpaBounds.max === null) return true
-    const gpa = getGpaOnFourScale(application)
-    return gpa !== null
-      && (gpaBounds.min === null || gpa >= gpaBounds.min)
-      && (gpaBounds.max === null || gpa <= gpaBounds.max)
-  }
   const hasCurrentFilters = Boolean(statusFilter) || gpaBounds.min !== null || gpaBounds.max !== null
-  const visibleApplications = isHistory
-    ? historicalApplications
-      .filter((application) => {
-        const name = getStudentName(application, profiles[applicationType]).toLowerCase()
-        const studentId = String(application.student_id || '')
-        const query = search.trim().toLowerCase()
-        return (!query || name.includes(query) || studentId.includes(query))
+  const visibleApplications = useMemo(() => {
+    const byStudentName = (left, right) => left.name.localeCompare(right.name)
+    if (isHistory) {
+      const query = search.trim().toLowerCase()
+      return historicalRecords
+        .filter(({ application, searchName }) => (!query || searchName.includes(query) || String(application.student_id || '').includes(query))
           && (!nationalityFilter || String(application.nationality) === nationalityFilter)
-          && (!universityFilter || String(application.university_id) === universityFilter)
-      })
-      .sort((left, right) => {
-        const cycleSort = compareCycles(left, right, data.cycles)
-        if (cycleSort !== 0) return semesterOrder === 'ascending' ? cycleSort : -cycleSort
-        return byStudentName(left, right)
-      })
-    : currentApplications
-      .filter((application) => (!statusFilter || application.application_status === statusFilter) && isInGpaRange(application))
+          && (!universityFilter || String(application.university_id) === universityFilter))
+        .sort((left, right) => {
+          const cycleSort = compareCycles(left, right)
+          if (cycleSort !== 0) return semesterOrder === 'ascending' ? cycleSort : -cycleSort
+          return byStudentName(left, right)
+        })
+        .map(({ application }) => application)
+    }
+    const byGpaHighestFirst = (left, right) => {
+      if (left.gpa === right.gpa) return byStudentName(left, right)
+      if (left.gpa === null) return 1
+      if (right.gpa === null) return -1
+      return right.gpa - left.gpa
+    }
+    const isInGpaRange = ({ gpa }) => (gpaBounds.min === null && gpaBounds.max === null)
+      || (gpa !== null
+        && (gpaBounds.min === null || gpa >= gpaBounds.min)
+        && (gpaBounds.max === null || gpa <= gpaBounds.max))
+    return currentRecords
+      .filter((record) => (!statusFilter || record.application.application_status === statusFilter) && isInGpaRange(record))
       .sort(currentOrder === 'gpa' ? byGpaHighestFirst : byStudentName)
+      .map(({ application }) => application)
+  }, [isHistory, historicalRecords, currentRecords, search, nationalityFilter, universityFilter, semesterOrder, statusFilter, gpaBounds, currentOrder])
 
   // An invalid bound keeps the last valid GPA filter in place, so the list never changes to
   // match numbers the coordinator is told are wrong.
@@ -576,8 +599,14 @@ export default function CoordinatorApplications() {
   const exportPdf = async (application) => {
     try {
       setExportError('')
+      const { data: row, error: rowError } = await supabase
+        .from(reviewTypes[application.type].table)
+        .select('*')
+        .eq('application_id', application.application_id)
+        .single()
+      if (rowError) throw rowError
       await downloadApplicationPdf(
-        application,
+        { ...row, type: application.type },
         applicationType,
         { ...data, profiles },
         coordinatorName,
@@ -683,7 +712,7 @@ export default function CoordinatorApplications() {
       {exportError && <p className="auth-form__error" role="alert">{exportError}</p>}
       <p className="coordinator-applications__count" aria-live="polite">
         {!isHistory && hasCurrentFilters
-          ? `${visibleApplications.length} of ${currentApplications.length} application(s) match the filters`
+          ? `${visibleApplications.length} of ${currentRecords.length} application(s) match the filters`
           : `${visibleApplications.length} application(s)`}
       </p>
       <ApplicationList
@@ -697,7 +726,7 @@ export default function CoordinatorApplications() {
         loading={isLoading}
         emptyMessage={isHistory
           ? 'No approved applications from previous cycles match these filters.'
-          : hasCurrentFilters && currentApplications.length > 0
+          : hasCurrentFilters && currentRecords.length > 0
             ? 'No applications for this KU semester match these filters.'
             : 'There are no applications for this KU semester yet.'}
       />
@@ -1244,9 +1273,9 @@ export function ManageApplication({ type }) {
         if (readError) throw readError
         if (!row) throw new Error('This application could not be found.')
         const [cyclesResult, universitiesResult, countriesResult, contactsResult, studentProfiles] = await Promise.all([
-          supabase.from('exchange_cycle').select('*').order('id'),
-          supabase.from('partneruniversity').select('university_id, name, available').order('name'),
-          supabase.from('country').select('id, name').order('name'),
+          getCycles(),
+          getPartnerUniversities(),
+          getCountries(),
           row.emergency_contact
             ? supabase.from('emergency_contact').select('*').eq('contact_id', row.emergency_contact)
             : Promise.resolve({ data: [] }),
@@ -1568,20 +1597,16 @@ export function SendApplicationUpdate() {
     const load = async () => {
       try {
         const [inbound, outbound, cyclesResult] = await Promise.all([
-          readAllRows('inboundapplication'),
-          readAllRows('outboundapplication'),
-          supabase.from('exchange_cycle').select('id, semester, academic_year').order('id'),
+          readListRows('inboundapplication'),
+          readListRows('outboundapplication'),
+          getCycles(),
         ])
         if (cyclesResult.error) throw cyclesResult.error
-        const [inboundProfiles, outboundProfiles] = await Promise.all([
-          readProfiles('incomingstudentauth', inbound),
-          readProfiles('kustudentauth', outbound),
-        ])
         if (!isCurrent) return
         setData({
           inbound,
           outbound,
-          profiles: { inbound: inboundProfiles, outbound: outboundProfiles },
+          profiles: { inbound: profilesFromRows(inbound), outbound: profilesFromRows(outbound) },
           cycles: cyclesResult.data || [],
         })
       } catch (error) {
@@ -1598,14 +1623,17 @@ export function SendApplicationUpdate() {
 
   const profiles = data.profiles[applicationType]
   const query = search.trim().toLowerCase()
-  const options = data[applicationType]
-    .filter((application) => application.application_status !== 'Modified')
-    .map((application) => ({
-      application,
-      label: `${getStudentName(application, profiles)} · ID ${application.student_id || 'unavailable'} · ${getCycleLabel(application, data.cycles)} · ${application.application_status}`,
-    }))
-    .filter(({ label }) => !query || label.toLowerCase().includes(query))
-    .sort((left, right) => left.label.localeCompare(right.label))
+  // Labelled and sorted once per application type, so typing an update does not rebuild them.
+  const labelledOptions = useMemo(() => data[applicationType]
+    .map((application) => {
+      const label = `${getStudentName(application, data.profiles[applicationType])} · ID ${application.student_id || 'unavailable'} · ${getCycleLabel(application, data.cycles)} · ${application.application_status}`
+      return { application, label, searchLabel: label.toLowerCase() }
+    })
+    .sort((left, right) => left.label.localeCompare(right.label)), [data, applicationType])
+  const options = useMemo(
+    () => (query ? labelledOptions.filter(({ searchLabel }) => searchLabel.includes(query)) : labelledOptions),
+    [labelledOptions, query],
+  )
   const selected = data[applicationType].find(({ application_id }) => String(application_id) === selectedId)
 
   const changeType = (nextType) => {

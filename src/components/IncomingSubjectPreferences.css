@@ -1,0 +1,80 @@
+.subject-preferences,
+.subject-preferences__form,
+.subject-preferences__selection,
+.subject-preferences__catalog {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.subject-preferences header p {
+  margin-top: 8px;
+}
+
+.subject-preferences__selection {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-alt);
+}
+
+.subject-preferences__list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.subject-preferences__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.subject-preferences__list strong {
+  color: var(--text-strong);
+  margin-right: 8px;
+}
+
+.subject-preferences__dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+}
+
+.subject-preferences__dates dt {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.subject-preferences__dates dd {
+  margin: 4px 0 0;
+  color: var(--text-strong);
+}
+
+.subject-preferences__selection > .btn {
+  justify-self: start;
+}
+
+.subject-preferences input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--neon);
+  cursor: pointer;
+}
+
+.subject-preferences__unsaved {
+  color: var(--neon-gold);
+}
+
+.subject-preferences__success {
+  color: var(--neon);
+}
+
+.subject-preferences button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 're
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import DateField from './DateField'
 import ConfirmDialog from './ConfirmDialog'
+import PortalGlobeBackground from './PortalGlobeBackground'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { isKuCoordinatorProfile } from '../coordinatorProfile'
@@ -21,6 +22,7 @@ const AddPartnerUniversity = lazy(() => import('./AddPartnerUniversity'))
 const ManagePartnerUniversities = lazy(() => import('./ManagePartnerUniversities'))
 const SubjectImport = lazy(() => import('./SubjectImport'))
 const StudentAccount = lazy(() => import('./StudentAccount'))
+const IncomingSubjectPreferences = lazy(() => import('./IncomingSubjectPreferences'))
 
 
 // One highlight for the whole sidebar. It slides to the selected tab, so the tabs themselves can
@@ -33,21 +35,155 @@ function SidebarHighlight({ activeView }) {
     const nav = highlight.parentElement
     const place = () => {
       const tab = nav.querySelector('.portal-sidebar__action--active')
-      highlight.style.opacity = tab ? '1' : '0'
-      if (!tab) return
+      // A tab inside a closed group is still in the page, only clipped, so it is checked for.
+      const shown = tab && !tab.closest('[inert]')
+      highlight.style.opacity = shown ? '1' : '0'
+      if (!shown) return
       highlight.style.width = `${tab.offsetWidth}px`
       highlight.style.height = `${tab.offsetHeight}px`
       highlight.style.transform = `translate(${tab.offsetLeft}px, ${tab.offsetTop}px)`
     }
+    highlight.style.transitionDuration = ''
     place()
-    // Tabs move when the sidebar changes width or a label wraps.
-    const observer = new ResizeObserver(place)
+
+    // Tabs also move when a group opens or closes, the sidebar changes width or a label wraps.
+    // Then the highlight stays on its tab without sliding, or it would trail behind a moving
+    // tab. The observer's first call only reports the starting size, so it is skipped.
+    let started = false
+    const observer = new ResizeObserver(() => {
+      if (!started) {
+        started = true
+        return
+      }
+      highlight.style.transitionDuration = '0s'
+      place()
+    })
     observer.observe(nav)
     return () => observer.disconnect()
   }, [activeView])
 
   return <span ref={highlightRef} className="portal-sidebar__highlight" aria-hidden="true" />
 }
+
+// The sidebar's list of views. Titled groups all start open and each can be closed on its own;
+// a portal with only a few views passes one untitled group, which is always open. An item with
+// `view` switches the portal's view, and one with `to` links to its own page.
+function SidebarNav({ groups, activeView, onOpenView }) {
+  const groupOf = (view) => groups.find((group) => group.items.some((item) => item.view === view))?.title
+  const [closedGroups, setClosedGroups] = useState(() => new Set())
+  const [seenView, setSeenView] = useState(activeView)
+  // The view can change without a click here (saving a new semester moves to the list of
+  // semesters), so the group holding the current view is reopened if it was closed.
+  if (seenView !== activeView) {
+    setSeenView(activeView)
+    const group = groupOf(activeView)
+    if (group && closedGroups.has(group)) {
+      setClosedGroups((current) => new Set([...current].filter((title) => title !== group)))
+    }
+  }
+
+  const toggleGroup = (title) => {
+    setClosedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(title)) next.delete(title)
+      else next.add(title)
+      return next
+    })
+  }
+
+  return (
+    <nav className="portal-sidebar__nav">
+      {groups.map((group, index) => {
+        const open = !group.title || !closedGroups.has(group.title)
+        const itemsId = `portal-sidebar-group-${index}`
+        return (
+          <div key={group.title || 'views'} className="portal-sidebar__group">
+            {group.title && (
+              <button
+                className="portal-sidebar__group-title"
+                type="button"
+                aria-expanded={open}
+                aria-controls={itemsId}
+                onClick={() => toggleGroup(group.title)}
+              >
+                {group.title}
+              </button>
+            )}
+            {/* inert keeps the tabs of a closed group out of keyboard and screen reader reach. */}
+            <div className="portal-sidebar__group-items" id={itemsId} data-open={open} inert={!open}>
+              <div className="portal-sidebar__stops">
+                {group.items.map((item) => (item.to ? (
+                  <Link key={item.to} className="portal-sidebar__action" to={item.to}>{item.label}</Link>
+                ) : (
+                  <button
+                    key={item.view}
+                    className={activeView === item.view ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'}
+                    type="button"
+                    aria-current={activeView === item.view ? 'page' : undefined}
+                    onClick={() => onOpenView(item.view)}
+                  >
+                    {item.label}
+                  </button>
+                )))}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+      <SidebarHighlight activeView={activeView} />
+    </nav>
+  )
+}
+
+// A KU coordinator has enough views to need grouping by what they act on. A partner coordinator
+// has four, which read faster as one short list.
+const kuCoordinatorNav = [
+  {
+    title: 'Kuwait University',
+    items: [
+      { view: 'start', label: 'Start KU semester' },
+      { view: 'manage', label: 'Manage KU semester' },
+      { view: 'subjects', label: 'CBA subjects' },
+    ],
+  },
+  {
+    title: 'Students',
+    items: [
+      { view: 'nominations', label: 'Student nominations' },
+      { view: 'applications', label: 'Applications' },
+      { view: 'send-update', label: 'Send an update' },
+      { view: 'withdrawals', label: 'Withdrawal requests' },
+      { view: 'support-requests', label: 'Support requests' },
+    ],
+  },
+  {
+    title: 'Partner universities',
+    items: [
+      { view: 'add-university', label: 'Add university' },
+      { view: 'manage-universities', label: 'Manage universities' },
+      { view: 'coordinators', label: 'Coordinator access' },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { view: 'account', label: 'My account' },
+      { view: 'maintenance', label: 'Maintenance mode' },
+      { to: '/testing-mode', label: 'Testing mode' },
+    ],
+  },
+]
+
+const partnerCoordinatorNav = [
+  {
+    items: [
+      { view: 'manage', label: 'Manage KU semester' },
+      { view: 'nominations', label: 'Student nominations' },
+      { view: 'progress', label: 'Nominee progress' },
+      { view: 'account', label: 'My account' },
+    ],
+  },
+]
 
 function generateNominationId() {
   const randomValues = new Uint32Array(1)
@@ -783,90 +919,21 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         </ConfirmDialog>
       )}
       <aside className="portal-sidebar" aria-label="Coordinator portal navigation">
-        <span className="portal-sidebar__eyebrow">Coordinator portal</span>
-        <h1 className="portal-sidebar__title">KU Exchange</h1>
-        <p className="portal-sidebar__welcome">Welcome, {profile.name}</p>
-        <nav className="portal-sidebar__nav">
-          {isKuCoordinator && (
-            <button className={activeView === 'start' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => {
-              clearStatus()
-              setActiveView('start')
-            }}>
-              <span aria-hidden="true">＋</span> Start KU semester
-            </button>
-          )}
-          <button className={activeView === 'manage' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('manage')}>
-            <span aria-hidden="true">▦</span> Manage KU semester
-          </button>
-          <button className={activeView === 'nominations' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('nominations')}>
-            <span aria-hidden="true">◌</span> Student nominations
-          </button>
-          <button className={activeView === 'account' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('account')}>
-            <span aria-hidden="true">♙</span> My account
-          </button>
-          {!isKuCoordinator && (
-            <button className={activeView === 'progress' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('progress')}>
-              <span aria-hidden="true">▤</span> Nominee progress
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'applications' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('applications')}>
-              <span aria-hidden="true">▤</span> Applications
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'send-update' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('send-update')}>
-              <span aria-hidden="true">✉</span> Send an update
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'withdrawals' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('withdrawals')}>
-              <span aria-hidden="true">↩</span> Withdrawal requests
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'support-requests' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('support-requests')}>
-              <span aria-hidden="true">?</span> Support requests
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'add-university' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('add-university')}>
-              <span aria-hidden="true">⌖</span> Add university
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'manage-universities' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('manage-universities')}>
-              <span aria-hidden="true">✎</span> Manage universities
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'subjects' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('subjects')}>
-              <span aria-hidden="true">▥</span> CBA subjects
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'coordinators' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('coordinators')}>
-              <span aria-hidden="true">♙</span> Coordinator access
-            </button>
-          )}
-          {isKuCoordinator && (
-            <button className={activeView === 'maintenance' ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'} type="button" onClick={() => setActiveView('maintenance')}>
-              <span aria-hidden="true">⚙</span> Maintenance mode
-            </button>
-          )}
-          {isKuCoordinator && (
-            <Link className="portal-sidebar__action" to="/testing-mode">
-              <span aria-hidden="true">◉</span> Testing mode
-            </Link>
-          )}
-          <SidebarHighlight activeView={activeView} />
-        </nav>
-        <div className="portal-sidebar__footer">
-          <span className="portal-sidebar__secure">Signed in securely</span>
-          {maintenanceMode && (
+        <h1 className="portal-sidebar__title">{isKuCoordinator ? 'KU coordinator portal' : 'Partner coordinator portal'}</h1>
+        <p className="portal-sidebar__user">{profile.name}</p>
+        <SidebarNav
+          groups={isKuCoordinator ? kuCoordinatorNav : partnerCoordinatorNav}
+          activeView={activeView}
+          onOpenView={(view) => {
+            if (view === 'start') clearStatus()
+            setActiveView(view)
+          }}
+        />
+        {maintenanceMode && (
+          <div className="portal-sidebar__footer">
             <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
-          )}
-        </div>
+          </div>
+        )}
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
         {activeView === 'account' && <Suspense fallback={null}><CoordinatorAccountSettings profile={profile} /></Suspense>}
@@ -879,7 +946,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         {isKuCoordinator && activeView === 'subjects' && <Suspense fallback={null}><SubjectImport /></Suspense>}
         {isKuCoordinator && activeView === 'start' && (
           <>
-            <span className="auth-card__eyebrow">New cycle</span>
             <h2 id="portal-heading">Start a KU semester</h2>
             <p>Set the timetable for inbound nominations and exchange applications.</p>
             <CycleForm form={cycleForm} setForm={setCycleForm} onSubmit={startExchangeCycle} isSubmitting={isStartingCycle} status={status} submitLabel="Start KU semester" />
@@ -887,7 +953,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         )}
         {activeView === 'manage' && (
           <>
-            <span className="auth-card__eyebrow">Cycle dashboard</span>
             <h2 id="portal-heading">Manage KU semesters</h2>
             <p>Review the schedules currently available to students and coordinators.</p>
             {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
@@ -960,7 +1025,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         )}
         {isKuCoordinator && activeView === 'withdrawals' && (
           <>
-            <span className="auth-card__eyebrow">Application review</span>
             <h2 id="portal-heading">Withdrawal requests</h2>
             <p>Review withdrawal requests from students and decide whether to approve them.</p>
             {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
@@ -1023,7 +1087,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         {isKuCoordinator && activeView === 'send-update' && <Suspense fallback={null}><SendApplicationUpdate /></Suspense>}
         {!isKuCoordinator && activeView === 'progress' && (
           <section aria-labelledby="progress-heading">
-            <span className="auth-card__eyebrow">Nomination tracking</span>
             <h2 id="progress-heading">Nominee application progress</h2>
             <p>Track application status for students you nominated.</p>
             <div className="progress-filter">
@@ -1081,7 +1144,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         )}
         {(activeView === 'nominations' || activeView === 'cycle-nominations') && (
           <>
-            <span className="auth-card__eyebrow">Student nominations</span>
             {activeView === 'cycle-nominations' && selectedNominationCycle ? (
               <>
                 <h2 id="portal-heading">
@@ -1233,7 +1295,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
         )}
         {isKuCoordinator && activeView === 'coordinators' && (
           <>
-            <span className="auth-card__eyebrow">Access control</span>
             <h2 id="portal-heading">Coordinator access</h2>
             <p>Review partner coordinator accounts and access requests.</p>
             {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
@@ -1285,7 +1346,6 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           <section className="maintenance-panel" aria-labelledby="maintenance-toggle-heading">
             <div className="maintenance-panel__header">
               <div>
-                <span className="auth-card__eyebrow">Website status</span>
                 <h2 id="maintenance-toggle-heading">Maintenance mode</h2>
               </div>
               <span className={maintenanceMode === null ? 'maintenance-panel__badge' : maintenanceMode ? 'maintenance-panel__badge maintenance-panel__badge--enabled' : 'maintenance-panel__badge maintenance-panel__badge--disabled'}>
@@ -1359,6 +1419,17 @@ function CoordinatorAccessPending({ user, universityId, onSignOut, onDeleted }) 
   )
 }
 
+// The globe sits behind the dashboard rather than inside each portal, so it keeps turning while
+// the coordinator or student moves between views.
+function PortalScene({ children }) {
+  return (
+    <div className="portal-scene">
+      <PortalGlobeBackground />
+      {children}
+    </div>
+  )
+}
+
 export default function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenanceStatus, passwordOnly = false }) {
   const user = useAppStore((state) => state.session?.user)
   const profile = useAppStore((state) => state.profile)
@@ -1373,17 +1444,26 @@ export default function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenan
       return <CoordinatorAccessPending user={user} universityId={profile.university} onSignOut={onSignOut} onDeleted={onDeleted} />
     }
     if (passwordOnly) return <CoordinatorPasswordPage />
-    return <CoordinatorPortal onDeleted={onDeleted} onSignOut={onSignOut} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
+    return (
+      <PortalScene>
+        <CoordinatorPortal onDeleted={onDeleted} onSignOut={onSignOut} onRetryMaintenanceStatus={onRetryMaintenanceStatus} />
+      </PortalScene>
+    )
   }
 
-  return <StudentPortal user={user} profile={profile} onSignOut={onSignOut} onDeleted={onDeleted} />
+  return (
+    <PortalScene>
+      <StudentPortal user={user} profile={profile} onSignOut={onSignOut} onDeleted={onDeleted} />
+    </PortalScene>
+  )
 }
 
 const studentPortalViews = [
-  { id: 'home', icon: '⌂', label: 'Home' },
-  { id: 'inbox', icon: '✉', label: 'Inbox' },
-  { id: 'support', icon: '?', label: 'Contact the office', role: 'incoming' },
-  { id: 'account', icon: '♙', label: 'My account' },
+  { id: 'home', label: 'Home' },
+  { id: 'inbox', label: 'Inbox' },
+  { id: 'subject-preferences', label: 'Preferred CBA subjects', role: 'incoming' },
+  { id: 'support', label: 'Contact the office', role: 'incoming' },
+  { id: 'account', label: 'My account' },
 ]
 
 function StudentPortal({ user, profile, onSignOut, onDeleted }) {
@@ -1400,48 +1480,27 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
     ? studentPortalViews.filter((view) => !view.role || view.role === profile.role)
     : studentPortalViews.filter((view) => view.id === 'home')
   const shownView = views.some((view) => view.id === activeView) ? activeView : 'home'
+  const navItems = [
+    ...views.map((view) => ({ view: view.id, label: view.label })),
+    ...(application ? [application] : []),
+    ...(profile?.role === 'incoming' ? [{ to: '/portal/subjects', label: 'CBA subjects' }] : []),
+  ]
 
   return (
     <div className="portal-dashboard portal-dashboard--student">
       <aside className="portal-sidebar" aria-label="Student portal navigation">
-        <span className="portal-sidebar__eyebrow">
+        <h1 className="portal-sidebar__title">
           {profile?.role === 'ku' ? 'KU student portal' : profile?.role === 'incoming' ? 'Incoming student portal' : 'Student portal'}
-        </span>
-        <h1 className="portal-sidebar__title">KU Exchange</h1>
-        <p className="portal-sidebar__welcome">Welcome, {name}</p>
-        <nav className="portal-sidebar__nav">
-          {views.map((view) => (
-            <button
-              key={view.id}
-              className={shownView === view.id ? 'portal-sidebar__action portal-sidebar__action--active' : 'portal-sidebar__action'}
-              type="button"
-              aria-current={shownView === view.id ? 'page' : undefined}
-              onClick={() => setActiveView(view.id)}
-            >
-              <span aria-hidden="true">{view.icon}</span> {view.label}
-            </button>
-          ))}
-          {application && (
-            <Link className="portal-sidebar__action" to={application.to}>
-              <span aria-hidden="true">▤</span> {application.label}
-            </Link>
-          )}
-          {profile?.role === 'incoming' && (
-            <Link className="portal-sidebar__action" to="/portal/subjects">
-              <span aria-hidden="true">▥</span> CBA subjects
-            </Link>
-          )}
-          <SidebarHighlight activeView={shownView} />
-        </nav>
+        </h1>
+        <p className="portal-sidebar__user">{name}</p>
+        <SidebarNav groups={[{ items: navItems }]} activeView={shownView} onOpenView={setActiveView} />
         <div className="portal-sidebar__footer">
-          <span className="portal-sidebar__secure">Signed in securely</span>
           <button className="btn btn--secondary" type="button" onClick={onSignOut}>Log out</button>
         </div>
       </aside>
       <section className="portal-card portal-card--wide portal-card--workspace">
         {shownView === 'home' && (
           <>
-            <span className="auth-card__eyebrow">Secure portal</span>
             <h2 id="portal-heading">Welcome, {name}</h2>
             <p>You are signed in as <strong>{user.email}</strong>.</p>
             {application && (
@@ -1453,12 +1512,12 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
         )}
         {shownView === 'inbox' && (
           <>
-            <span className="auth-card__eyebrow">Messages</span>
             <h2>Inbox</h2>
             <Suspense fallback={null}><StudentInbox role={profile.role} /></Suspense>
           </>
         )}
         {shownView === 'support' && <Suspense fallback={null}><SupportRequests profile={profile} /></Suspense>}
+        {shownView === 'subject-preferences' && <Suspense fallback={null}><IncomingSubjectPreferences key={profile.student_id} profile={profile} /></Suspense>}
         {shownView === 'account' && (
           <>
             <Suspense fallback={null}><StudentAccount profile={profile} /></Suspense>

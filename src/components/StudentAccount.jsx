@@ -183,7 +183,6 @@ function StudentAccount({ profile }) {
 
   return (
     <section className="account-settings" aria-labelledby="student-account-heading">
-      <span className="auth-card__eyebrow">{isKuStudent ? 'KU student account' : 'Incoming student account'}</span>
       <h2 id="student-account-heading">My account</h2>
       <p>Check and update the details the exchange office uses to contact you.</p>
 

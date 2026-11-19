@@ -1,0 +1,147 @@
+.cycle-report {
+  max-width: 1100px;
+}
+
+.cycle-report > header,
+.cycle-report__graph figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.cycle-report__cycle {
+  display: grid;
+  gap: 5px;
+  color: var(--text-strong);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.cycle-report__cycle select {
+  min-width: 13rem;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg-card);
+  font: inherit;
+}
+
+.cycle-report__direction {
+  margin-top: 24px;
+}
+
+.cycle-report__direction + .cycle-report__direction {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.cycle-report__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.cycle-report__metrics > div {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-card-alt);
+}
+
+.cycle-report__metrics dt {
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.cycle-report__metrics dd {
+  margin: 5px 0 0;
+  color: var(--text-strong);
+  font-size: 1.125rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.cycle-report__metrics small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.cycle-report__graphs {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.cycle-report__graph {
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.cycle-report__graph h4 {
+  margin: 0;
+}
+
+.cycle-report__graph figcaption {
+  margin-bottom: 12px;
+}
+
+.cycle-report__chart {
+  position: relative;
+}
+
+.cycle-report__tooltip {
+  position: absolute;
+  top: 5px;
+  left: 8px;
+  z-index: 1;
+  max-width: calc(100% - 16px);
+  padding: 4px 8px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-alt);
+  color: var(--text-strong);
+  pointer-events: none;
+  font-size: 0.8rem;
+}
+
+.cycle-report__plot {
+  overflow: auto;
+  border-radius: var(--radius-sm);
+}
+
+.cycle-report__plot svg {
+  display: block;
+  width: 100%;
+  min-width: 540px;
+  height: auto;
+}
+
+.cycle-report__plot .cycle-report__export-title {
+  visibility: hidden;
+}
+
+.cycle-report__plot svg g[tabindex]:focus-visible {
+  outline: none;
+}
+
+.cycle-report__plot svg g[tabindex]:focus-visible > rect:first-of-type {
+  stroke: var(--neon);
+  stroke-width: 2;
+}
+
+@media (max-width: 600px) {
+  .cycle-report__graph {
+    padding: 12px;
+  }
+}

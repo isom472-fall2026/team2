@@ -86,7 +86,6 @@ function CoordinatorAccountSettings({ profile }) {
 
   return (
     <section className="account-settings" aria-labelledby="account-settings-heading">
-      <span className="auth-card__eyebrow">Coordinator account</span>
       <h2 id="account-settings-heading">My account</h2>
       <p>Update your contact details. Your university and coordinator access are unchanged.</p>
       <form className="account-settings__form" onSubmit={saveAccount}>
@@ -150,7 +149,6 @@ export function CoordinatorPasswordPage() {
   return (
     <section className="portal-page" aria-labelledby="password-heading">
       <div className="portal-card account-settings">
-        <span className="auth-card__eyebrow">Account security</span>
         <h1 id="password-heading">Change password</h1>
         <form className="account-settings__form" onSubmit={changePassword}>
           <label>

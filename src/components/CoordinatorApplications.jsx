@@ -5,6 +5,8 @@ import { supabase } from '../supabase'
 import { getCountries, getCycles, getPartnerUniversities } from '../referenceData'
 import { useAppStore } from '../stores/appStore'
 import { formatUpdateTime } from '../formatUpdateTime'
+import { COURSE_CREDITS } from '../courseCredits'
+import { getDatabaseErrorMessage } from '../databaseErrors'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
 
@@ -618,7 +620,6 @@ export default function CoordinatorApplications() {
 
   return (
     <section ref={sectionRef} className="coordinator-applications" aria-labelledby="portal-heading">
-      <span className="auth-card__eyebrow">Application records</span>
       {isHistory ? (
         <>
           <h2 id="portal-heading">Historical applications</h2>
@@ -1242,6 +1243,75 @@ async function loadAttachmentPages(bucket, path, label) {
   }
 }
 
+function IncomingApplicationSubjects({ studentId }) {
+  const [refresh, setRefresh] = useState(0)
+  const [state, setState] = useState({ key: null, preferences: null, subjects: [], error: '' })
+  const requestKey = `${studentId}-${refresh}`
+
+  useEffect(() => {
+    let current = true
+    const load = async () => {
+      try {
+        if (!studentId) throw new Error('The student account is no longer available.')
+        const { data: preferences, error: profileError } = await supabase
+          .from('incomingstudentauth')
+          .select('preferred_subject_codes, subject_preferences_created_at, subject_preferences_updated_at')
+          .eq('student_id', studentId)
+          .maybeSingle()
+        if (profileError) throw profileError
+        if (!preferences) throw new Error('The student account is no longer available.')
+        const codes = preferences.preferred_subject_codes
+        const { data: subjects, error: catalogError } = codes.length > 0
+          ? await supabase.from('subjects')
+            .select('course_code, course_display_code, course_name, course_department')
+            .in('course_code', codes)
+          : { data: [] }
+        if (catalogError) throw catalogError
+        if (current) setState({ key: requestKey, preferences, subjects: subjects || [], error: '' })
+      } catch (loadError) {
+        if (current) setState({ key: requestKey, preferences: null, subjects: [], error: getDatabaseErrorMessage(loadError) })
+      }
+    }
+    load()
+    return () => { current = false }
+  }, [studentId, requestKey])
+
+  const loading = state.key !== requestKey
+  const codes = state.preferences?.preferred_subject_codes || []
+  const subjectByCode = new Map(state.subjects.map((subject) => [subject.course_code, subject]))
+
+  return (
+    <section className="coordinator-review__panel" aria-labelledby="review-subject-preferences-heading">
+      <h2 id="review-subject-preferences-heading">Preferred CBA subjects</h2>
+      <p>Current preferences saved by the student. These do not confirm course registration.</p>
+      {loading ? <p role="status">Loading subject preferences...</p>
+        : state.error ? <p className="auth-form__error" role="alert">{state.error}</p>
+          : codes.length === 0 ? <p>This student has not saved any subject preferences.</p>
+            : (
+              <>
+                <ul className="update-history">
+                  {codes.map((code) => {
+                    const subject = subjectByCode.get(code)
+                    return (
+                      <li key={code}>
+                        <strong className="update-history__application">{subject ? `${subject.course_display_code} · ${subject.course_name}` : code}</strong>
+                        <p>{subject ? `${subject.course_department} · ${COURSE_CREDITS} credits` : 'Subject no longer in the catalog.'}</p>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <p>Saved preferences</p>
+                <dl className="coordinator-applications__fields coordinator-review__fields">
+                  <div><dt>First saved</dt><dd><time dateTime={state.preferences.subject_preferences_created_at}>{formatUpdateTime(state.preferences.subject_preferences_created_at)}</time></dd></div>
+                  <div><dt>Last modified</dt><dd><time dateTime={state.preferences.subject_preferences_updated_at}>{formatUpdateTime(state.preferences.subject_preferences_updated_at)}</time></dd></div>
+                </dl>
+              </>
+            )}
+      <p><button className="btn btn--secondary" type="button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>Refresh preferences</button></p>
+    </section>
+  )
+}
+
 export function ManageApplication({ type }) {
   const config = reviewTypes[type]
   const { applicationId } = useParams()
@@ -1531,6 +1601,8 @@ export function ManageApplication({ type }) {
 
                 {type === 'outbound' && <AlternativeOffers application={application} universities={lookups.universities} />}
 
+                {type === 'inbound' && <IncomingApplicationSubjects key={application.student_id || application.application_id} studentId={application.student_id} />}
+
                 <UpdateHistory
                   type={type}
                   applicationId={application.application_id}
@@ -1669,7 +1741,6 @@ export function SendApplicationUpdate() {
 
   return (
     <section className="coordinator-applications" aria-labelledby="portal-heading">
-      <span className="auth-card__eyebrow">Student inbox</span>
       <h2 id="portal-heading">Send an update</h2>
       <p>Choose an application and write an update. The student sees it in their portal inbox.</p>
       <div className="coordinator-applications__type-tabs" role="group" aria-label="Application type">

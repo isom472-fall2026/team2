@@ -127,7 +127,6 @@ export default function SupportRequests({ profile }) {
 
   return (
     <>
-      <span className="auth-card__eyebrow">Support</span>
       <h2>Contact the office</h2>
       <p>Send a question to the Student Exchange Office. The answer appears here and in your inbox.</p>
 

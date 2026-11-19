@@ -131,15 +131,31 @@ function getRingArea(ring) {
   }, 0))
 }
 
+// Every destination's map tests the bounds of every country outline in the world file, and the
+// file never changes once loaded, so each outline's bounds are measured only once.
+const ringBoundsCache = new WeakMap()
+
 function getRingBounds(ring) {
-  const longitudes = ring.map(([longitude]) => longitude)
-  const latitudes = ring.map(([, latitude]) => latitude)
-  return {
-    minLongitude: Math.min(...longitudes),
-    maxLongitude: Math.max(...longitudes),
-    minLatitude: Math.min(...latitudes),
-    maxLatitude: Math.max(...latitudes),
+  if (!ringBoundsCache.has(ring)) {
+    const longitudes = ring.map(([longitude]) => longitude)
+    const latitudes = ring.map(([, latitude]) => latitude)
+    ringBoundsCache.set(ring, {
+      minLongitude: Math.min(...longitudes),
+      maxLongitude: Math.max(...longitudes),
+      minLatitude: Math.min(...latitudes),
+      maxLatitude: Math.max(...latitudes),
+    })
   }
+  return ringBoundsCache.get(ring)
+}
+
+const destinationPathsCache = new Map()
+
+function getCachedDestinationMapPaths(features, selectedName) {
+  if (!destinationPathsCache.has(selectedName)) {
+    destinationPathsCache.set(selectedName, getDestinationMapPaths(features, selectedName))
+  }
+  return destinationPathsCache.get(selectedName)
 }
 
 function getDestinationMapPaths(features, selectedName) {
@@ -286,7 +302,7 @@ export default function VisaChecker() {
     loadWorldBoundaries().then((world) => {
       if (!isCurrent) return
       const mapName = destinationMapNames[destination] || destination
-      const paths = world ? getDestinationMapPaths(world.features, mapName) : []
+      const paths = world ? getCachedDestinationMapPaths(world.features, mapName) : []
       setDestinationMap({
         destination,
         paths,

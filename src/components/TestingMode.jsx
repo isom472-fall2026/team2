@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../../js/config.js'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { supabase } from '../supabase'
+import { forgetReferenceData } from '../referenceData'
 import { useAppStore } from '../stores/appStore'
 import './TestingMode.css'
 
@@ -387,6 +388,8 @@ export default function TestingMode({
     } catch (setupError) {
       setError(setupError.message || getDatabaseErrorMessage(setupError))
     }
+    // Setup adds a KU semester, even when it stops partway.
+    forgetReferenceData()
     await loadTestingState()
     setBusyAction(null)
   }
@@ -425,6 +428,8 @@ export default function TestingMode({
       setBusyAction(null)
       return
     }
+    // Ending the test removes its KU semesters and restores the partner universities.
+    forgetReferenceData()
     setEnabled(false)
     setAccounts([])
     setMessage('Testing mode is off. Registered test data and accounts were removed, and partner universities were restored.')

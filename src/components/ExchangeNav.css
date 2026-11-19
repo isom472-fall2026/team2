@@ -89,6 +89,67 @@
   .exchange-nav-shell .exchange-menu-toggle { padding: 8px 12px; }
 }
 
+/* ── Motion ──────────────────────────────────────────────────────────────────
+   All of it is CSS on transform, opacity and a 74px logo, so nothing runs in JavaScript and
+   nothing animates while the bar is idle. */
+
+/* The crest settles in with a small overshoot, then a light sweeps across it once. Hovering
+   the brand tilts the crest and sends the light across again. rotate and translate are used
+   instead of transform so they do not fight the entrance or the scroll shrink below. */
+.exchange-brand .exchange-brand-logo { animation: nav-logo-in .8s cubic-bezier(.2, .9, .3, 1.25) backwards; transition: rotate .5s cubic-bezier(.2, .9, .3, 1.4), translate .5s cubic-bezier(.2, .9, .3, 1.4); }
+.exchange-brand:hover .exchange-brand-logo, .exchange-brand:focus-visible .exchange-brand-logo { rotate: -7deg; translate: 0 -2px; }
+.exchange-brand-logo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 42%, var(--accent) 50%, transparent 58%) no-repeat; background-size: 320% 100%; background-position: 130% 0; -webkit-mask: var(--logo-mask) center / contain no-repeat; mask: var(--logo-mask) center / contain no-repeat; pointer-events: none; animation: nav-logo-shine 1s ease-out .55s backwards; transition: background-position .9s ease-out; }
+/* The light logo is dark blue, so its sweep is white; the dark logo is white, so its sweep is the accent colour. */
+.exchange-brand-logo[data-theme='light']::after { background-image: linear-gradient(115deg, transparent 42%, #fff 50%, transparent 58%); }
+.exchange-brand:hover .exchange-brand-logo::after, .exchange-brand:focus-visible .exchange-brand-logo::after { background-position: -30% 0; }
+.exchange-brand > span:last-child { animation: nav-drop .5s cubic-bezier(.22, .7, .2, 1) .08s backwards; }
+
+/* A line under each link grows from the left on hover and stays under the current page. */
+.exchange-nav-links a { position: relative; }
+.exchange-nav-links a::after { content: ''; position: absolute; right: 0; bottom: -7px; left: 0; height: 2px; border-radius: 2px; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform .32s cubic-bezier(.22, .7, .2, 1); }
+.exchange-nav-links a:hover::after, .exchange-nav-links a:focus-visible::after, .exchange-nav-links a[aria-current='page']::after { transform: scaleX(1); }
+.exchange-nav-links a[aria-current='page'] { color: var(--ink); }
+
+.exchange-nav-shell .exchange-nav-portal, .exchange-nav-shell .ascend-theme-toggle { transition: border-color .18s ease, background .18s ease, transform .25s cubic-bezier(.2, .9, .3, 1.4); }
+.exchange-nav-shell .exchange-nav-portal:hover, .exchange-nav-shell .ascend-theme-toggle:hover { transform: translateY(-2px); }
+.exchange-nav-shell .exchange-nav-portal:active, .exchange-nav-shell .ascend-theme-toggle:active { transform: scale(.96); }
+.exchange-nav-shell .ascend-theme-toggle svg { animation: nav-toggle-spin .6s cubic-bezier(.2, .9, .3, 1.2); }
+
+/* The full bar's links and buttons drop in one after another. The mobile menu has its own
+   opening animation, so this is for the wide layout only. */
+@media (min-width: 1181px) {
+  .exchange-nav-links > *, .exchange-nav-actions > * { animation: nav-drop .5s cubic-bezier(.22, .7, .2, 1) backwards; animation-delay: calc(.12s + var(--nav-item, 0) * .05s); }
+  .exchange-nav-links > :nth-child(2) { --nav-item: 1; }
+  .exchange-nav-links > :nth-child(3) { --nav-item: 2; }
+  .exchange-nav-actions > * { --nav-item: 3; }
+  .exchange-nav-actions > :nth-child(2) { --nav-item: 4; }
+  .exchange-nav-actions > :nth-child(n + 3) { --nav-item: 5; }
+}
+
+@media (max-width: 1180px) {
+  .exchange-nav-links a::after { display: none; }
+}
+
+/* Tied to the page's scroll position by the browser itself: a progress line along the bottom
+   edge, a shadow once the page has moved, and a slightly smaller crest. Browsers without
+   scroll-driven animations simply show the bar as it was. */
+@supports (animation-timeline: scroll()) {
+  .exchange-nav-shell::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); transform: scaleX(0); transform-origin: left; animation: nav-progress linear both; animation-timeline: scroll(root); pointer-events: none; }
+  .exchange-nav-shell { animation: nav-lift linear both; animation-timeline: scroll(root); animation-range: 0 160px; }
+  .exchange-brand .exchange-brand-logo { animation: nav-logo-in .8s cubic-bezier(.2, .9, .3, 1.25) backwards, nav-logo-condense linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 160px; }
+}
+
+@keyframes nav-logo-in { from { opacity: 0; transform: scale(.6) rotate(-18deg); } }
+@keyframes nav-logo-shine { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+@keyframes nav-logo-condense { to { scale: .86; } }
+@keyframes nav-drop { from { opacity: 0; transform: translateY(-10px); } }
+@keyframes nav-toggle-spin { from { opacity: 0; transform: rotate(-90deg) scale(.5); } }
+@keyframes nav-progress { to { transform: scaleX(1); } }
+@keyframes nav-lift { to { box-shadow: 0 18px 40px -26px rgba(0, 0, 0, .55); } }
+
 @media (prefers-reduced-motion: reduce) {
   .exchange-nav-menu, .exchange-nav-menu > * > *, .exchange-menu-icon span, .exchange-brand-logo img { transition: none !important; }
+  .exchange-brand .exchange-brand-logo, .exchange-brand-logo::after, .exchange-brand > span:last-child, .exchange-nav-links > *, .exchange-nav-actions > *, .exchange-nav-shell .ascend-theme-toggle svg { animation: none !important; transition: none !important; }
+  .exchange-brand:hover .exchange-brand-logo, .exchange-nav-shell .exchange-nav-portal:hover, .exchange-nav-shell .ascend-theme-toggle:hover { rotate: none; translate: none; transform: none; }
+  .exchange-nav-links a::after { transition: none; }
 }

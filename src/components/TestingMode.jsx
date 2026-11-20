@@ -26,6 +26,14 @@ const accountDefinitions = [
     table: 'incomingstudentauth',
   },
   {
+    role: 'incoming-no-application',
+    userType: 'incoming',
+    label: 'Emma Wilson (Incoming Student, No Application)',
+    name: 'Emma Wilson',
+    emailDomain: 'gmail.com',
+    table: 'incomingstudentauth',
+  },
+  {
     role: 'ku-no-application',
     userType: 'ku',
     label: 'Alex Johnson (KU Student No Application Version)',
@@ -302,6 +310,7 @@ async function provisionTestingScenario() {
 
   const coordinator = created.find(({ account }) => account.role === 'coordinator')
   const incoming = created.find(({ account }) => account.role === 'incoming')
+  const incomingWithoutApplication = created.find(({ account }) => account.role === 'incoming-no-application')
   const kuStudent = created.find(({ account }) => account.role === 'ku')
   const coordinatorClient = await signInTestAccount(coordinator.account)
   const nomination = await createTestingNomination(
@@ -310,6 +319,14 @@ async function provisionTestingScenario() {
     cycle.id,
     { name: incoming.account.name, email: incoming.email },
   )
+  const unusedNomination = await createTestingNomination(
+    coordinatorClient,
+    coordinator.profileId,
+    cycle.id,
+    { name: incomingWithoutApplication.account.name, email: incomingWithoutApplication.email },
+  )
+  incomingWithoutApplication.account.nominationId = unusedNomination.id
+  await savePublicAccounts(accounts)
   await createSubmittedInboundApplication(
     await signInTestAccount(incoming.account),
     incoming.profileId,
@@ -404,7 +421,7 @@ export default function TestingMode({
     try {
       const generatedAccounts = await provisionTestingScenario()
       setAccounts(generatedAccounts)
-      setMessage('Testing accounts, KU semester data, and submitted applications are ready.')
+      setMessage('Testing accounts, KU semester data, submitted applications, and a nominated incoming student without an application are ready.')
     } catch (setupError) {
       setError(setupError.message || getDatabaseErrorMessage(setupError))
     }
@@ -566,6 +583,7 @@ export default function TestingMode({
                       >
                         <strong>{account.label}</strong>
                         <span>{account.email}</span>
+                        {account.nominationId && <span>Nomination ID: {account.nominationId}</span>}
                       </button>
                     ))}
                   </div>

@@ -68,7 +68,9 @@ Record the result, imported count, sample course codes and a screenshot showing 
 
 ## Separate persona accounts
 
-Use the existing **Testing mode** setup from a dedicated KU coordinator test account. It creates separate Auth users for the partner coordinator, nominated incoming student, KU student with an application and KU student without an application. The owning KU coordinator remains a separate account. Do not reuse one Auth user across personas. The setup now supplies the newly required synthetic documents.
+Use the existing **Testing mode** setup from a dedicated KU coordinator test account. It creates separate Auth users for the partner coordinator, nominated incoming student with a submitted application, nominated incoming student without an application, KU student with an application and KU student without an application. The owning KU coordinator remains a separate account. Do not reuse one Auth user across personas. The setup now supplies the newly required synthetic documents for submitted applications.
+
+Emma Wilson is the additional incoming account with an active nomination for the open test semester and no application, including no draft. Her Nomination ID appears on her testing-account button; use it to start an application after switching to her account. Jane Smith's submitted incoming application remains available as the separate review scenario. Existing testing sessions gain the extra account when testing mode is ended and started again. Both incoming profiles and nominations use the existing test registry and cleanup.
 
 In the disposable project, switch through every generated role, verify each portal and its allowed actions, then end testing mode as the owning KU coordinator. Confirm test files/accounts are removed and backed-up records restored. The SQL regression checks use separate synthetic user IDs for incoming, another incoming student, KU student, partner coordinator and KU coordinator. Hosted account creation, switching and cleanup remain a human verification item.
 

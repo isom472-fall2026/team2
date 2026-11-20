@@ -7,6 +7,7 @@ import { useAppStore } from '../stores/appStore'
 import { formatUpdateTime } from '../formatUpdateTime'
 import { COURSE_CREDITS } from '../courseCredits'
 import { getDatabaseErrorMessage } from '../databaseErrors'
+import { inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
 
@@ -21,7 +22,7 @@ const pageSize = 500
 // application is read in full when it is exported or opened. Modified rows are earlier versions
 // of an edited application, shown as its history on the Manage page and never in a list.
 const listColumns = {
-  inboundapplication: 'application_id, student_id, first_name, middle_name, last_name, nationality, university_id, semester_applied_for, gpa, max_gpa, application_status, student:incomingstudentauth(name, student_email)',
+  inboundapplication: 'application_id, student_id, first_name, middle_name, last_name, nationality, university_id, semester_applied_for, gpa, max_gpa, application_status, approval_type, student:incomingstudentauth(name, student_email)',
   outboundapplication: 'application_id, student_id, first_name, middle_name, last_name, nationality, university_id, semester_applied_for, gpa, application_status, student:kustudentauth(name, student_email)',
 }
 
@@ -100,8 +101,9 @@ function getApplicationFields(application, data) {
   const universityById = new Map(data.universities.map((university) => [String(university.university_id), university.name]))
   const cycleById = new Map(data.cycles.map((cycle) => [String(cycle.id), `${cycle.semester} ${cycle.academic_year}`]))
 
-  return Object.entries(application)
+  return Object.entries(application).filter(([key]) => key !== 'approval_type')
     .map(([key, value]) => {
+      if (key === 'application_status' && Object.hasOwn(application, 'approval_type')) return ['Application status', inboundApprovalLabel(application)]
       if (['nationality', 'passport_issuing_country'].includes(key) && value !== null) {
         return [getLabel(key), countryById.get(String(value)) || `Country #${value}`]
       }
@@ -272,7 +274,7 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
   row('Student ID', studentId)
   row('Destination university', university)
   row('Cycle', cycle)
-  row('Current status', application.application_status || 'Unknown', true)
+  row('Current status', applicationType === 'inbound' ? inboundApprovalLabel(application) : application.application_status || 'Unknown', true)
   cursorY += 10
 
   heading('Application summary', 15, 3)
@@ -294,8 +296,7 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
 
 const decidableStatuses = ['Submitted', 'In Review', 'Pending Interview']
 
-// The review functions save an acceptance as 'Accepted'; 'Approved' is the proposal's older
-// name for the same outcome and is still allowed in the table, so the history keeps both.
+// History includes both approval stages and older records that used either status code.
 const approvedStatuses = ['Accepted', 'Approved']
 
 // Shown to the coordinator only; the database's default_decision_update() holds the wording
@@ -395,7 +396,7 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
                 <td>{nationality || 'Unavailable'}</td>
                 <td>{getCycleLabel(application, cycles)}</td>
                 <td>{formatGpa(application)}</td>
-                <td>{application.application_status}</td>
+                <td>{application.type === 'inbound' ? inboundApprovalLabel(application) : application.application_status}</td>
                 <td>
                   <div className="nomination-table__actions">
                     <button className="btn btn--secondary" type="button" onClick={() => onManage(application)}>
@@ -557,7 +558,7 @@ export default function CoordinatorApplications() {
         && (gpaBounds.min === null || gpa >= gpaBounds.min)
         && (gpaBounds.max === null || gpa <= gpaBounds.max))
     return currentRecords
-      .filter((record) => (!statusFilter || record.application.application_status === statusFilter) && isInGpaRange(record))
+      .filter((record) => (!statusFilter || (record.application.type === 'inbound' ? inboundApprovalLabel(record.application) : record.application.application_status) === statusFilter) && isInGpaRange(record))
       .sort(currentOrder === 'gpa' ? byGpaHighestFirst : byStudentName)
       .map(({ application }) => application)
   }, [isHistory, historicalRecords, currentRecords, search, nationalityFilter, universityFilter, semesterOrder, statusFilter, gpaBounds, currentOrder])
@@ -681,7 +682,9 @@ export default function CoordinatorApplications() {
               Status
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                 <option value="">All statuses</option>
-                {statusFilterOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                {(applicationType === 'inbound'
+                  ? statusFilterOptions.filter((status) => !approvedStatuses.includes(status)).concat(['Conditional approval', 'Unconditional approval'])
+                  : statusFilterOptions).map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </label>
             <label>
@@ -754,6 +757,7 @@ const reviewTypes = {
       ['civil_id_copy', 'Civil ID copy'],
       ['passport_copy', 'Passport copy'],
       ['transcript', 'Academic transcript'],
+      ['cv', 'CV'],
     ],
   },
   inbound: {
@@ -766,6 +770,9 @@ const reviewTypes = {
     attachments: [
       ['passport_copy', 'Passport copy'],
       ['transcript', 'Academic transcript'],
+      ['cv', 'CV'],
+      ['english_evidence', 'English proficiency evidence'],
+      ['criminal_record_certificate', 'Criminal-record certificate'],
     ],
   },
 }
@@ -992,13 +999,14 @@ const editableFields = {
     'passport_number', 'passport_expiry_date', 'phone_number', 'is_whatsapp_available',
     'major', 'current_year_of_study', 'gpa', 'max_gpa', 'credits_passed', 'max_credits',
     'expected_graduation_date', 'passport_copy', 'transcript', 'profile_photo',
+    'cv', 'english_evidence_type', 'english_evidence', 'criminal_record_certificate',
   ],
   outbound: [
     'first_name', 'middle_name', 'last_name', 'gender', 'birthdate',
     'nationality', 'passport_issuing_country', 'passport_number', 'passport_expiry_date',
     'civil_id_number', 'civil_id_expiry', 'phone_number', 'is_whatsapp_available',
     'major', 'current_year_of_study', 'gpa', 'credits_passed', 'expected_graduation_semester',
-    'university_id', 'semester_applied_for', 'civil_id_copy', 'passport_copy', 'transcript', 'profile_photo',
+    'university_id', 'semester_applied_for', 'civil_id_copy', 'passport_copy', 'transcript', 'profile_photo', 'cv',
   ],
 }
 
@@ -1325,6 +1333,7 @@ export function ManageApplication({ type }) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [pendingDecision, setPendingDecision] = useState(null)
+  const [certificateStamped, setCertificateStamped] = useState(false)
   const [decisionUpdate, setDecisionUpdate] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [updatesRefresh, setUpdatesRefresh] = useState(0)
@@ -1431,12 +1440,13 @@ export function ManageApplication({ type }) {
   }
 
   const confirmDecision = async () => {
-    const accept = pendingDecision === 'accept'
+    const accept = pendingDecision !== 'reject'
     setDecision({ loading: true, error: '', message: '' })
     const { data: row, error: decisionError } = await supabase.rpc(config.reviewFunction, {
       requested_application_id: application.application_id,
       accept_application: accept,
       update_details: decisionUpdate.trim() || null,
+      ...(type === 'inbound' ? { unconditional_approval: pendingDecision === 'unconditional', certificate_stamped: certificateStamped } : {}),
     })
     if (decisionError) {
       setDecision({ loading: false, error: decisionError.message || 'The decision could not be saved.', message: '' })
@@ -1446,7 +1456,8 @@ export function ManageApplication({ type }) {
     setPendingDecision(null)
     setDecisionUpdate('')
     setUpdatesRefresh((count) => count + 1)
-    setDecision({ loading: false, error: '', message: `The application was ${accept ? 'accepted' : 'rejected'}, and the student was sent an update.` })
+    setCertificateStamped(false)
+    setDecision({ loading: false, error: '', message: `The application decision was saved, and the student was sent an update.` })
   }
 
   const saveEditedApplication = (edited) => {
@@ -1467,6 +1478,15 @@ export function ManageApplication({ type }) {
   const status = application?.application_status || 'Unknown'
   const statusClass = status.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const canDecide = decidableStatuses.includes(status)
+  const canUpgrade = type === 'inbound' && hasConditionalApproval(application || {})
+  const statusLabel = type === 'inbound' ? inboundApprovalLabel(application || {}) : status
+  const decisionLabel = pendingDecision === 'reject' ? 'rejection'
+    : type !== 'inbound' ? 'acceptance'
+      : pendingDecision === 'unconditional' ? 'unconditional approval' : 'conditional approval'
+  const defaultDecisionMessage = pendingDecision === 'reject' ? defaultDecisionUpdates.reject
+    : type !== 'inbound' ? defaultDecisionUpdates.accept
+      : pendingDecision === 'unconditional' ? 'Your application has received unconditional approval.'
+        : 'Your application has received conditional approval. A criminal-record certificate stamped by a Kuwaiti embassy is required for unconditional approval. Contact the Kuwaiti embassy in your country about health-insurance requirements.'
   const ApplicationEditor = applicationEditors[type]
   const studentName = application ? getStudentName(application, profiles) : ''
   const studentEmail = application ? profiles.get(String(application.student_id))?.student_email || application.email : ''
@@ -1513,7 +1533,7 @@ export function ManageApplication({ type }) {
                 </p>
                 <div className="coordinator-review__status">
                   <span>Status</span>
-                  <span className={`coordinator-review__badge coordinator-review__badge--${statusClass}`}>{status}</span>
+                  <span className={`coordinator-review__badge coordinator-review__badge--${statusClass}`}>{statusLabel}</span>
                   <span className="coordinator-review__live">Updates live</span>
                 </div>
               </div>
@@ -1541,21 +1561,31 @@ export function ManageApplication({ type }) {
                   <h2 id="review-decision-heading">Decision</h2>
                   {canDecide && !pendingDecision && (
                     <div className="nomination-table__actions">
-                      <button className="btn btn--primary" type="button" onClick={() => setPendingDecision('accept')}>Accept application</button>
+                      <button className="btn btn--primary" type="button" onClick={() => setPendingDecision('accept')}>{type === 'inbound' ? 'Grant conditional approval' : 'Accept application'}</button>
+                      {type === 'inbound' && <button className="btn btn--secondary" type="button" onClick={() => { setCertificateStamped(false); setPendingDecision('unconditional') }}>Grant unconditional approval</button>}
                       <button className="btn btn--danger" type="button" onClick={() => setPendingDecision('reject')}>Reject application</button>
                       {!isEditing && (
                         <button className="btn btn--secondary" type="button" onClick={() => setIsEditing(true)}>Edit application</button>
                       )}
                     </div>
                   )}
-                  {canDecide && pendingDecision && (
+                  {canUpgrade && !pendingDecision && <button className="btn btn--primary" type="button" onClick={() => { setCertificateStamped(false); setPendingDecision('unconditional') }}>Grant unconditional approval</button>}
+                  {(canDecide || canUpgrade) && pendingDecision && (
                     <>
                       <p>
-                        {pendingDecision === 'accept' ? 'Accept' : 'Reject'} the application from {studentName}?
-                        The student will see the status “{pendingDecision === 'accept' ? 'Accepted' : 'Rejected'}”.
+                        Confirm {decisionLabel} for the application from {studentName}?
                       </p>
+                      {pendingDecision === 'unconditional' && (
+                        <>
+                          {!application.criminal_record_certificate && <p className="auth-form__error" role="alert">A criminal-record certificate must be uploaded before unconditional approval.</p>}
+                          <label className="outbound-form__checkbox">
+                            <input type="checkbox" checked={certificateStamped} onChange={(event) => setCertificateStamped(event.target.checked)} disabled={!application.criminal_record_certificate || decision.loading} />
+                            <span>I have reviewed the uploaded criminal-record certificate and verified its Kuwaiti embassy stamp.</span>
+                          </label>
+                        </>
+                      )}
                       <label className="update-composer__field">
-                        {pendingDecision === 'accept' ? 'Next steps for the student' : 'Reason for rejection'} <span>(optional)</span>
+                        {pendingDecision === 'reject' ? 'Reason for rejection' : 'Next steps for the student'} <span>(optional)</span>
                         <textarea
                           rows={4}
                           value={decisionUpdate}
@@ -1564,22 +1594,21 @@ export function ManageApplication({ type }) {
                         />
                       </label>
                       <p className="update-composer__hint">
-                        Left empty, the student receives: “{pendingDecision === 'accept'
-                          ? defaultDecisionUpdates.accept
-                          : defaultDecisionUpdates.reject}”
+                        Left empty, the student receives: “{defaultDecisionMessage}”
                       </p>
                       <div className="nomination-table__actions">
                         <button
-                          className={pendingDecision === 'accept' ? 'btn btn--primary' : 'btn btn--danger'}
+                          className={pendingDecision === 'reject' ? 'btn btn--danger' : 'btn btn--primary'}
                           type="button"
                           onClick={confirmDecision}
-                          disabled={decision.loading}
+                          disabled={decision.loading || (pendingDecision === 'unconditional' && (!certificateStamped || !application.criminal_record_certificate))}
                         >
-                          {decision.loading ? 'Saving…' : `Confirm ${pendingDecision === 'accept' ? 'acceptance' : 'rejection'}`}
+                          {decision.loading ? 'Saving…' : `Confirm ${decisionLabel}`}
                         </button>
                         <button className="btn btn--secondary" type="button" onClick={() => {
                           setPendingDecision(null)
                           setDecisionUpdate('')
+                          setCertificateStamped(false)
                         }} disabled={decision.loading}>
                           Cancel
                         </button>
@@ -1590,9 +1619,13 @@ export function ManageApplication({ type }) {
                     <p>
                       {status === 'Draft'
                         ? 'The student has not submitted this application yet, so it cannot be decided.'
-                        : ['Accepted', 'Rejected'].includes(status)
-                          ? `This application was ${status.toLowerCase()}.`
-                          : `This application is ${status}, so it cannot be decided.`}
+                        : status === 'Rejected'
+                          ? 'This application was rejected.'
+                          : type === 'inbound' && approvedStatuses.includes(status)
+                            ? `This application has ${statusLabel.toLowerCase()}.`
+                            : status === 'Accepted'
+                              ? 'This application was accepted.'
+                              : `This application is ${statusLabel}.`}
                     </p>
                   )}
                   {decision.error && <p className="auth-form__error" role="alert">{decision.error}</p>}
@@ -1698,7 +1731,7 @@ export function SendApplicationUpdate() {
   // Labelled and sorted once per application type, so typing an update does not rebuild them.
   const labelledOptions = useMemo(() => data[applicationType]
     .map((application) => {
-      const label = `${getStudentName(application, data.profiles[applicationType])} · ID ${application.student_id || 'unavailable'} · ${getCycleLabel(application, data.cycles)} · ${application.application_status}`
+      const label = `${getStudentName(application, data.profiles[applicationType])} · ID ${application.student_id || 'unavailable'} · ${getCycleLabel(application, data.cycles)} · ${applicationType === 'inbound' ? inboundApprovalLabel(application) : application.application_status}`
       return { application, label, searchLabel: label.toLowerCase() }
     })
     .sort((left, right) => left.label.localeCompare(right.label)), [data, applicationType])

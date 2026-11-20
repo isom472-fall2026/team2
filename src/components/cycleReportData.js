@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { inboundApprovalLabel } from '../inboundApproval'
 
 export const dayMs = 86_400_000
 const pageSize = 500
@@ -28,7 +29,7 @@ async function readApplications(table, fields, cycleId, signal) {
 
 export function readCycleApplications(cycleId, signal) {
   return Promise.all([
-    readApplications('inboundapplication', 'nationality', cycleId, signal),
+    readApplications('inboundapplication', 'nationality, approval_type', cycleId, signal),
     readApplications('outboundapplication', 'gpa, credits_passed', cycleId, signal),
   ])
 }
@@ -124,7 +125,7 @@ export function summarizeCycles(cycles, inbound, outbound, universities, countri
   return {
     inbound: {
       total: inbound.length,
-      statuses: countBy(inbound, ({ application_status }) => application_status),
+      statuses: countBy(inbound, inboundApprovalLabel),
       breakdown: nationalities,
       daily: submissionsByDay(inbound, windows),
       topNationality: leaders(nationalities.filter(({ label }) => label !== unspecifiedNationality)),

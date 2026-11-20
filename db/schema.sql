@@ -203,6 +203,14 @@ CREATE TABLE public.inboundapplication (
     is_whatsapp_available BOOLEAN DEFAULT FALSE,
     major VARCHAR(255) CHECK (major IS NULL OR length(btrim(major)) > 0),
     transcript VARCHAR(255) CHECK (transcript IS NULL OR length(btrim(transcript)) > 0),
+    cv VARCHAR(255) CHECK (cv IS NULL OR length(btrim(cv)) > 0),
+    english_evidence_type VARCHAR(20) CHECK (
+        english_evidence_type IS NULL OR english_evidence_type IN ('IELTS', 'TOEFL', 'University letter')
+    ),
+    english_evidence VARCHAR(255) CHECK (english_evidence IS NULL OR length(btrim(english_evidence)) > 0),
+    criminal_record_certificate VARCHAR(255) CHECK (
+        criminal_record_certificate IS NULL OR length(btrim(criminal_record_certificate)) > 0
+    ),
     current_year_of_study VARCHAR(50) CHECK (
         current_year_of_study IS NULL OR current_year_of_study IN (
             'Second year', 'Third year', 'Fourth year', 'Fifth year'
@@ -229,6 +237,13 @@ CREATE TABLE public.inboundapplication (
     nomination_id BIGINT REFERENCES public.studentnominations(id),
     -- Every edited copy points at the first version, so all versions of one application share it.
     original_application_id INT REFERENCES public.inboundapplication(application_id) ON DELETE SET NULL,
+    approval_type VARCHAR(13) CHECK (approval_type IN ('Conditional', 'Unconditional')),
+    CONSTRAINT inbound_approval_type_status CHECK (
+        approval_type IS NULL OR application_status IN ('Accepted', 'Approved', 'Modified')
+    ),
+    CONSTRAINT inbound_unconditional_certificate CHECK (
+        approval_type IS DISTINCT FROM 'Unconditional' OR criminal_record_certificate IS NOT NULL
+    ),
     CHECK (gpa IS NULL OR (max_gpa IS NOT NULL AND gpa BETWEEN 0 AND max_gpa)),
     CHECK (
         credits_passed IS NULL OR max_credits IS NULL OR credits_passed <= max_credits
@@ -289,6 +304,7 @@ CREATE TABLE public.outboundapplication (
     is_whatsapp_available BOOLEAN NOT NULL DEFAULT FALSE,
     major VARCHAR(255) CHECK (major IS NULL OR length(btrim(major)) > 0),
     transcript VARCHAR(255) CHECK (transcript IS NULL OR length(btrim(transcript)) > 0),
+    cv VARCHAR(255) CHECK (cv IS NULL OR length(btrim(cv)) > 0),
     current_year_of_study VARCHAR(50) CHECK (
         current_year_of_study IS NULL OR current_year_of_study IN (
             'Second year', 'Third year', 'Fourth year'
@@ -493,6 +509,25 @@ CREATE TABLE public.testing_backup (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (table_name, record_id)
 );
+
+CREATE OR REPLACE FUNCTION public.get_maintenance_mode()
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT CASE
+        WHEN COUNT(*) = 0 THEN FALSE
+        WHEN bool_and(maintenance_mode) = bool_or(maintenance_mode)
+            THEN bool_or(maintenance_mode)
+        ELSE NULL
+    END
+    FROM public.coordinator;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_maintenance_mode() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_maintenance_mode() TO anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.update_my_coordinator_account(
     requested_name TEXT,
@@ -735,6 +770,13 @@ ALTER TABLE public.support_request ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.testing ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.testing_backup ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+
+-- Backups may contain real records; only guarded SECURITY DEFINER functions access them.
+CREATE POLICY "Testing backups stay private"
+ON public.testing_backup AS RESTRICTIVE
+FOR ALL TO anon, authenticated
+USING (FALSE)
+WITH CHECK (FALSE);
 
 -- 4. Create helper functions and policies.
 CREATE OR REPLACE FUNCTION public.is_ku_coordinator()
@@ -1781,11 +1823,14 @@ REVOKE ALL ON FUNCTION public.review_inbound_withdrawal(INT, BOOLEAN) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.review_inbound_withdrawal(INT, BOOLEAN) TO authenticated;
 
 DROP FUNCTION IF EXISTS public.review_inbound_application(INT, BOOLEAN);
+DROP FUNCTION IF EXISTS public.review_inbound_application(INT, BOOLEAN, TEXT);
 
 CREATE OR REPLACE FUNCTION public.review_inbound_application(
     requested_application_id INT,
     accept_application BOOLEAN,
-    update_details TEXT DEFAULT NULL
+    update_details TEXT DEFAULT NULL,
+    unconditional_approval BOOLEAN DEFAULT FALSE,
+    certificate_stamped BOOLEAN DEFAULT FALSE
 )
 RETURNS public.inboundapplication
 LANGUAGE plpgsql
@@ -1810,39 +1855,69 @@ BEGIN
             MESSAGE = 'This application cannot be changed in the current mode';
     END IF;
 
-    -- Drafts are not the student's final answers, and a decided or withdrawn application
-    -- has already been settled, so only applications waiting on the coordinator qualify.
+    IF accept_application IS NULL OR unconditional_approval IS NULL OR certificate_stamped IS NULL THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Choose an approval or rejection decision';
+    END IF;
+
     SELECT * INTO application_row
     FROM public.inboundapplication
     WHERE application_id = requested_application_id
-      AND application_status IN ('Submitted', 'In Review', 'Pending Interview')
+      AND (
+          application_status IN ('Submitted', 'In Review', 'Pending Interview')
+          OR (accept_application AND unconditional_approval
+              AND application_status IN ('Accepted', 'Approved')
+              AND approval_type IS DISTINCT FROM 'Unconditional')
+      )
     FOR UPDATE;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'This application is not waiting for a decision';
     END IF;
 
     previous_status := application_row.application_status;
-    next_status := CASE WHEN accept_application THEN 'Accepted' ELSE 'Rejected' END;
+    IF unconditional_approval AND (
+        NOT accept_application OR NOT certificate_stamped
+        OR application_row.criminal_record_certificate IS NULL
+        OR split_part(application_row.criminal_record_certificate, '/', 1) IS DISTINCT FROM application_row.student_id::TEXT
+        OR NOT EXISTS (
+            SELECT 1 FROM storage.objects
+            WHERE bucket_id = 'inbound-application-files' AND name = application_row.criminal_record_certificate
+        )
+    ) THEN
+        RAISE EXCEPTION USING ERRCODE = '22023',
+            MESSAGE = 'Verify the uploaded criminal-record certificate has a Kuwaiti embassy stamp before granting unconditional approval';
+    END IF;
+    next_status := CASE WHEN NOT accept_application THEN 'Rejected'
+        WHEN unconditional_approval THEN 'Approved' ELSE 'Accepted' END;
     PERFORM set_config('app.application_review', 'true', true);
     UPDATE public.inboundapplication
-    SET application_status = next_status, status_updated_at = now()
+    SET application_status = next_status,
+        approval_type = CASE WHEN NOT accept_application THEN NULL
+            WHEN unconditional_approval THEN 'Unconditional' ELSE 'Conditional' END,
+        status_updated_at = now()
     WHERE application_id = requested_application_id
     RETURNING * INTO application_row;
 
-    INSERT INTO public.application_status_log(inbound_application_id, old_status, new_status)
-    VALUES (requested_application_id, previous_status, next_status);
+    INSERT INTO public.application_status_log(inbound_application_id, old_status, new_status, reason)
+    VALUES (requested_application_id, previous_status, next_status,
+        CASE WHEN accept_application THEN application_row.approval_type || ' approval'
+            || CASE WHEN unconditional_approval THEN '; Kuwaiti embassy stamp verified by the coordinator' ELSE '' END
+        END);
 
     INSERT INTO public.updates(inbound_application_id, details)
     VALUES (
         requested_application_id,
-        COALESCE(NULLIF(btrim(update_details), ''), public.default_decision_update(accept_application))
+        COALESCE(NULLIF(btrim(update_details), ''), CASE
+            WHEN NOT accept_application THEN public.default_decision_update(FALSE)
+            WHEN unconditional_approval THEN 'Your application has received unconditional approval.'
+            ELSE 'Your application has received conditional approval. A criminal-record certificate stamped by a Kuwaiti embassy is required for unconditional approval. Contact the Kuwaiti embassy in your country about health-insurance requirements.'
+        END)
     );
     RETURN application_row;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.review_inbound_application(INT, BOOLEAN, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.review_inbound_application(INT, BOOLEAN, TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.review_inbound_application(INT, BOOLEAN, TEXT, BOOLEAN, BOOLEAN) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.review_inbound_application(INT, BOOLEAN, TEXT, BOOLEAN, BOOLEAN) TO authenticated;
 
 -- Editing never overwrites a submitted application: the edit becomes a new copy and the old
 -- row is kept as 'Modified', so the coordinator can still see what the student first sent.
@@ -1863,13 +1938,14 @@ DECLARE
         'country_of_residence', 'nationality', 'passport_issuing_country',
         'passport_number', 'passport_expiry_date', 'phone_number', 'is_whatsapp_available',
         'major', 'current_year_of_study', 'gpa', 'max_gpa', 'credits_passed', 'max_credits',
-        'expected_graduation_date'
+        'expected_graduation_date', 'english_evidence_type'
     ];
     old_row public.inboundapplication;
     new_row public.inboundapplication;
     allowed_changes JSONB;
     new_application_id INT;
-    file_fields CONSTANT TEXT[] := ARRAY['passport_copy', 'transcript', 'profile_photo'];
+    file_fields CONSTANT TEXT[] := ARRAY['passport_copy', 'transcript', 'profile_photo',
+        'cv', 'english_evidence', 'criminal_record_certificate'];
     file_field TEXT;
     file_path TEXT;
     file_prefix TEXT;
@@ -1999,7 +2075,7 @@ DECLARE
     new_row public.outboundapplication;
     allowed_changes JSONB;
     new_application_id BIGINT;
-    file_fields CONSTANT TEXT[] := ARRAY['civil_id_copy', 'passport_copy', 'transcript', 'profile_photo'];
+    file_fields CONSTANT TEXT[] := ARRAY['civil_id_copy', 'passport_copy', 'transcript', 'profile_photo', 'cv'];
     file_field TEXT;
     file_path TEXT;
     file_prefix TEXT;
@@ -3980,22 +4056,6 @@ SELECT cron.schedule(
     'SELECT public.reject_unsubmitted_applications();'
 );
 
-CREATE OR REPLACE FUNCTION public.get_maintenance_mode()
-RETURNS BOOLEAN
-LANGUAGE SQL
-STABLE
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-    SELECT CASE
-        WHEN COUNT(*) = 0 THEN FALSE
-        WHEN bool_and(maintenance_mode) = bool_or(maintenance_mode)
-            THEN bool_or(maintenance_mode)
-        ELSE NULL
-    END
-    FROM public.coordinator;
-$$;
-
 CREATE OR REPLACE FUNCTION public.is_testing_mode_enabled()
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -4011,9 +4071,6 @@ BEGIN
     RETURN (SELECT enabled FROM public.testing WHERE id = 1);
 END;
 $$;
-
-REVOKE ALL ON FUNCTION public.get_maintenance_mode() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_maintenance_mode() TO anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.set_maintenance_mode(requested_mode BOOLEAN)
 RETURNS BOOLEAN
@@ -4222,7 +4279,12 @@ WITH CHECK (
         WHERE student.user_id = (SELECT auth.uid())
           -- A pending application takes new files only through an edit, which saves them on
           -- an edited copy; the submitted version keeps the files it was sent with.
-          AND application.application_status IN ('Draft', 'Submitted', 'In Review', 'Pending Interview')
+          AND (
+              application.application_status IN ('Draft', 'Submitted', 'In Review', 'Pending Interview')
+              OR (application.application_status IN ('Accepted', 'Approved')
+                  AND application.approval_type IS DISTINCT FROM 'Unconditional'
+                  AND (storage.foldername(storage.objects.name))[3] = 'criminal_record_certificate')
+          )
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
     )
@@ -4267,7 +4329,16 @@ USING (
         JOIN public.inboundapplication AS application
           ON application.student_id = student.student_id
         WHERE student.user_id = (SELECT auth.uid())
-          AND application.application_status = 'Draft'
+          AND (
+              application.application_status = 'Draft'
+              OR (application.application_status IN ('Accepted', 'Approved')
+                  AND application.approval_type IS DISTINCT FROM 'Unconditional'
+                  AND (storage.foldername(storage.objects.name))[3] = 'criminal_record_certificate'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM public.inboundapplication AS linked
+                      WHERE linked.criminal_record_certificate = storage.objects.name
+                  ))
+          )
           AND student.student_id::TEXT = (storage.foldername(storage.objects.name))[1]
           AND application.application_id::TEXT = (storage.foldername(storage.objects.name))[2]
     )
@@ -4885,3 +4956,108 @@ $$;
 
 REVOKE ALL ON FUNCTION public.find_emergency_contacts(TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.find_emergency_contacts(TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.validate_application_documents()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+DECLARE
+    document_fields TEXT[] := ARRAY['cv'];
+    application_data JSONB := to_jsonb(NEW);
+    field TEXT;
+    path TEXT;
+    prefix TEXT;
+    bucket TEXT;
+BEGIN
+    IF NEW.application_status <> 'Submitted'
+       OR (TG_OP = 'UPDATE' AND OLD.application_status <> 'Draft') THEN
+        RETURN NEW;
+    END IF;
+
+    IF TG_TABLE_NAME = 'inboundapplication' THEN
+        document_fields := ARRAY['cv', 'english_evidence'];
+        IF NEW.english_evidence_type IS NULL THEN
+            RAISE EXCEPTION USING ERRCODE = '23514', MESSAGE = 'Choose IELTS, TOEFL or a university English-competence letter';
+        END IF;
+    END IF;
+    bucket := CASE WHEN TG_TABLE_NAME = 'inboundapplication'
+        THEN 'inbound-application-files' ELSE 'outbound-application-files' END;
+
+    FOREACH field IN ARRAY document_fields LOOP
+        path := application_data ->> field;
+        IF path IS NULL OR length(btrim(path)) = 0 THEN
+            RAISE EXCEPTION USING ERRCODE = '23514',
+                MESSAGE = CASE WHEN field = 'cv' THEN 'Upload a CV before submitting'
+                    ELSE 'Upload English proficiency evidence before submitting' END;
+        END IF;
+        -- Edited copies retain files on their older version; modify_* validates new paths.
+        IF NEW.original_application_id IS NULL
+           OR current_setting('app.application_review', TRUE) IS DISTINCT FROM 'true' THEN
+            prefix := NEW.student_id::TEXT || '/' || NEW.application_id::TEXT || '/' || field || '/';
+            IF left(path, length(prefix)) IS DISTINCT FROM prefix OR NOT EXISTS (
+                SELECT 1 FROM storage.objects WHERE bucket_id = bucket AND name = path
+            ) THEN
+                RAISE EXCEPTION USING ERRCODE = '23514', MESSAGE = 'Upload each required document for this application';
+            END IF;
+        END IF;
+    END LOOP;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER inboundapplication_validate_documents
+BEFORE INSERT OR UPDATE ON public.inboundapplication
+FOR EACH ROW EXECUTE FUNCTION public.validate_application_documents();
+
+CREATE TRIGGER outboundapplication_validate_documents
+BEFORE INSERT OR UPDATE ON public.outboundapplication
+FOR EACH ROW EXECUTE FUNCTION public.validate_application_documents();
+
+CREATE OR REPLACE FUNCTION public.save_inbound_criminal_record(
+    requested_application_id INT,
+    requested_certificate_path TEXT
+)
+RETURNS public.inboundapplication
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    application_row public.inboundapplication;
+    prefix TEXT;
+BEGIN
+    SELECT application.* INTO application_row
+    FROM public.inboundapplication AS application
+    JOIN public.incomingstudentauth AS student ON student.student_id = application.student_id
+    WHERE application.application_id = requested_application_id
+      AND student.user_id = auth.uid()
+      AND application.application_status IN ('Accepted', 'Approved')
+      AND application.approval_type IS DISTINCT FROM 'Unconditional'
+    FOR UPDATE OF application;
+
+    IF NOT FOUND OR public.testing_change_allowed('inboundapplication', requested_application_id::TEXT) IS DISTINCT FROM TRUE THEN
+        RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Only the applicant can supply a certificate while approval is conditional';
+    END IF;
+
+    prefix := application_row.student_id::TEXT || '/' || requested_application_id::TEXT || '/criminal_record_certificate/';
+    IF requested_certificate_path IS NULL
+       OR left(requested_certificate_path, length(prefix)) IS DISTINCT FROM prefix
+       OR NOT EXISTS (
+           SELECT 1 FROM storage.objects
+           WHERE bucket_id = 'inbound-application-files' AND name = requested_certificate_path
+       ) THEN
+        RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Upload the criminal-record certificate for this application first';
+    END IF;
+
+    PERFORM set_config('app.application_review', 'true', true);
+    UPDATE public.inboundapplication
+    SET criminal_record_certificate = requested_certificate_path
+    WHERE application_id = requested_application_id
+    RETURNING * INTO application_row;
+    RETURN application_row;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.save_inbound_criminal_record(INT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.save_inbound_criminal_record(INT, TEXT) TO authenticated;

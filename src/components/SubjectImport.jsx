@@ -285,7 +285,8 @@ function SubjectImport() {
       <h2 id="subject-import-heading">CBA subjects and syllabi</h2>
       <p>
         Import every CBA subject and its current syllabus from the CBA syllabus site. The import runs in a new
-        browser tab where you sign in with your KU Microsoft account. Keep this page open until it finishes.
+        browser tab. A KU Microsoft account is required to sign in to the CBA syllabus site.
+        Keep this page open until the import finishes.
       </p>
 
       <ExtensionStatus

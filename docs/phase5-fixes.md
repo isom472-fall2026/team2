@@ -72,6 +72,20 @@ Use the existing **Testing mode** setup from a dedicated KU coordinator test acc
 
 Emma Wilson is the additional incoming account with an active nomination for the open test semester and no application, including no draft. Her Nomination ID appears on her testing-account button; use it to start an application after switching to her account. Jane Smith's submitted incoming application remains available as the separate review scenario. Existing testing sessions gain the extra account when testing mode is ended and started again. Both incoming profiles and nominations use the existing test registry and cleanup.
 
+## Incoming nomination prefill
+
+As requested on 2026-11-21, the incoming application tab prefills an available Nomination ID for every incoming account, including ordinary accounts outside testing mode. The existing nomination read policy associates the nomination's student email with the signed-in incoming profile's email without regard to case. A coordinator's new nomination therefore becomes available to an existing matching account as soon as it is saved; nominations created before registration also become available when the matching incoming profile exists. No new profile column or database migration is needed for this email association.
+
+The prefill picks the newest active nomination for an open application window whose semester has not ended. It excludes a nomination or semester already used by an application other than a rejected or historical modified version. Students can edit or clear the field. Refreshing the page, returning to the application tab or refocusing the browser refreshes the association; an explicit manual entry is preserved. Starting the application still validates ownership, nomination status, cycle availability and reuse on the existing path.
+
+Follow-up acceptance checks for #172:
+
+- Open an incoming account with an available matching nomination; its Nomination ID appears in the start field.
+- Create a nomination using an existing incoming account's email, including different letter casing; return to that account's application tab and see the new ID filled in.
+- With several matching nominations, see the newest eligible one; inactive, closed-cycle and already-used nominations do not become the default.
+- With no matching nomination, see an empty field and retain manual entry.
+- Edit or clear the field, return focus to the page, and see the manual value preserved. The existing validation still rejects another student's ID.
+
 In the disposable project, switch through every generated role, verify each portal and its allowed actions, then end testing mode as the owning KU coordinator. Confirm test files/accounts are removed and backed-up records restored. The SQL regression checks use separate synthetic user IDs for incoming, another incoming student, KU student, partner coordinator and KU coordinator. Hosted account creation, switching and cleanup remain a human verification item.
 
 ## Phase 2 plan review — draft for the FinOps Lead

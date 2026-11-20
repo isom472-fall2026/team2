@@ -10,6 +10,7 @@ import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles
 import ReplacementFileField from './ReplacementFileField'
 import CriminalRecordUpload from './CriminalRecordUpload'
 import { englishEvidenceTypes, englishEvidenceError, incomingDocumentError, inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
+import { preferredNominationId } from '../incomingNominations'
 import WizardProgress from './WizardProgress'
 import './OutboundApplication.css'
 
@@ -703,7 +704,8 @@ function InboundApplication() {
   const [isConfirmingWithdrawal, setIsConfirmingWithdrawal] = useState(false)
   const [editingApplicationId, setEditingApplicationId] = useState(null)
   const [nomination, setNomination] = useState(null)
-  const [nominationInput, setNominationInput] = useState('')
+  const [matchingNominations, setMatchingNominations] = useState([])
+  const [nominationInput, setNominationInput] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [applicationId, setApplicationId] = useState(null)
   const [acceptedTerms, setAcceptedTerms] = useState(terms.map(() => false))
@@ -727,6 +729,9 @@ function InboundApplication() {
   const activeStep = routeStep
   const canSubmit = acceptedTerms.every(Boolean)
   const openCycles = useMemo(() => cycles.filter(isCycleOpen), [cycles])
+  const suggestedNominationId = useMemo(() => preferredNominationId(
+    matchingNominations, cycles.filter(isNominationCycleAvailable), applications,
+  ), [matchingNominations, cycles, applications])
   const birthdateError = getBirthdateError(form.birthdate)
 
   const requestWithdrawal = async () => {
@@ -758,6 +763,8 @@ function InboundApplication() {
     async function loadPortalData() {
       setLoading(true)
       setError('')
+      setNominationInput(null)
+      setMatchingNominations([])
       if (!user.email_confirmed_at) {
         setError('Verify your email address before opening the inbound application portal.')
         setLoading(false)
@@ -813,6 +820,34 @@ function InboundApplication() {
     loadPortalData()
     return () => { current = false }
   }, [user.email, user.email_confirmed_at, user.id])
+
+  useEffect(() => {
+    if (!student || routeStep >= 0 || submittedRouteId) return undefined
+    let current = true
+    let latestRequest = 0
+
+    const refreshNominations = async () => {
+      const request = ++latestRequest
+      const { data, error: nominationError } = await supabase
+        .from('studentnominations')
+        .select('id, semester, nomination_status, created_at')
+        .ilike('student_email', student.student_email.trim())
+        .eq('nomination_status', 'Active')
+      if (current && request === latestRequest && !nominationError) setMatchingNominations(data || [])
+    }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshNominations()
+    }
+
+    refreshNominations()
+    window.addEventListener('focus', refreshNominations)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      current = false
+      window.removeEventListener('focus', refreshNominations)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
+  }, [student, routeStep, submittedRouteId])
 
   useEffect(() => {
     if (!routeNominationId) initializedNominationRouteRef.current = null
@@ -1159,7 +1194,7 @@ function InboundApplication() {
 
   const beginWithNomination = async (event) => {
     event.preventDefault()
-    const id = nominationInput.trim()
+    const id = (nominationInput ?? suggestedNominationId).trim()
     if (!/^\d+$/.test(id)) {
       setError('Enter the numeric Nomination ID provided by your home university.')
       return
@@ -1307,12 +1342,12 @@ function InboundApplication() {
   const renderApplicationsPage = (
     <>
       <h1 id="inbound-heading">Your inbound applications</h1>
-      <p>Enter the Nomination ID issued to you to start an application, or continue a saved draft.</p>
+      <p>An available nomination sent to your account email is filled in automatically. You can also enter the Nomination ID issued to you, or continue a saved draft.</p>
       <form className="outbound-new-application" onSubmit={beginWithNomination}>
         <InputField
           label="Nomination ID"
           name="nomination_id"
-          value={nominationInput}
+          value={nominationInput ?? suggestedNominationId}
           onChange={(event) => {
             setNominationInput(event.target.value)
             setError('')

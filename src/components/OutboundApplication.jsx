@@ -51,6 +51,7 @@ const emptyForm = {
   major: '',
   major_other: '',
   transcript: '',
+  cv: '',
   current_year_of_study: '',
   university_id: '',
   nationality: '',
@@ -348,6 +349,7 @@ const outboundDocuments = [
   ['civil_id_copy', 'Civil ID copy'],
   ['passport_copy', 'Passport copy'],
   ['transcript', 'Academic transcript'],
+  ['cv', 'CV'],
   ['profile_photo', 'Personal photo'],
 ]
 
@@ -400,6 +402,10 @@ export function OutboundApplicationEditor({ application, countries, cycles, univ
     }
     if (!form.university_id || !form.semester_applied_for) {
       setState({ saving: false, error: 'Choose a partner university and a KU semester.' })
+      return
+    }
+    if (!form.cv && !files.cv) {
+      setState({ saving: false, error: 'Upload your CV before saving.' })
       return
     }
     setState({ saving: true, error: '' })
@@ -564,6 +570,14 @@ function ExchangeDocumentsPage({ form, onChange, cycles, universities, onUpload,
         {uploading.profile_photo && <p role="status">Uploading personal photo…</p>}
         {form.profile_photo && <p className="outbound-form__upload-success" role="status">{uploadedFileName(form.profile_photo)} uploaded successfully.</p>}
       </div>
+      <div className="outbound-form__upload">
+        <label className="outbound-form__field">
+          <span>CV <span className="outbound-form__required" aria-hidden="true">*</span></span>
+          <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => onUpload('cv', event)} disabled={uploading.cv} required={!form.cv} />
+        </label>
+        {uploading.cv && <p role="status">Uploading CV…</p>}
+        {form.cv && <p className="outbound-form__upload-success" role="status">{uploadedFileName(form.cv)} uploaded successfully.</p>}
+      </div>
     </div>
   )
 }
@@ -624,6 +638,7 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
     ['Preferred partner university', universityName || application.university_id],
     ['Passport copy', uploadedFileName(application.passport_copy)],
     ['Academic transcript', uploadedFileName(application.transcript)],
+    ['CV', uploadedFileName(application.cv)],
     ['Personal photo', uploadedFileName(application.profile_photo)],
     ['Terms and conditions accepted', application.tos ? 'Yes' : 'No'],
   ].filter(([, value]) => value !== null && value !== undefined && value !== '')
@@ -639,6 +654,7 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
         ['Civil ID copy', application.civil_id_copy],
         ['Passport copy', application.passport_copy],
         ['Academic transcript', application.transcript],
+        ['CV', application.cv],
         ['Personal photo', application.profile_photo],
       ].filter(([, path]) => Boolean(path))
       const results = await Promise.all(files.map(async ([label, path]) => {
@@ -712,7 +728,7 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
       }
     })
     return () => { current = false }
-  }, [application.application_id, application.civil_id_copy, application.passport_copy, application.transcript, application.profile_photo])
+  }, [application.application_id, application.civil_id_copy, application.passport_copy, application.transcript, application.profile_photo, application.cv])
 
   useEffect(() => {
     if (!viewingImage) return undefined
@@ -1300,8 +1316,8 @@ function OutboundApplication() {
     }
     if (stepToValidate === 2) {
       if (!form.university_id || !form.semester_applied_for) return 'Choose a partner university and an open KU semester.'
-      if (!form.civil_id_copy || !form.passport_copy || !form.transcript) {
-        return 'Upload your Civil ID copy, passport copy, and academic transcript.'
+      if (!form.civil_id_copy || !form.passport_copy || !form.transcript || !form.cv) {
+        return 'Upload your Civil ID copy, passport copy, academic transcript, and CV.'
       }
     }
     return ''
@@ -1331,6 +1347,7 @@ function OutboundApplication() {
     is_whatsapp_available: form.is_whatsapp_available,
     major: optionalText(form.major === otherMajor ? form.major_other : form.major),
     transcript: form.transcript || null,
+    cv: form.cv || null,
     current_year_of_study: form.current_year_of_study || null,
     tos,
     university_id: form.university_id ? Number(form.university_id) : null,

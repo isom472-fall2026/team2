@@ -26,6 +26,14 @@ const accountDefinitions = [
     table: 'incomingstudentauth',
   },
   {
+    role: 'incoming-no-application',
+    userType: 'incoming',
+    label: 'Emma Wilson (Incoming Student, No Application)',
+    name: 'Emma Wilson',
+    emailDomain: 'gmail.com',
+    table: 'incomingstudentauth',
+  },
+  {
     role: 'ku-no-application',
     userType: 'ku',
     label: 'Alex Johnson (KU Student No Application Version)',
@@ -197,6 +205,21 @@ async function createTestingNomination(coordinatorClient, coordinatorId, cycleId
   throw new Error('A unique testing nomination ID could not be generated.')
 }
 
+async function createTestingApplicationDocuments(client, bucket, application, fields) {
+  const { jsPDF } = await import('jspdf')
+  const paths = {}
+  for (const field of fields) {
+    const document = new jsPDF()
+    document.text(`Synthetic testing document: ${field}`, 20, 20)
+    document.text('Invented data for portal testing only.', 20, 35)
+    const path = `${application.student_id}/${application.application_id}/${field}/${crypto.randomUUID()}-demo.pdf`
+    const { error } = await client.storage.from(bucket).upload(path, document.output('blob'), { contentType: 'application/pdf', upsert: false })
+    if (error) throw new Error(getDatabaseErrorMessage(error))
+    paths[field] = path
+  }
+  return paths
+}
+
 async function createSubmittedInboundApplication(studentClient, studentId, email, name, cycleId, nominationId) {
   const [firstName, ...lastNameParts] = name.split(' ')
   const draft = {
@@ -213,12 +236,15 @@ async function createSubmittedInboundApplication(studentClient, studentId, email
   const { error: insertError } = await studentClient.from('inboundapplication').insert(draft)
   if (insertError) throw new Error(getDatabaseErrorMessage(insertError))
 
+  const documents = await createTestingApplicationDocuments(studentClient, 'inbound-application-files', draft, ['cv', 'english_evidence'])
   const { error: submitError } = await studentClient
     .from('inboundapplication')
     .update({
       application_status: 'Submitted',
       submitted_at: new Date().toISOString(),
       tos: true,
+      ...documents,
+      english_evidence_type: 'University letter',
     })
     .eq('application_id', draft.application_id)
   if (submitError) throw new Error(getDatabaseErrorMessage(submitError))
@@ -246,12 +272,14 @@ async function createSubmittedOutboundApplication(studentClient, studentId, name
   const { error: insertError } = await studentClient.from('outboundapplication').insert(draft)
   if (insertError) throw new Error(getDatabaseErrorMessage(insertError))
 
+  const documents = await createTestingApplicationDocuments(studentClient, 'outbound-application-files', draft, ['cv'])
   const { error: submitError } = await studentClient
     .from('outboundapplication')
     .update({
       application_status: 'Submitted',
       submitted_at: new Date().toISOString(),
       tos: true,
+      ...documents,
     })
     .eq('application_id', draft.application_id)
   if (submitError) throw new Error(getDatabaseErrorMessage(submitError))
@@ -282,6 +310,7 @@ async function provisionTestingScenario() {
 
   const coordinator = created.find(({ account }) => account.role === 'coordinator')
   const incoming = created.find(({ account }) => account.role === 'incoming')
+  const incomingWithoutApplication = created.find(({ account }) => account.role === 'incoming-no-application')
   const kuStudent = created.find(({ account }) => account.role === 'ku')
   const coordinatorClient = await signInTestAccount(coordinator.account)
   const nomination = await createTestingNomination(
@@ -290,6 +319,14 @@ async function provisionTestingScenario() {
     cycle.id,
     { name: incoming.account.name, email: incoming.email },
   )
+  const unusedNomination = await createTestingNomination(
+    coordinatorClient,
+    coordinator.profileId,
+    cycle.id,
+    { name: incomingWithoutApplication.account.name, email: incomingWithoutApplication.email },
+  )
+  incomingWithoutApplication.account.nominationId = unusedNomination.id
+  await savePublicAccounts(accounts)
   await createSubmittedInboundApplication(
     await signInTestAccount(incoming.account),
     incoming.profileId,
@@ -384,7 +421,7 @@ export default function TestingMode({
     try {
       const generatedAccounts = await provisionTestingScenario()
       setAccounts(generatedAccounts)
-      setMessage('Testing accounts, KU semester data, and submitted applications are ready.')
+      setMessage('Testing accounts, KU semester data, submitted applications, and a nominated incoming student without an application are ready.')
     } catch (setupError) {
       setError(setupError.message || getDatabaseErrorMessage(setupError))
     }
@@ -546,6 +583,7 @@ export default function TestingMode({
                       >
                         <strong>{account.label}</strong>
                         <span>{account.email}</span>
+                        {account.nominationId && <span>Nomination ID: {account.nominationId}</span>}
                       </button>
                     ))}
                   </div>

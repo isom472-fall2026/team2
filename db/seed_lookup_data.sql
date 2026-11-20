@@ -391,7 +391,7 @@ ON CONFLICT (id) DO UPDATE SET
     nomination_status = EXCLUDED.nomination_status;
 
 INSERT INTO public.updates (id, details)
-VALUES (990001, 'Seed fixture: application documents verified for review.')
+VALUES (990001, 'Seed fixture: upload the required documents before submitting.')
 ON CONFLICT (id) DO UPDATE SET details = EXCLUDED.details;
 
 SELECT setval(
@@ -414,8 +414,8 @@ VALUES (
     (CURRENT_DATE + interval '5 years')::date, 4.0, 3.6,
     (CURRENT_DATE + interval '2 years')::date, 60, 120,
     'seed-incoming-student@example.com', '+91 98765 43210', TRUE,
-    'Business Administration', 'Third year', TRUE, 77, 77, 990001,
-    990002, 990001, now() - interval '7 days', 'Submitted', 990001
+    'Business Administration', 'Third year', FALSE, 77, 77, 990001,
+    990002, 990001, NULL, 'Draft', 990001
 )
 ON CONFLICT (application_id) DO UPDATE SET
     update_id = EXCLUDED.update_id,
@@ -446,6 +446,7 @@ ON CONFLICT (application_id) DO UPDATE SET
     application_status = EXCLUDED.application_status,
     nomination_id = EXCLUDED.nomination_id;
 
+-- SQL cannot seed Storage file bytes; submit these drafts after uploading documents.
 INSERT INTO public.outboundapplication (
     application_id, update_id, first_name, last_name, gender, birthdate,
     passport_number, passport_expiry_date, civil_id_number, civil_id_expiry,
@@ -460,8 +461,8 @@ VALUES
         (CURRENT_DATE - interval '21 years')::date, 'TEST-OUT-990001',
         (CURRENT_DATE + interval '5 years')::date, 299001000001, (CURRENT_DATE + interval '5 years')::date,
         3.5, (CURRENT_DATE + interval '2 years')::date, 90, '+965 5555 0102',
-        FALSE, 'Finance', 'Third year', TRUE,
-        1, 89, 89, 990001, 990001, now() - interval '5 days', 'Submitted'
+        FALSE, 'Finance', 'Third year', FALSE,
+        1, 89, 89, 990001, 990001, NULL, 'Draft'
     ),
     (
         990002, NULL, 'Seed', 'KU Student', 'Male',
@@ -503,14 +504,14 @@ INSERT INTO public.application_status_log (
 )
 VALUES
     (
-        990001, NULL, 990001, 'Draft', 'Submitted',
+        990001, NULL, 990001, NULL, 'Draft',
         '00000000-0000-4000-8000-000000000003', 'Seed KU Coordinator',
-        now() - interval '7 days', 'Seed fixture submission'
+        now() - interval '7 days', 'Seed fixture draft; documents must be uploaded before submission'
     ),
     (
-        990002, 990001, NULL, 'Draft', 'Submitted',
+        990002, 990001, NULL, NULL, 'Draft',
         '00000000-0000-4000-8000-000000000003', 'Seed KU Coordinator',
-        now() - interval '5 days', 'Seed fixture submission'
+        now() - interval '5 days', 'Seed fixture draft; documents must be uploaded before submission'
     )
 ON CONFLICT (id) DO UPDATE SET
     application_id = EXCLUDED.application_id,

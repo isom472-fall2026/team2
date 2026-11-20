@@ -8,6 +8,9 @@ import { useAppStore } from '../stores/appStore'
 import DateField from './DateField'
 import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles'
 import ReplacementFileField from './ReplacementFileField'
+import CriminalRecordUpload from './CriminalRecordUpload'
+import { englishEvidenceTypes, englishEvidenceError, incomingDocumentError, inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
+import { preferredNominationId } from '../incomingNominations'
 import WizardProgress from './WizardProgress'
 import './OutboundApplication.css'
 
@@ -51,6 +54,10 @@ const emptyForm = {
   is_whatsapp_available: false,
   major: '',
   transcript: '',
+  cv: '',
+  english_evidence_type: '',
+  english_evidence: '',
+  criminal_record_certificate: '',
   current_year_of_study: '',
   nationality: '',
   passport_issuing_country: '',
@@ -210,6 +217,7 @@ function editedFields(form) {
     credits_passed: form.credits_passed === '' ? null : Number(form.credits_passed),
     max_credits: form.max_credits === '' ? null : Number(form.max_credits),
     expected_graduation_date: form.expected_graduation_date || null,
+    english_evidence_type: form.english_evidence_type || null,
   }
 }
 
@@ -258,7 +266,7 @@ function FileField({ label, name, value, onUpload, uploading, required = false, 
   )
 }
 
-function InboundApplicationReceipt({ application, studentId, countries, cycles, universities, onBack, onEdit, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal }) {
+function InboundApplicationReceipt({ application, studentId, countries, cycles, universities, onBack, onEdit, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal, onCertificateSaved }) {
   const [uploadedPages, setUploadedPages] = useState([])
   const [documentsError, setDocumentsError] = useState('')
   const [documentsLoading, setDocumentsLoading] = useState(true)
@@ -296,6 +304,10 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
     ['KU semester', cycle ? `${cycle.semester} ${cycle.academic_year}` : application.semester_applied_for],
     ['Host university', university?.name || application.university_id],
     ['Academic transcript', uploadedFileName(application.transcript)],
+    ['CV', uploadedFileName(application.cv)],
+    ['English evidence type', application.english_evidence_type],
+    ['English proficiency evidence', uploadedFileName(application.english_evidence)],
+    ['Criminal-record certificate', uploadedFileName(application.criminal_record_certificate)],
     ['Passport copy', uploadedFileName(application.passport_copy)],
     ['Personal photo', uploadedFileName(application.profile_photo)],
     ['Terms and conditions accepted', application.tos ? 'Yes' : 'No'],
@@ -314,6 +326,9 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
       setDocumentsLoading(true)
       const files = [
         ['Academic transcript', application.transcript],
+        ['CV', application.cv],
+        ['English proficiency evidence', application.english_evidence],
+        ['Criminal-record certificate', application.criminal_record_certificate],
         ['Passport copy', application.passport_copy],
         ['Personal photo', application.profile_photo],
       ].filter(([, path]) => Boolean(path))
@@ -390,7 +405,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
       }
     })
     return () => { current = false }
-  }, [application.application_id, application.passport_copy, application.profile_photo, application.transcript])
+  }, [application.application_id, application.passport_copy, application.profile_photo, application.transcript, application.cv, application.english_evidence, application.criminal_record_certificate])
 
   useEffect(() => {
     if (!viewingPage) return undefined
@@ -415,7 +430,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
       <span className="auth-card__eyebrow">{missedDeadline ? 'Application not submitted' : 'Application submitted'}</span>
       <h1 id="inbound-receipt-heading">
         {missedDeadline ? 'Your application was not submitted'
-          : application.application_status === 'Accepted' ? 'Your application was accepted'
+          : ['Accepted', 'Approved'].includes(application.application_status) ? `Your application has ${inboundApprovalLabel(application).toLowerCase()}`
             : application.application_status === 'Rejected' ? 'Your application was not accepted'
               : 'Your application was submitted successfully'}
       </h1>
@@ -427,11 +442,12 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
           <dt>Status</dt>
           <dd>
             <span className={`outbound-receipt__status outbound-receipt__status--${statusClass}`}>
-              {application.application_status}
+              {inboundApprovalLabel(application)}
             </span>
           </dd>
         </div>
       </dl>
+      {hasConditionalApproval(application) && <CriminalRecordUpload application={application} onSaved={onCertificateSaved} />}
       <h2>Application details</h2>
       <dl className="outbound-receipt__details">
         {details.map(([label, value]) => (
@@ -538,6 +554,9 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
 const inboundDocuments = [
   ['passport_copy', 'Passport copy'],
   ['transcript', 'Academic transcript'],
+  ['cv', 'CV'],
+  ['english_evidence', 'English proficiency evidence'],
+  ['criminal_record_certificate', 'Criminal-record certificate (optional until unconditional approval)'],
   ['profile_photo', 'Personal photo'],
 ]
 
@@ -563,7 +582,7 @@ export function InboundApplicationEditor({ application, countries, onSaved, onCa
 
   const save = async (event) => {
     event.preventDefault()
-    const validationError = getPersonalDetailsError(form) || getAcademicDetailsError(form)
+    const validationError = getPersonalDetailsError(form) || getAcademicDetailsError(form) || incomingDocumentError(form, files)
     if (validationError) {
       setState({ saving: false, error: validationError })
       return
@@ -647,6 +666,11 @@ export function InboundApplicationEditor({ application, countries, onSaved, onCa
         <InputField label="Expected graduation date" name="expected_graduation_date" value={form.expected_graduation_date} onChange={updateField} type="date" required />
       </div>
       <h3 className="outbound-form__section-heading">Documents</h3>
+      <SelectField label="English evidence type" name="english_evidence_type" value={form.english_evidence_type} onChange={updateField} required>
+        <option value="">Select evidence type</option>
+        {englishEvidenceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+      </SelectField>
+      <p>IELTS, TOEFL, or a letter from your dean, vice dean, or head of department confirming competent English is required.</p>
       <div className="outbound-form__grid">
         {inboundDocuments.map(([field, label]) => (
           <ReplacementFileField key={field} label={label} field={field} currentPath={application[field]} onChange={chooseFile} disabled={state.saving} />
@@ -680,10 +704,12 @@ function InboundApplication() {
   const [isConfirmingWithdrawal, setIsConfirmingWithdrawal] = useState(false)
   const [editingApplicationId, setEditingApplicationId] = useState(null)
   const [nomination, setNomination] = useState(null)
-  const [nominationInput, setNominationInput] = useState('')
+  const [matchingNominations, setMatchingNominations] = useState([])
+  const [nominationInput, setNominationInput] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [applicationId, setApplicationId] = useState(null)
   const [acceptedTerms, setAcceptedTerms] = useState(terms.map(() => false))
+  const [healthInsuranceAcknowledged, setHealthInsuranceAcknowledged] = useState(false)
   const [hasUserEdited, setHasUserEdited] = useState(false)
   const [draftSaveStatus, setDraftSaveStatus] = useState('')
   const [loading, setLoading] = useState(true)
@@ -703,6 +729,9 @@ function InboundApplication() {
   const activeStep = routeStep
   const canSubmit = acceptedTerms.every(Boolean)
   const openCycles = useMemo(() => cycles.filter(isCycleOpen), [cycles])
+  const suggestedNominationId = useMemo(() => preferredNominationId(
+    matchingNominations, cycles.filter(isNominationCycleAvailable), applications,
+  ), [matchingNominations, cycles, applications])
   const birthdateError = getBirthdateError(form.birthdate)
 
   const requestWithdrawal = async () => {
@@ -734,6 +763,8 @@ function InboundApplication() {
     async function loadPortalData() {
       setLoading(true)
       setError('')
+      setNominationInput(null)
+      setMatchingNominations([])
       if (!user.email_confirmed_at) {
         setError('Verify your email address before opening the inbound application portal.')
         setLoading(false)
@@ -761,7 +792,7 @@ function InboundApplication() {
         supabase.from('country').select('id, name').order('name'),
         supabase.from('partneruniversity').select('university_id, name').order('name'),
         supabase.from('inboundapplication')
-          .select('application_id, application_status, semester_applied_for, nomination_id, created_at')
+          .select('application_id, application_status, approval_type, semester_applied_for, nomination_id, created_at')
           .eq('student_id', studentRecord.student_id)
           .neq('application_status', 'Modified')
           .order('created_at', { ascending: false }),
@@ -789,6 +820,34 @@ function InboundApplication() {
     loadPortalData()
     return () => { current = false }
   }, [user.email, user.email_confirmed_at, user.id])
+
+  useEffect(() => {
+    if (!student || routeStep >= 0 || submittedRouteId) return undefined
+    let current = true
+    let latestRequest = 0
+
+    const refreshNominations = async () => {
+      const request = ++latestRequest
+      const { data, error: nominationError } = await supabase
+        .from('studentnominations')
+        .select('id, semester, nomination_status, created_at')
+        .ilike('student_email', student.student_email.trim())
+        .eq('nomination_status', 'Active')
+      if (current && request === latestRequest && !nominationError) setMatchingNominations(data || [])
+    }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshNominations()
+    }
+
+    refreshNominations()
+    window.addEventListener('focus', refreshNominations)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      current = false
+      window.removeEventListener('focus', refreshNominations)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
+  }, [student, routeStep, submittedRouteId])
 
   useEffect(() => {
     if (!routeNominationId) initializedNominationRouteRef.current = null
@@ -836,6 +895,7 @@ function InboundApplication() {
       setDraftSaveStatus('')
       lastSavedFormRef.current = ''
       setAcceptedTerms(terms.map(() => false))
+      setHealthInsuranceAcknowledged(false)
       setError('')
       setLoading(false)
     }
@@ -887,6 +947,7 @@ function InboundApplication() {
       lastSavedFormRef.current = JSON.stringify(draftForm)
       setApplicationId(data.application_id)
       setAcceptedTerms(terms.map(() => false))
+      setHealthInsuranceAcknowledged(false)
       setLoading(false)
     }
 
@@ -900,7 +961,7 @@ function InboundApplication() {
     const checkDraftStatus = async () => {
       const { data, error: statusError } = await supabase
         .from('inboundapplication')
-        .select('application_status')
+        .select('application_status, approval_type')
         .eq('application_id', routeApplicationId)
         .eq('student_id', student.student_id)
         .maybeSingle()
@@ -908,7 +969,7 @@ function InboundApplication() {
 
       setApplications((items) => items.map((item) => (
         String(item.application_id) === String(routeApplicationId)
-          ? { ...item, application_status: data.application_status }
+          ? { ...item, application_status: data.application_status, approval_type: data.approval_type }
           : item
       )))
       navigate(`/portal/inbound-application/${routeApplicationId}/submitted`, { replace: true })
@@ -962,6 +1023,8 @@ function InboundApplication() {
     if (stepIndex === 1) {
       const academicError = getAcademicDetailsError(form)
       if (academicError) return academicError
+      const englishError = englishEvidenceError(form)
+      if (englishError) return englishError
     }
     if (stepIndex === 2 && (!nomination || !isNominationCycleAvailable(nomination.cycle))) {
       return 'The nomination does not have an available KU semester.'
@@ -969,8 +1032,10 @@ function InboundApplication() {
     if (stepIndex === 2 && Number(form.semester_applied_for) !== Number(nomination.semester)) {
       return 'Choose the KU semester associated with your nomination.'
     }
+    if (stepIndex === 2 && !form.cv) return 'Upload your CV before submitting.'
+    if (stepIndex === 2 && !healthInsuranceAcknowledged) return 'Acknowledge that you will contact the Kuwaiti embassy about health-insurance requirements.'
     return ''
-  }, [form, nomination])
+  }, [form, nomination, healthInsuranceAcknowledged])
 
   const updateField = (event) => {
     const { name, value, checked, type } = event.target
@@ -1018,6 +1083,10 @@ function InboundApplication() {
           : null,
         major: form.major.trim() || null,
         transcript: form.transcript || null,
+        cv: form.cv || null,
+        english_evidence_type: form.english_evidence_type || null,
+        english_evidence: form.english_evidence || null,
+        criminal_record_certificate: form.criminal_record_certificate || null,
         current_year_of_study: form.current_year_of_study || null,
         tos: false,
         passport_issuing_country: form.passport_issuing_country ? Number(form.passport_issuing_country) : null,
@@ -1125,7 +1194,7 @@ function InboundApplication() {
 
   const beginWithNomination = async (event) => {
     event.preventDefault()
-    const id = nominationInput.trim()
+    const id = (nominationInput ?? suggestedNominationId).trim()
     if (!/^\d+$/.test(id)) {
       setError('Enter the numeric Nomination ID provided by your home university.')
       return
@@ -1273,12 +1342,12 @@ function InboundApplication() {
   const renderApplicationsPage = (
     <>
       <h1 id="inbound-heading">Your inbound applications</h1>
-      <p>Enter the Nomination ID issued to you to start an application, or continue a saved draft.</p>
+      <p>An available nomination sent to your account email is filled in automatically. You can also enter the Nomination ID issued to you, or continue a saved draft.</p>
       <form className="outbound-new-application" onSubmit={beginWithNomination}>
         <InputField
           label="Nomination ID"
           name="nomination_id"
-          value={nominationInput}
+          value={nominationInput ?? suggestedNominationId}
           onChange={(event) => {
             setNominationInput(event.target.value)
             setError('')
@@ -1303,7 +1372,7 @@ function InboundApplication() {
                   <p>Application #{application.application_id} · Nomination #{application.nomination_id}</p>
                 </div>
                 <span className={`outbound-application-list__status outbound-application-list__status--${application.application_status?.toLowerCase()}`}>
-                  {application.application_status}
+                  {inboundApprovalLabel(application)}
                 </span>
                 {application.application_status === 'Draft' && (
                   <button className="btn btn--secondary" type="button" onClick={() => openDraft(application.application_id)}>
@@ -1428,10 +1497,13 @@ function InboundApplication() {
               </div>
               <InputField label="Expected graduation date" name="expected_graduation_date" value={form.expected_graduation_date} onChange={updateField} type="date" required />
               <FileField label="Academic transcript" name="transcript" value={form.transcript} onUpload={uploadFile} uploading={uploading} />
+              <SelectField label="English evidence type" name="english_evidence_type" value={form.english_evidence_type} onChange={updateField} required>
+                <option value="">Select evidence type</option>
+                {englishEvidenceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              </SelectField>
               <div className="inbound-form__field-note">
-                <article className="inbound-form__explanation">
-                  Kuwait University does not require English proficiency proofs for exchange students.
-                </article>
+                <FileField label="English proficiency evidence" name="english_evidence" value={form.english_evidence} onUpload={uploadFile} uploading={uploading} required />
+                <p>Upload IELTS or TOEFL evidence, or a letter from your dean, vice dean, or head of department confirming that your English is competent.</p>
               </div>
             </div>
           )}
@@ -1448,6 +1520,15 @@ function InboundApplication() {
               <p>Your cycle is linked to the active nomination.</p>
               <FileField label="Passport copy" name="passport_copy" value={form.passport_copy} onUpload={uploadFile} uploading={uploading} />
               <FileField label="Personal photo" name="profile_photo" value={form.profile_photo} onUpload={uploadFile} uploading={uploading} accept=".jpg,.jpeg,.png" />
+              <FileField label="CV" name="cv" value={form.cv} onUpload={uploadFile} uploading={uploading} required />
+              <div className="inbound-form__field-note">
+                <FileField label="Criminal-record certificate (optional)" name="criminal_record_certificate" value={form.criminal_record_certificate} onUpload={uploadFile} uploading={uploading} />
+                <p>You may submit without this file. A certificate stamped by your closest Kuwaiti embassy will eventually be required for unconditional approval.</p>
+                <label className="outbound-form__checkbox">
+                  <input type="checkbox" checked={healthInsuranceAcknowledged} onChange={(event) => setHealthInsuranceAcknowledged(event.target.checked)} />
+                  <span>I will contact the Kuwaiti embassy in my country to learn the health-insurance requirements after conditional approval.</span>
+                </label>
+              </div>
             </div>
           )}
           {pageIndex === 3 && (
@@ -1535,6 +1616,7 @@ function InboundApplication() {
     </section>
   ) : visibleSubmittedApplication ? (
     <InboundApplicationReceipt
+      onCertificateSaved={setSubmittedApplication}
       onEdit={() => setEditingApplicationId(visibleSubmittedApplication.application_id)}
       application={visibleSubmittedApplication}
       studentId={student.student_id}

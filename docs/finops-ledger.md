@@ -102,6 +102,17 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 | Nominated or accepted incoming student selects preferred CBA subjects [#159](https://github.com/isom472-fall2026/team2/issues/159) | VS agents | 75.21K tokens | Story and acceptance criteria, db/schema.sql, incoming student portal, subject catalog and detail view, coordinator application view, RLS, testing and maintenance rules | None |
 |  |  |  |  |  |
 
+### Phase 2 plan review
+
+Our Phase 2 plan assigned story drafting to KU Gemini Enterprise and implementation to Antigravity and VS Code agents. The ledger shows continued implementation through Antigravity and VS Code/Copilot agents, with later Phase 5 entries also recording GPT-6.2 Sol. We broadly followed the implementation approach, while expanding the tools and models used. The ledger does not establish which tool drafted every later story, so that part of the plan cannot be fully verified.
+
+Using assistants that edit repository files remained appropriate for development. However, usage recording became inconsistent: earlier entries report tokens or estimates, while later entries also record prompts and weekly-limit percentages. These measurements do not establish whether we stayed within the original allowance of six million tokens per month plus the additional weekly allowance.
+
+Going forward, we should consistently record the tool and model, observed usage, supplied context, follow-up corrections and validation performed. Estimates should be labelled, and unavailable measurements should remain unreported.
+
+Reviewed by: [FinOps Lead's name]
+Review date: [date]
+
 ## Phase 6
 
 | Story | Assistant used | What it used (tokens, requests, or your own estimate) | What we gave it (files, story, schema) | What we would do differently |

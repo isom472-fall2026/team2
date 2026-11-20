@@ -10,6 +10,7 @@ import { partnerUniversityAirports, partnerUniversityCoordinates } from '../part
 import { forgetCycles, getCycles, getPartnerUniversities } from '../referenceData'
 import { useAppStore } from '../stores/appStore'
 import { useStatusToast } from '../useStatusToast'
+import { inboundApprovalLabel } from '../inboundApproval'
 
 const CycleReport = lazy(() => import('./CycleReport'))
 const CoordinatorApplications = lazy(() => import('./CoordinatorApplications'))
@@ -478,7 +479,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
 
       const { data: applications, error: applicationError } = await supabase
         .from('inboundapplication')
-        .select('nomination_id, application_status')
+        .select('nomination_id, application_status, approval_type')
         .in('nomination_id', loadedNominations.map(({ id }) => id))
         .neq('application_status', 'Modified')
       if (!isCurrent) return
@@ -489,9 +490,9 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       } else {
         setProgressError('')
         setApplicationStatuses(Object.fromEntries(
-          (applications || []).map(({ nomination_id, application_status }) => [
-            nomination_id,
-            application_status,
+          (applications || []).map((application) => [
+            application.nomination_id,
+            inboundApprovalLabel(application),
           ]),
         ))
       }

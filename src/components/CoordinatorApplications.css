@@ -242,6 +242,32 @@
   color: #36d399;
 }
 
+.coordinator-review__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid #f2c94c;
+  border-radius: var(--radius-sm);
+  background: rgba(242, 201, 76, 0.14);
+  color: #ffe38a;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.coordinator-review__warning svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+
+:root[data-theme='light'] .coordinator-review__warning {
+  border-color: #a87300;
+  background: #fff3bf;
+  color: #4b3500;
+}
+
 .coordinator-review__section {
   margin-top: 32px;
 }

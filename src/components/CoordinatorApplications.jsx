@@ -1577,7 +1577,15 @@ export function ManageApplication({ type }) {
                       </p>
                       {pendingDecision === 'unconditional' && (
                         <>
-                          {!application.criminal_record_certificate && <p className="auth-form__error" role="alert">A criminal-record certificate must be uploaded before unconditional approval.</p>}
+                          {!application.criminal_record_certificate && (
+                            <div className="coordinator-review__warning" role="alert">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+                                <path d="M10.3 3.9 1.8 18.5A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-2.5L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+                                <path d="M12 9v4m0 4h.01" />
+                              </svg>
+                              <span>A criminal-record certificate must be uploaded before unconditional approval.</span>
+                            </div>
+                          )}
                           <label className="outbound-form__checkbox">
                             <input type="checkbox" checked={certificateStamped} onChange={(event) => setCertificateStamped(event.target.checked)} disabled={!application.criminal_record_certificate || decision.loading} />
                             <span>I have reviewed the uploaded criminal-record certificate and verified its Kuwaiti embassy stamp.</span>

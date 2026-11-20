@@ -1064,7 +1064,8 @@
   }
 
   .outbound-receipt__image-actions,
-  .outbound-receipt__viewer-backdrop {
+  .outbound-receipt__viewer-backdrop,
+  .outbound-receipt__certificate-upload {
     display: none !important;
   }
 

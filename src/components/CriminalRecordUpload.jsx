@@ -30,7 +30,7 @@ export default function CriminalRecordUpload({ application, onSaved }) {
   }
 
   return (
-    <section className="coordinator-review__panel" aria-labelledby="criminal-record-heading">
+    <section className="coordinator-review__panel outbound-receipt__certificate-upload" aria-labelledby="criminal-record-heading">
       <h2 id="criminal-record-heading">Criminal-record certificate</h2>
       <p>Upload a certificate stamped by your closest Kuwaiti embassy for the KU coordinator to review before unconditional approval.</p>
       <p>Contact the Kuwaiti embassy in your country to learn the health-insurance requirements after conditional approval.</p>

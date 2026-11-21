@@ -312,6 +312,43 @@
   background: #fff;
 }
 
+.coordinator-review__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 20px;
+  border-bottom: 1px solid var(--border-bright);
+}
+
+.coordinator-review__tab {
+  flex: none;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--text);
+  background: none;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.coordinator-review__tab:hover {
+  color: var(--text-strong);
+}
+
+.coordinator-review__tab:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: -2px;
+}
+
+.coordinator-review__tab--active {
+  color: var(--neon);
+  border-bottom-color: var(--neon);
+}
+
 .coordinator-review__layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;

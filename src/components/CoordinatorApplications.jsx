@@ -297,6 +297,17 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
 
 const decidableStatuses = ['Submitted', 'In Review', 'Pending Interview']
 
+const inboundTabs = [
+  { id: 'details', label: 'Application details' },
+  { id: 'subjects', label: 'Preferred subjects' },
+  { id: 'status', label: 'Application status' },
+  { id: 'letters', label: 'Acceptance letter' },
+]
+
+// The portal sidebar views each application type opens in.
+const applicationsView = { inbound: 'incoming-applications', outbound: 'outgoing-applications' }
+const applicationTypeLabel = { inbound: 'incoming', outbound: 'outgoing' }
+
 // History includes both approval stages and older records that used either status code.
 const approvedStatuses = ['Accepted', 'Approved']
 
@@ -417,7 +428,8 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
   )
 }
 
-export default function CoordinatorApplications() {
+// Incoming and outgoing applications are separate portal views, so each list shows one type.
+export default function CoordinatorApplications({ type: applicationType }) {
   const coordinatorName = useAppStore((state) => state.profile?.name)
   const navigate = useNavigate()
   const returnState = useLocation().state
@@ -435,7 +447,6 @@ export default function CoordinatorApplications() {
   const [now, setNow] = useState(null)
   const [error, setError] = useState('')
   const [section, setSection] = useState(returnState?.applicationsSection === 'history' ? 'history' : 'current')
-  const [applicationType, setApplicationType] = useState(returnState?.applicationType === 'inbound' ? 'inbound' : 'outbound')
   const [search, setSearch] = useState('')
   const [nationalityFilter, setNationalityFilter] = useState('')
   const [universityFilter, setUniversityFilter] = useState('')
@@ -595,7 +606,7 @@ export default function CoordinatorApplications() {
     // back button returns to this table, not to the portal's default view.
     navigate('/portal', {
       replace: true,
-      state: { view: 'applications', applicationsSection: section, applicationType },
+      state: { view: applicationsView[applicationType], applicationsSection: section },
     })
     navigate(`/portal/applications/${application.type}/${application.application_id}`)
   }
@@ -624,7 +635,7 @@ export default function CoordinatorApplications() {
     <section ref={sectionRef} className="coordinator-applications" aria-labelledby="portal-heading">
       {isHistory ? (
         <>
-          <h2 id="portal-heading">Historical applications</h2>
+          <h2 id="portal-heading">Historical {applicationTypeLabel[applicationType]} applications</h2>
           <p>Approved applications from previous KU semesters.</p>
           <div className="coordinator-applications__history-link">
             <button className="btn btn--secondary" type="button" onClick={() => showSection('current')}>
@@ -634,21 +645,13 @@ export default function CoordinatorApplications() {
         </>
       ) : (
         <>
-          <h2 id="portal-heading">Current semester applications</h2>
+          <h2 id="portal-heading">Current semester {applicationTypeLabel[applicationType]} applications</h2>
           <p>Review applications for the current or upcoming KU semester, including drafts.</p>
           <p className="coordinator-applications__cycle">
             {currentCycle ? `KU semester: ${currentCycle.semester} ${currentCycle.academic_year}` : 'There is no current or upcoming KU semester.'}
           </p>
         </>
       )}
-      <div className="coordinator-applications__type-tabs" role="group" aria-label="Application type">
-        <button className={applicationType === 'outbound' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => setApplicationType('outbound')}>
-          Outbound
-        </button>
-        <button className={applicationType === 'inbound' ? 'btn btn--primary' : 'btn btn--secondary'} type="button" onClick={() => setApplicationType('inbound')}>
-          Inbound
-        </button>
-      </div>
       {isHistory && <div className="coordinator-applications__filters">
         <label>
           Search by student {applicationType === 'outbound' ? 'name or ID' : 'name'}
@@ -1340,6 +1343,7 @@ export function ManageApplication({ type }) {
   const [updatesRefresh, setUpdatesRefresh] = useState(0)
   const [decision, setDecision] = useState({ loading: false, error: '', message: '' })
   const [exportError, setExportError] = useState('')
+  const [inboundTab, setInboundTab] = useState('details')
 
   useEffect(() => {
     let isCurrent = true
@@ -1437,7 +1441,7 @@ export function ManageApplication({ type }) {
   }, [application?.application_id, attachmentKey, config])
 
   const backToApplications = () => {
-    navigate('/portal', { state: { view: 'applications', applicationType: type } })
+    navigate('/portal', { state: { view: applicationsView[type] } })
   }
 
   const confirmDecision = async () => {
@@ -1502,6 +1506,8 @@ export function ManageApplication({ type }) {
     )
     : []
   const hasAttachments = attachmentPaths.some(Boolean)
+  // Outgoing applications keep every section on one page; incoming ones are split into tabs.
+  const showTab = (tab) => type !== 'inbound' || inboundTab === tab
 
   return (
     <section className="portal-page coordinator-review" aria-labelledby="review-heading">
@@ -1542,7 +1548,28 @@ export function ManageApplication({ type }) {
 
             <div className="coordinator-review__layout">
               <div className="coordinator-review__main">
-                {canDecide && isEditing && (
+                {/* Inside the main column so that, when Key metrics stack first on narrow
+                    screens, the tabs still sit directly above the section they switch. */}
+                {type === 'inbound' && (
+                <div className="coordinator-review__tabs" role="tablist" aria-label="Incoming application sections">
+                  {inboundTabs.map(({ id, label }) => (
+                    <button
+                      key={id}
+                      id={`review-tab-${id}`}
+                      className={`coordinator-review__tab${inboundTab === id ? ' coordinator-review__tab--active' : ''}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={inboundTab === id}
+                      aria-controls="review-tab-panel"
+                      onClick={() => setInboundTab(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                )}
+                <div {...(type === 'inbound' ? { id: 'review-tab-panel', role: 'tabpanel', 'aria-labelledby': `review-tab-${inboundTab}` } : {})}>
+                {showTab('status') && canDecide && isEditing && (
                   <section className="coordinator-review__panel">
                     <Suspense fallback={<p role="status">Loading the edit form...</p>}>
                       <ApplicationEditor
@@ -1558,7 +1585,7 @@ export function ManageApplication({ type }) {
                   </section>
                 )}
 
-                <section className="coordinator-review__panel" aria-labelledby="review-decision-heading">
+                {showTab('status') && <section className="coordinator-review__panel" aria-labelledby="review-decision-heading">
                   <h2 id="review-decision-heading">Decision</h2>
                   {canDecide && !pendingDecision && (
                     <div className="nomination-table__actions">
@@ -1639,24 +1666,26 @@ export function ManageApplication({ type }) {
                   )}
                   {decision.error && <p className="auth-form__error" role="alert">{decision.error}</p>}
                   {decision.message && <p className="coordinator-review__message" role="status">{decision.message}</p>}
-                </section>
+                </section>}
 
-                {type === 'inbound' && <AcceptanceLetters application={application} lookups={lookups} onStudentNotified={() => setUpdatesRefresh((count) => count + 1)} />}
+                {type === 'inbound' && showTab('letters') && <AcceptanceLetters application={application} lookups={lookups} onStudentNotified={() => setUpdatesRefresh((count) => count + 1)} />}
 
                 {type === 'outbound' && <AlternativeOffers application={application} universities={lookups.universities} />}
 
-                {type === 'inbound' && <IncomingApplicationSubjects key={application.student_id || application.application_id} studentId={application.student_id} />}
+                {type === 'inbound' && showTab('subjects') && <IncomingApplicationSubjects key={application.student_id || application.application_id} studentId={application.student_id} />}
 
-                <UpdateHistory
-                  type={type}
-                  applicationId={application.application_id}
-                  refreshKey={updatesRefresh}
-                  headingId="review-updates-heading"
-                />
+                {showTab('status') && (
+                  <UpdateHistory
+                    type={type}
+                    applicationId={application.application_id}
+                    refreshKey={updatesRefresh}
+                    headingId="review-updates-heading"
+                  />
+                )}
 
-                <ModificationHistory type={type} application={application} refreshKey={status} />
+                {showTab('status') && <ModificationHistory type={type} application={application} refreshKey={status} />}
 
-                <section className="coordinator-review__section" aria-labelledby="review-details-heading">
+                {showTab('details') && <section className="coordinator-review__section" aria-labelledby="review-details-heading">
                   <h2 id="review-details-heading">Submitted details</h2>
                   <dl className="coordinator-applications__fields coordinator-review__fields">
                     {detailFields.map(([label, value]) => (
@@ -1666,9 +1695,9 @@ export function ManageApplication({ type }) {
                       </div>
                     ))}
                   </dl>
-                </section>
+                </section>}
 
-                {hasAttachments && (
+                {showTab('details') && hasAttachments && (
                   <section className="coordinator-review__section" aria-labelledby="review-attachments-heading">
                     <h2 id="review-attachments-heading">Attachments</h2>
                     {attachments.loading && <p role="status">Loading attachments...</p>}
@@ -1687,6 +1716,7 @@ export function ManageApplication({ type }) {
                     </div>
                   </section>
                 )}
+                </div>
               </div>
               <ApplicationMetrics application={application} type={type} />
             </div>

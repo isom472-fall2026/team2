@@ -155,7 +155,8 @@ const kuCoordinatorNav = (canViewCycleReport) => [
     title: 'Students',
     items: [
       { view: 'nominations', label: 'Student nominations' },
-      { view: 'applications', label: 'Applications' },
+      { view: 'incoming-applications', label: 'Incoming applications' },
+      { view: 'outgoing-applications', label: 'Outgoing applications' },
       { view: 'send-update', label: 'Send an update' },
       { view: 'withdrawals', label: 'Withdrawal requests' },
       { view: 'support-requests', label: 'Support requests' },
@@ -405,7 +406,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
   const [isDeletingCycle, setIsDeletingCycle] = useState(false)
   const returnView = useLocation().state?.view
   const [activeView, setActiveView] = useState(
-    isKuCoordinator && ['applications', 'subjects'].includes(returnView) ? returnView : isKuCoordinator ? 'manage' : 'nominations',
+    isKuCoordinator && ['incoming-applications', 'outgoing-applications', 'subjects'].includes(returnView) ? returnView : isKuCoordinator ? 'manage' : 'nominations',
   )
   const [selectedNominationCycle, setSelectedNominationCycle] = useState(null)
   const [isStartingCycle, setIsStartingCycle] = useState(false)
@@ -1092,7 +1093,8 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
               )}
           </>
         )}
-        {isKuCoordinator && activeView === 'applications' && <Suspense fallback={null}><CoordinatorApplications /></Suspense>}
+        {isKuCoordinator && activeView === 'incoming-applications' && <Suspense fallback={null}><CoordinatorApplications key="inbound" type="inbound" /></Suspense>}
+        {isKuCoordinator && activeView === 'outgoing-applications' && <Suspense fallback={null}><CoordinatorApplications key="outbound" type="outbound" /></Suspense>}
         {isKuCoordinator && activeView === 'support-requests' && <Suspense fallback={null}><CoordinatorSupportRequests /></Suspense>}
         {isKuCoordinator && activeView === 'emergency-contacts' && <Suspense fallback={null}><EmergencyContactLookup /></Suspense>}
         {isKuCoordinator && activeView === 'send-update' && <Suspense fallback={null}><SendApplicationUpdate /></Suspense>}

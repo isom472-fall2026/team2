@@ -3,10 +3,15 @@ import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { formatUpdateTime } from '../formatUpdateTime'
 import { acceptanceLetterFileName, buildAcceptanceLetterPdf, coordinatorSignatoryTitle, getAcceptanceLetterFields, letterTypes } from '../acceptanceLetter'
-import ReplacementFileField from './ReplacementFileField'
 import './AcceptanceLetters.css'
 
 const bucket = 'acceptance-letters'
+const maxLetterBytes = 10 * 1024 * 1024
+
+// The date printed on the letter, so the page and the PDF always agree.
+function letterIssueDate(value) {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuwait', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value))
+}
 
 function saveBlob(blob, fileName) {
   const url = URL.createObjectURL(blob)
@@ -29,6 +34,26 @@ function storedExtension(path) {
 
 function stampedFileName(application, letter) {
   return acceptanceLetterFileName(application, letter.letter_type).replace(/\.pdf$/, `-stamped.${storedExtension(letter.stamped_file_path)}`)
+}
+
+function StampedLetterField({ onChange, disabled }) {
+  const [error, setError] = useState('')
+  const choose = (event) => {
+    const file = event.target.files?.[0] || null
+    const fileError = !file ? ''
+      : file.type !== 'application/pdf' ? 'The stamped letter must be a PDF.'
+        : file.size > maxLetterBytes ? 'Choose a PDF no larger than 10 MB.' : ''
+    setError(fileError)
+    if (fileError) event.target.value = ''
+    onChange(fileError ? null : file)
+  }
+  return (
+    <label className="acceptance-letter__field">
+      <span>Stamped letter (PDF)</span>
+      <input type="file" accept="application/pdf" onChange={choose} disabled={disabled} />
+      {error && <span className="auth-form__error" role="alert">{error}</span>}
+    </label>
+  )
 }
 
 function letterFolder(application, letterType) {
@@ -218,7 +243,7 @@ function LetterCard({ application, letterType, letter, lookups, coordinator, kuC
           </div>
           {!letter.stamped_file_path && (
             <form className="acceptance-letter__stamped" onSubmit={sendStamped}>
-              <ReplacementFileField key={fileFieldKey} label="Stamped letter (PDF, JPEG or PNG)" field={`stamped_${label}_letter`} currentPath="" onChange={(_field, file) => setStampedFile(file)} disabled={state.busy} />
+              <StampedLetterField key={fileFieldKey} onChange={setStampedFile} disabled={state.busy} />
               <button className="btn btn--primary" disabled={!stampedFile || state.busy}>
                 {state.busy ? 'Sending…' : 'Upload stamped letter and send to student'}
               </button>
@@ -335,16 +360,29 @@ export function StudentAcceptanceLetters({ application }) {
     }
   }
 
-  if (!letters.length && !error) return null
+  // The unconditional letter replaces the conditional one once it is stamped; the earlier
+  // letter stays downloadable because a visa application may already rely on it.
+  const current = letters.find(({ letter_type }) => letter_type === 'Unconditional') || letters[0]
+  const earlier = letters.filter((letter) => letter !== current)
+
+  if (!current && !error) return null
   return (
     <section className="coordinator-review__panel" aria-labelledby="student-acceptance-letters-heading">
-      <h2 id="student-acceptance-letters-heading">Acceptance letters</h2>
-      {letters.map((letter) => (
-        <p key={letter.id}>
-          <button className="btn btn--primary" type="button" onClick={() => download(letter)}>
-            Download {letter.letter_type.toLowerCase()} acceptance letter
+      <h2 id="student-acceptance-letters-heading">Acceptance letter</h2>
+      {current && (
+        <>
+          <p>{current.letter_type} acceptance · issued {letterIssueDate(current.issued_at)}</p>
+          <button className="btn btn--primary" type="button" onClick={() => download(current)}>
+            Download acceptance letter
           </button>
-          {' '}Issued {formatUpdateTime(letter.stamped_at)}
+        </>
+      )}
+      {earlier.map((letter) => (
+        <p key={letter.id} className="acceptance-letter__earlier">
+          Earlier {letter.letter_type.toLowerCase()} letter, issued {letterIssueDate(letter.issued_at)}:{' '}
+          <button className="btn btn--secondary" type="button" onClick={() => download(letter)}>
+            Download {letter.letter_type.toLowerCase()} letter
+          </button>
         </p>
       ))}
       {error && <p className="auth-form__error" role="alert">{error}</p>}

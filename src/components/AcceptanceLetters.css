@@ -49,6 +49,10 @@
   font-size: 0.85rem;
 }
 
+.coordinator-review__panel .acceptance-letter__earlier {
+  margin-top: 16px;
+}
+
 .acceptance-letter__preview {
   display: block;
   width: 100%;

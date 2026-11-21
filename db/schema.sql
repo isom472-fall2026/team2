@@ -5112,7 +5112,10 @@ USING (
     AND EXISTS (
         SELECT 1
         FROM public.incomingstudentauth AS student
+        JOIN public.inboundapplication AS application ON application.student_id = student.student_id
         WHERE student.student_id = acceptance_letters.student_id
+          AND application.application_id = acceptance_letters.application_id
+          AND application.application_status IN ('Accepted', 'Approved')
           AND student.user_id = (SELECT auth.uid())
     )
 );
@@ -5127,7 +5130,7 @@ VALUES (
     'acceptance-letters',
     FALSE,
     10485760,
-    ARRAY['application/pdf', 'image/jpeg', 'image/png']
+    ARRAY['application/pdf']
 )
 ON CONFLICT (id) DO UPDATE
 SET public = FALSE,
@@ -5171,7 +5174,8 @@ USING (
     )
 );
 
--- The unstamped letter is not an official document, so only the stamped copy is readable.
+-- The unstamped letter is not an official document, so only the stamped copy is readable, and
+-- only while the application is approved (#132).
 CREATE POLICY "Incoming students can read their stamped acceptance letters"
 ON storage.objects
 FOR SELECT
@@ -5182,7 +5186,11 @@ USING (
         SELECT 1
         FROM public.acceptance_letters AS letter
         JOIN public.incomingstudentauth AS student ON student.student_id = letter.student_id
+        JOIN public.inboundapplication AS application
+          ON application.application_id = letter.application_id
+         AND application.student_id = student.student_id
         WHERE letter.stamped_file_path = storage.objects.name
+          AND application.application_status IN ('Accepted', 'Approved')
           AND student.user_id = (SELECT auth.uid())
     )
 );

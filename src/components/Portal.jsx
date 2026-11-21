@@ -11,6 +11,7 @@ import { forgetCycles, getCycles, getPartnerUniversities } from '../referenceDat
 import { useAppStore } from '../stores/appStore'
 import { useStatusToast } from '../useStatusToast'
 import { inboundApprovalLabel } from '../inboundApproval'
+import { guideCopy } from '../preArrivalGuideContent'
 
 const CycleReport = lazy(() => import('./CycleReport'))
 const CoordinatorApplications = lazy(() => import('./CoordinatorApplications'))
@@ -25,6 +26,7 @@ const ManagePartnerUniversities = lazy(() => import('./ManagePartnerUniversities
 const SubjectImport = lazy(() => import('./SubjectImport'))
 const StudentAccount = lazy(() => import('./StudentAccount'))
 const IncomingSubjectPreferences = lazy(() => import('./IncomingSubjectPreferences'))
+const PreArrivalGuide = lazy(() => import('./PreArrivalGuide'))
 const EmergencyContact = lazy(() => import('./EmergencyContact'))
 const EmergencyContactLookup = lazy(() => import('./EmergencyContact').then((module) => ({ default: module.EmergencyContactLookup })))
 
@@ -1474,6 +1476,7 @@ export default function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenan
 const studentPortalViews = [
   { id: 'home', label: 'Home' },
   { id: 'inbox', label: 'Inbox' },
+  { id: 'pre-arrival', label: guideCopy.tab, role: 'incoming' },
   { id: 'subject-preferences', label: 'Preferred CBA subjects', role: 'incoming' },
   { id: 'support', label: 'Contact the office', role: 'incoming' },
   { id: 'emergency-contact', label: 'Emergency contact', role: 'incoming' },
@@ -1531,6 +1534,7 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
           </>
         )}
         {shownView === 'support' && <Suspense fallback={null}><SupportRequests profile={profile} /></Suspense>}
+        {shownView === 'pre-arrival' && profile?.role === 'incoming' && <Suspense fallback={null}><PreArrivalGuide /></Suspense>}
         {shownView === 'emergency-contact' && <Suspense fallback={null}><EmergencyContact key={profile.student_id} studentId={profile.student_id} /></Suspense>}
         {shownView === 'subject-preferences' && <Suspense fallback={null}><IncomingSubjectPreferences key={profile.student_id} profile={profile} /></Suspense>}
         {shownView === 'account' && (

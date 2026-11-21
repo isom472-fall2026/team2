@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { phoneCountryCodes } from '../phoneCountryCodes'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
 import DateField from './DateField'
 import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles'
+import { loadFilePreviews } from '../filePreviews'
 import ReplacementFileField from './ReplacementFileField'
 import CriminalRecordUpload from './CriminalRecordUpload'
 import { StudentAcceptanceLetters } from './AcceptanceLetters'
@@ -320,6 +320,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
 
   useEffect(() => {
     let current = true
+    let previews = null
 
     async function loadUploadedPages() {
       setUploadedPages([])
@@ -333,68 +334,10 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
         ['Passport copy', application.passport_copy],
         ['Personal photo', application.profile_photo],
       ].filter(([, path]) => Boolean(path))
-
-      const pages = await Promise.all(files.map(async ([label, path]) => {
-        const storage = supabase.storage.from(storageBucket)
-        const fileName = uploadedFileName(path)
-        const [viewResult, downloadResult] = await Promise.all([
-          storage.createSignedUrl(path, 3600),
-          storage.createSignedUrl(path, 3600, { download: fileName }),
-        ])
-        if (viewResult.error) throw viewResult.error
-        if (downloadResult.error) throw downloadResult.error
-
-        if (/\.pdf$/i.test(fileName)) {
-          const { data: fileData, error: fileError } = await storage.download(path)
-          if (fileError) throw fileError
-          const pdfjsLib = await import('pdfjs-dist')
-          pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
-          const loadingTask = pdfjsLib.getDocument({
-            data: new Uint8Array(await fileData.arrayBuffer()),
-          })
-          try {
-            const pdf = await loadingTask.promise
-            const pdfPages = []
-            for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-              const page = await pdf.getPage(pageNumber)
-              const originalViewport = page.getViewport({ scale: 1 })
-              const scale = Math.min(2, 1400 / originalViewport.width)
-              const viewport = page.getViewport({ scale })
-              const canvas = document.createElement('canvas')
-              canvas.width = Math.ceil(viewport.width)
-              canvas.height = Math.ceil(viewport.height)
-              const context = canvas.getContext('2d')
-              if (!context) throw new Error('A canvas context could not be created to display a PDF page.')
-              await page.render({ canvas, canvasContext: context, viewport }).promise
-              pdfPages.push({
-                key: `${path}-${pageNumber}`,
-                label,
-                fileName,
-                previewUrl: canvas.toDataURL('image/png'),
-                downloadUrl: downloadResult.data.signedUrl,
-                pageNumber,
-                pageCount: pdf.numPages,
-              })
-              page.cleanup()
-            }
-            return pdfPages
-          } finally {
-            await loadingTask.destroy()
-          }
-        }
-
-        return [{
-          key: path,
-          label,
-          fileName,
-          previewUrl: viewResult.data.signedUrl,
-          downloadUrl: downloadResult.data.signedUrl,
-          pageNumber: null,
-          pageCount: null,
-        }]
-      }))
+      previews = loadFilePreviews(storageBucket, files, uploadedFileName)
+      const pages = await previews.promise
       if (current) {
-        setUploadedPages(pages.flat())
+        setUploadedPages(pages)
         setDocumentsLoading(false)
       }
     }
@@ -405,7 +348,10 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
         setDocumentsLoading(false)
       }
     })
-    return () => { current = false }
+    return () => {
+      current = false
+      previews?.cancel()
+    }
   }, [application.application_id, application.passport_copy, application.profile_photo, application.transcript, application.cv, application.english_evidence, application.criminal_record_certificate])
 
   useEffect(() => {
@@ -471,7 +417,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
                   <button className="btn btn--secondary" type="button" onClick={() => setViewingPage(page)}>
                     View
                   </button>
-                  <a className="btn btn--secondary" href={page.downloadUrl}>
+                  <a className="btn btn--secondary" href={page.fileUrl} download={page.fileName}>
                     Download
                   </a>
                 </div>

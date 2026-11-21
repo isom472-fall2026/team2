@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { supabase } from '../supabase'
 import { getCountries, getCycles, getPartnerUniversities } from '../referenceData'
 import { useAppStore } from '../stores/appStore'
@@ -9,6 +8,7 @@ import { COURSE_CREDITS } from '../courseCredits'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
 import AcceptanceLetters from './AcceptanceLetters'
+import { loadFilePreviews } from '../filePreviews'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
 
@@ -1208,53 +1208,6 @@ function storedFileName(path) {
   return fileName.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '')
 }
 
-async function loadAttachmentPages(bucket, path, label) {
-  const storage = supabase.storage.from(bucket)
-  const fileName = storedFileName(path)
-  const { data: signed, error: signError } = await storage.createSignedUrl(path, 3600)
-  if (signError) throw signError
-
-  if (!/\.pdf$/i.test(fileName)) {
-    return [{ key: path, label, fileName, previewUrl: signed.signedUrl, openUrl: signed.signedUrl, pageNumber: null, pageCount: null }]
-  }
-
-  // A browser cannot show a PDF inside an <img>, so each page is drawn to a canvas, the same
-  // way the student's receipt shows it.
-  const { data: fileData, error: fileError } = await storage.download(path)
-  if (fileError) throw fileError
-  const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(await fileData.arrayBuffer()) })
-  try {
-    const pdf = await loadingTask.promise
-    const pages = []
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-      const page = await pdf.getPage(pageNumber)
-      const originalViewport = page.getViewport({ scale: 1 })
-      const viewport = page.getViewport({ scale: Math.min(2, 1400 / originalViewport.width) })
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.ceil(viewport.width)
-      canvas.height = Math.ceil(viewport.height)
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('A canvas could not be created to display a PDF page.')
-      await page.render({ canvas, canvasContext: context, viewport }).promise
-      pages.push({
-        key: `${path}-${pageNumber}`,
-        label,
-        fileName,
-        previewUrl: canvas.toDataURL('image/png'),
-        openUrl: signed.signedUrl,
-        pageNumber,
-        pageCount: pdf.numPages,
-      })
-      page.cleanup()
-    }
-    return pages
-  } finally {
-    await loadingTask.destroy()
-  }
-}
-
 function IncomingApplicationSubjects({ studentId }) {
   const [refresh, setRefresh] = useState(0)
   const [state, setState] = useState({ key: null, preferences: null, subjects: [], error: '' })
@@ -1424,17 +1377,19 @@ export function ManageApplication({ type }) {
     if (!application) return undefined
     let isCurrent = true
     const files = config.attachments
-      .map(([key, label]) => [application[key], label])
-      .filter(([path]) => Boolean(path))
-    Promise.all(files.map(([path, label]) => loadAttachmentPages(config.bucket, path, label)))
-      .then((results) => {
-        if (isCurrent) setAttachments({ loading: false, pages: results.flat(), error: '' })
+      .map(([key, label]) => [label, application[key]])
+      .filter(([, path]) => Boolean(path))
+    const previews = loadFilePreviews(config.bucket, files, storedFileName)
+    previews.promise
+      .then((pages) => {
+        if (isCurrent) setAttachments({ loading: false, pages, error: '' })
       })
       .catch((loadError) => {
         if (isCurrent) setAttachments({ loading: false, pages: [], error: loadError.message || 'The attachments could not be loaded.' })
       })
     return () => {
       isCurrent = false
+      previews.cancel()
     }
     // Realtime status changes replace the row, so this follows the file paths only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1708,7 +1663,7 @@ export function ManageApplication({ type }) {
                           <figcaption>
                             <strong>{page.label}</strong>
                             {page.pageNumber ? ` — page ${page.pageNumber} of ${page.pageCount}` : ''}
-                            <a href={page.openUrl} target="_blank" rel="noreferrer">Open file</a>
+                            <a href={page.fileUrl} target="_blank" rel="noreferrer">Open file</a>
                           </figcaption>
                           <img src={page.previewUrl} alt={`${page.label}${page.pageNumber ? `, page ${page.pageNumber}` : ''}`} />
                         </figure>

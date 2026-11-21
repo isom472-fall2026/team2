@@ -205,27 +205,78 @@ async function createTestingNomination(coordinatorClient, coordinatorId, cycleId
   throw new Error('A unique testing nomination ID could not be generated.')
 }
 
+function dateOnly(date) {
+  return databaseTimestamp(date).slice(0, 10)
+}
+
+// Reserved fictional range (555-0100 to 555-0199), so no real person can be reached.
+function fictionalPhoneNumber() {
+  return `+1555010${randomNumber(10, 99)}`
+}
+
+function createTestingPhoto(name) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 300
+  canvas.height = 400
+  const context = canvas.getContext('2d')
+  context.fillStyle = '#d6ecf6'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = '#0d80aa'
+  context.font = 'bold 96px sans-serif'
+  context.textAlign = 'center'
+  context.fillText(name.split(' ').map((part) => part[0]).join(''), canvas.width / 2, 230)
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('The testing photo could not be created.'))), 'image/png')
+  })
+}
+
 async function createTestingApplicationDocuments(client, bucket, application, fields) {
   const { jsPDF } = await import('jspdf')
   const paths = {}
   for (const field of fields) {
-    const document = new jsPDF()
-    document.text(`Synthetic testing document: ${field}`, 20, 20)
-    document.text('Invented data for portal testing only.', 20, 35)
-    const path = `${application.student_id}/${application.application_id}/${field}/${crypto.randomUUID()}-demo.pdf`
-    const { error } = await client.storage.from(bucket).upload(path, document.output('blob'), { contentType: 'application/pdf', upsert: false })
+    let file
+    let fileName
+    if (field === 'profile_photo') {
+      file = await createTestingPhoto(`${application.first_name} ${application.last_name}`)
+      fileName = 'demo.png'
+    } else {
+      const pdf = new jsPDF()
+      pdf.text(`Synthetic testing document: ${field.replace(/_/g, ' ')}`, 20, 20)
+      pdf.text(`Applicant: ${application.first_name} ${application.last_name}`, 20, 35)
+      pdf.text('Invented data for portal testing only.', 20, 50)
+      file = pdf.output('blob')
+      fileName = 'demo.pdf'
+    }
+    const path = `${application.student_id}/${application.application_id}/${field}/${crypto.randomUUID()}-${fileName}`
+    const { error } = await client.storage.from(bucket).upload(path, file, { contentType: file.type || 'application/pdf', upsert: false })
     if (error) throw new Error(getDatabaseErrorMessage(error))
     paths[field] = path
   }
   return paths
 }
 
-async function createSubmittedInboundApplication(studentClient, studentId, email, name, cycleId, nominationId) {
+async function createSubmittedInboundApplication(studentClient, studentId, email, name, cycleId, nominationId, country) {
   const [firstName, ...lastNameParts] = name.split(' ')
   const draft = {
     application_id: randomNumber(100000000, 999999999),
     first_name: firstName,
     last_name: lastNameParts.join(' '),
+    gender: 'Female',
+    birthdate: '2003-04-12',
+    country_of_residence: country.name,
+    nationality: country.id,
+    passport_issuing_country: country.id,
+    passport_number: `T${randomNumber(1000000, 9999999)}`,
+    passport_expiry_date: dateOnly(shiftedDate(3 * 365)),
+    phone_number: fictionalPhoneNumber(),
+    is_whatsapp_available: true,
+    major: 'Finance',
+    current_year_of_study: 'Third year',
+    gpa: 3.6,
+    max_gpa: 4,
+    credits_passed: 75,
+    max_credits: 120,
+    expected_graduation_date: dateOnly(shiftedDate(400)),
     email,
     semester_applied_for: cycleId,
     student_id: studentId,
@@ -236,7 +287,11 @@ async function createSubmittedInboundApplication(studentClient, studentId, email
   const { error: insertError } = await studentClient.from('inboundapplication').insert(draft)
   if (insertError) throw new Error(getDatabaseErrorMessage(insertError))
 
-  const documents = await createTestingApplicationDocuments(studentClient, 'inbound-application-files', draft, ['cv', 'english_evidence'])
+  // The criminal-record certificate is included so unconditional approval can be tested
+  // without first signing in as the student.
+  const documents = await createTestingApplicationDocuments(studentClient, 'inbound-application-files', draft, [
+    'passport_copy', 'transcript', 'profile_photo', 'cv', 'english_evidence', 'criminal_record_certificate',
+  ])
   const { error: submitError } = await studentClient
     .from('inboundapplication')
     .update({
@@ -248,18 +303,33 @@ async function createSubmittedInboundApplication(studentClient, studentId, email
     })
     .eq('application_id', draft.application_id)
   if (submitError) throw new Error(getDatabaseErrorMessage(submitError))
+
+  const { error: contactError } = await studentClient.rpc('save_my_emergency_contact', {
+    requested_name: 'Sam Smith',
+    requested_phone: fictionalPhoneNumber(),
+    requested_email: 'emergency-contact@example.com',
+  })
+  if (contactError) throw new Error(getDatabaseErrorMessage(contactError))
 }
 
-async function createSubmittedOutboundApplication(studentClient, studentId, name, cycleId, universityId) {
+async function createSubmittedOutboundApplication(studentClient, studentId, name, cycleId, universityId, country) {
   const [firstName, ...lastNameParts] = name.split(' ')
   const draft = {
     application_id: Number(`${Date.now()}${randomNumber(100, 999)}`),
     first_name: firstName,
     last_name: lastNameParts.join(' '),
-    gender: 'Female',
+    gender: 'Male',
     birthdate: '2004-01-01',
+    nationality: country.id,
+    passport_issuing_country: country.id,
+    passport_number: `K${randomNumber(1000000, 9999999)}`,
+    passport_expiry_date: dateOnly(shiftedDate(3 * 365)),
+    civil_id_number: Number(`${randomNumber(200000, 399999)}${randomNumber(100000, 999999)}`),
+    civil_id_expiry: dateOnly(shiftedDate(2 * 365)),
+    phone_number: fictionalPhoneNumber(),
+    is_whatsapp_available: true,
     gpa: 3.5,
-    expected_graduation_semester: databaseTimestamp(shiftedDate(365)).slice(0, 10),
+    expected_graduation_semester: dateOnly(shiftedDate(365)),
     credits_passed: 75,
     major: 'Business Administration',
     current_year_of_study: 'Third year',
@@ -272,7 +342,9 @@ async function createSubmittedOutboundApplication(studentClient, studentId, name
   const { error: insertError } = await studentClient.from('outboundapplication').insert(draft)
   if (insertError) throw new Error(getDatabaseErrorMessage(insertError))
 
-  const documents = await createTestingApplicationDocuments(studentClient, 'outbound-application-files', draft, ['cv'])
+  const documents = await createTestingApplicationDocuments(studentClient, 'outbound-application-files', draft, [
+    'civil_id_copy', 'passport_copy', 'transcript', 'profile_photo', 'cv',
+  ])
   const { error: submitError } = await studentClient
     .from('outboundapplication')
     .update({
@@ -297,6 +369,13 @@ async function provisionTestingScenario() {
 
   if (universityError) throw new Error(getDatabaseErrorMessage(universityError))
   if (!university) throw new Error('Add an available partner university before starting testing mode.')
+
+  const { data: countries, error: countriesError } = await supabase.from('country').select('id, name').order('name')
+  if (countriesError) throw new Error(getDatabaseErrorMessage(countriesError))
+  const abroad = countries.filter(({ name }) => name !== 'Kuwait')
+  if (!abroad.length) throw new Error('Add countries before starting testing mode.')
+  const incomingCountry = abroad[randomNumber(0, abroad.length - 1)]
+  const kuCountry = countries.find(({ name }) => name === 'Kuwait') || abroad[0]
 
   const cycle = await createTestingCycle()
   let accounts = []
@@ -334,6 +413,7 @@ async function provisionTestingScenario() {
     incoming.account.name,
     cycle.id,
     nomination.id,
+    incomingCountry,
   )
   await createSubmittedOutboundApplication(
     await signInTestAccount(kuStudent.account),
@@ -341,6 +421,7 @@ async function provisionTestingScenario() {
     kuStudent.account.name,
     cycle.id,
     university.university_id,
+    kuCountry,
   )
 
   return accounts

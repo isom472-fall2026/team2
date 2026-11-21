@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { formatUpdateTime } from '../formatUpdateTime'
-import { acceptanceLetterFileName, buildAcceptanceLetterPdf, getAcceptanceLetterFields, letterTypes } from '../acceptanceLetter'
+import { acceptanceLetterFileName, buildAcceptanceLetterPdf, coordinatorSignatoryTitle, getAcceptanceLetterFields, letterTypes } from '../acceptanceLetter'
 import ReplacementFileField from './ReplacementFileField'
 import './AcceptanceLetters.css'
 
@@ -44,8 +44,12 @@ async function readLetters(applicationId) {
   return data || []
 }
 
-function LetterCard({ application, letterType, letter, lookups, coordinator, onChanged, onStudentNotified }) {
+const customSignatory = 'custom'
+
+function LetterCard({ application, letterType, letter, lookups, coordinator, kuCoordinators, onChanged, onStudentNotified }) {
   const [preview, setPreview] = useState(null)
+  const [signer, setSigner] = useState('')
+  const [custom, setCustom] = useState({ name: '', title: '' })
   const [stampedFile, setStampedFile] = useState(null)
   const [fileFieldKey, setFileFieldKey] = useState(0)
   const [state, setState] = useState({ busy: false, error: '', message: '' })
@@ -55,11 +59,17 @@ function LetterCard({ application, letterType, letter, lookups, coordinator, onC
     if (preview) URL.revokeObjectURL(preview.url)
   }, [preview])
 
+  // Until the coordinator picks someone, the letter is signed by whoever issues it.
+  const selectedSigner = signer || String(coordinator?.coordinator_id ?? customSignatory)
+  const signatory = selectedSigner === customSignatory
+    ? custom
+    : { name: kuCoordinators.find(({ coordinator_id }) => String(coordinator_id) === selectedSigner)?.name, title: coordinatorSignatoryTitle }
+
   const generate = async () => {
     setState({ busy: true, error: '', message: '' })
-    const { fields, missing } = getAcceptanceLetterFields({ application, letterType, coordinator, ...lookups })
+    const { fields, missing } = getAcceptanceLetterFields({ application, letterType, coordinator, signatory, ...lookups })
     if (missing.length) {
-      setState({ busy: false, error: `The letter cannot be generated until the application has: ${missing.join(', ')}.`, message: '' })
+      setState({ busy: false, error: `The letter cannot be generated without: ${missing.join(', ')}.`, message: '' })
       return
     }
     try {
@@ -138,6 +148,34 @@ function LetterCard({ application, letterType, letter, lookups, coordinator, onC
       {!letter && !preview && (
         <>
           <p>Generate the letter to review it before it is issued.</p>
+          <div className="acceptance-letter__signatory">
+            <label className="acceptance-letter__field">
+              <span>Signed and stamped by</span>
+              <select value={selectedSigner} onChange={(event) => setSigner(event.target.value)} disabled={state.busy}>
+                {kuCoordinators.map(({ coordinator_id, name }) => (
+                  <option key={coordinator_id} value={String(coordinator_id)}>
+                    {name}{coordinator_id === coordinator?.coordinator_id ? ' (you)' : ''}
+                  </option>
+                ))}
+                <option value={customSignatory}>Custom name and title</option>
+              </select>
+            </label>
+            {selectedSigner === customSignatory && (
+              <>
+                <label className="acceptance-letter__field">
+                  <span>Signatory name</span>
+                  <input type="text" maxLength={120} value={custom.name} disabled={state.busy}
+                    onChange={(event) => setCustom((current) => ({ ...current, name: event.target.value }))} />
+                </label>
+                <label className="acceptance-letter__field">
+                  <span>Signatory title</span>
+                  <input type="text" maxLength={120} value={custom.title} placeholder="e.g. Director, Student Exchange Program" disabled={state.busy}
+                    onChange={(event) => setCustom((current) => ({ ...current, title: event.target.value }))} />
+                </label>
+              </>
+            )}
+            {selectedSigner !== customSignatory && <p className="acceptance-letter__hint">Title on the letter: {coordinatorSignatoryTitle}</p>}
+          </div>
           <button className="btn btn--primary" type="button" onClick={generate} disabled={state.busy}>
             {state.busy ? 'Generating…' : `Generate ${label} letter`}
           </button>
@@ -197,6 +235,7 @@ function LetterCard({ application, letterType, letter, lookups, coordinator, onC
 export default function AcceptanceLetters({ application, lookups, onStudentNotified }) {
   const [letters, setLetters] = useState([])
   const [coordinator, setCoordinator] = useState(null)
+  const [kuCoordinators, setKuCoordinators] = useState([])
   const [load, setLoad] = useState({ loading: true, error: '' })
   const applicationId = application.application_id
 
@@ -214,14 +253,18 @@ export default function AcceptanceLetters({ application, lookups, onStudentNotif
     const loadPanel = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        const [rows, coordinatorResult] = await Promise.all([
+        // Matches is_ku_coordinator(): Kuwait University (row 4) with a KU email.
+        const [rows, coordinatorResult, kuResult] = await Promise.all([
           readLetters(applicationId),
           supabase.from('coordinator').select('coordinator_id, name, email').eq('user_id', user?.id).maybeSingle(),
+          supabase.from('coordinator').select('coordinator_id, name, email').eq('university', 4).ilike('email', '%@ku.edu.kw').order('name'),
         ])
         if (coordinatorResult.error) throw coordinatorResult.error
+        if (kuResult.error) throw kuResult.error
         if (!isCurrent) return
         setLetters(rows)
         setCoordinator(coordinatorResult.data)
+        setKuCoordinators(kuResult.data || [])
         setLoad({ loading: false, error: '' })
       } catch (error) {
         if (isCurrent) setLoad({ loading: false, error: getDatabaseErrorMessage(error) })
@@ -255,6 +298,7 @@ export default function AcceptanceLetters({ application, lookups, onStudentNotif
           letter={letters.find(({ letter_type }) => letter_type === type)}
           lookups={lookups}
           coordinator={coordinator}
+          kuCoordinators={kuCoordinators}
           onChanged={refresh}
           onStudentNotified={onStudentNotified}
         />

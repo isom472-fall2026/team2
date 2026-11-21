@@ -3,6 +3,8 @@
 
 export const letterTypes = ['Conditional', 'Unconditional']
 
+export const coordinatorSignatoryTitle = 'Coordinator, Student Exchange Program'
+
 const conditionsText = {
   Conditional: 'Conditional – subject to a criminal-record certificate stamped by a Kuwaiti embassy',
   Unconditional: 'Unconditional',
@@ -53,8 +55,9 @@ function formatPeriod(semester, start, end) {
 }
 
 // Returns the template's placeholders filled from the application, and the labels of any
-// that cannot be filled, so a letter is never issued with a blank field.
-export function getAcceptanceLetterFields({ application, letterType, countries, cycles, universities, coordinator, issuedAt = new Date() }) {
+// that cannot be filled, so a letter is never issued with a blank field. The signatory may be
+// someone other than the issuing coordinator, whose email stays the student's contact.
+export function getAcceptanceLetterFields({ application, letterType, countries, cycles, universities, coordinator, signatory, issuedAt = new Date() }) {
   const byId = (rows, key, id) => rows.find((row) => Number(row[key]) === Number(id))
   const cycle = byId(cycles, 'id', application.semester_applied_for)
   const university = byId(universities, 'university_id', application.university_id)
@@ -81,9 +84,9 @@ export function getAcceptanceLetterFields({ application, letterType, countries, 
     conditions: require(conditionsText[letterType], 'letter type'),
     startDate: cycle?.cycle_start ? formatLongDate(cycle.cycle_start) : '',
     endDate: cycle?.cycle_end ? formatLongDate(cycle.cycle_end) : '',
-    coordinatorName: require(coordinator?.name, 'coordinator name'),
     coordinatorEmail: require(coordinator?.email, 'coordinator email'),
-    coordinatorTitle: 'Coordinator, Student Exchange Program',
+    signatoryName: require(signatory?.name?.trim(), 'signatory name'),
+    signatoryTitle: require(signatory?.title?.trim(), 'signatory title'),
   }
   return { fields, missing }
 }
@@ -279,10 +282,10 @@ export async function buildAcceptanceLetterPdf(fields) {
   doc.line(left, cursorY, left + 75, cursorY)
   cursorY += 2
   doc.setFont('helvetica', 'bold')
-  doc.text(fields.coordinatorName, left, cursorY, { baseline: 'top' })
+  doc.text(fields.signatoryName, left, cursorY, { baseline: 'top' })
   cursorY += 5.5
   doc.setFont('helvetica', 'italic')
-  doc.text(fields.coordinatorTitle, left, cursorY, { baseline: 'top' })
+  doc.text(fields.signatoryTitle, left, cursorY, { baseline: 'top' })
 
   const footerTop = 272.5
   doc.setDrawColor(...borderYellow)

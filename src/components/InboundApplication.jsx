@@ -9,6 +9,7 @@ import DateField from './DateField'
 import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles'
 import ReplacementFileField from './ReplacementFileField'
 import CriminalRecordUpload from './CriminalRecordUpload'
+import { StudentAcceptanceLetters } from './AcceptanceLetters'
 import { englishEvidenceTypes, englishEvidenceError, incomingDocumentError, inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
 import { preferredNominationId } from '../incomingNominations'
 import WizardProgress from './WizardProgress'
@@ -447,6 +448,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
           </dd>
         </div>
       </dl>
+      {['Accepted', 'Approved'].includes(application.application_status) && <StudentAcceptanceLetters application={application} />}
       {hasConditionalApproval(application) && <CriminalRecordUpload application={application} onSaved={onCertificateSaved} />}
       <h2>Application details</h2>
       <dl className="outbound-receipt__details">

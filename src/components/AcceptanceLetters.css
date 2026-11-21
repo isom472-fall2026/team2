@@ -1,0 +1,95 @@
+.acceptance-letter {
+  padding: 14px 0;
+  border-top: 1px solid var(--border-bright);
+}
+
+.acceptance-letter:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+.acceptance-letter h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: var(--text-strong);
+}
+
+.acceptance-letter__signatory {
+  display: grid;
+  gap: 10px;
+  max-width: 420px;
+  margin: 12px 0 14px;
+}
+
+.acceptance-letter__field {
+  display: grid;
+  gap: 7px;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.acceptance-letter__field input,
+.acceptance-letter__field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg-card-alt);
+  font: inherit;
+  font-weight: 400;
+}
+
+.coordinator-review__panel .acceptance-letter__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.acceptance-letter__preview {
+  display: block;
+  width: 100%;
+  height: min(80vh, 900px);
+  margin: 12px 0;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.acceptance-letter__record {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.acceptance-letter__record div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+}
+
+.acceptance-letter__record dt {
+  color: var(--text-muted);
+}
+
+.acceptance-letter__record dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.acceptance-letter__stamped {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  justify-items: start;
+}
+
+@media (max-width: 600px) {
+  .acceptance-letter__record div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

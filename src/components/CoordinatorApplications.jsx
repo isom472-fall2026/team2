@@ -8,6 +8,7 @@ import { formatUpdateTime } from '../formatUpdateTime'
 import { COURSE_CREDITS } from '../courseCredits'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
+import AcceptanceLetters from './AcceptanceLetters'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
 
@@ -1639,6 +1640,8 @@ export function ManageApplication({ type }) {
                   {decision.error && <p className="auth-form__error" role="alert">{decision.error}</p>}
                   {decision.message && <p className="coordinator-review__message" role="status">{decision.message}</p>}
                 </section>
+
+                {type === 'inbound' && <AcceptanceLetters application={application} lookups={lookups} onStudentNotified={() => setUpdatesRefresh((count) => count + 1)} />}
 
                 {type === 'outbound' && <AlternativeOffers application={application} universities={lookups.universities} />}
 

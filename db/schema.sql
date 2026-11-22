@@ -2469,6 +2469,27 @@ WITH CHECK (
     AND lower(email) = lower((SELECT auth.jwt()) ->> 'email')
 );
 
+-- Asked by the coordinator update policy below. Reading partneruniversity there directly would
+-- run its policies, one of which reads coordinator again, and Postgres refuses every coordinator
+-- update as infinite recursion.
+CREATE OR REPLACE FUNCTION public.is_retired_university(requested_university_id INT)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.partneruniversity
+        WHERE university_id = requested_university_id
+          AND deleted_at IS NOT NULL
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_retired_university(INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_retired_university(INT) TO authenticated;
+
 CREATE POLICY "KU coordinators can update coordinator profiles"
 ON public.coordinator
 FOR UPDATE
@@ -2476,15 +2497,7 @@ TO authenticated
 USING ((SELECT public.is_ku_coordinator()))
 WITH CHECK (
     (SELECT public.is_ku_coordinator())
-    AND NOT (
-        email_accepted IS TRUE
-        AND EXISTS (
-            SELECT 1
-            FROM public.partneruniversity AS university
-            WHERE university.university_id = coordinator.university
-              AND university.deleted_at IS NOT NULL
-        )
-    )
+    AND NOT (email_accepted IS TRUE AND public.is_retired_university(university))
 );
 
 CREATE POLICY "Users and KU coordinators can delete coordinator profiles"

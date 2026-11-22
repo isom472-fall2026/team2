@@ -1,3 +1,5 @@
+import { isTokenIssuedInFuture } from './freshSession'
+
 const databaseErrorMessages = {
   '22P02': 'One of the submitted values has an invalid format.',
   '22001': 'One of the submitted values is longer than allowed.',
@@ -17,6 +19,10 @@ export function getDatabaseErrorMessage(error) {
   const code = typeof error.code === 'string' ? error.code : ''
   if (Object.prototype.hasOwnProperty.call(databaseErrorMessages, code)) {
     return databaseErrorMessages[code]
+  }
+
+  if (isTokenIssuedInFuture(error)) {
+    return 'The database did not accept your new sign-in yet. Wait a few seconds and try again.'
   }
 
   if (typeof error.message === 'string' && error.message.trim()) {

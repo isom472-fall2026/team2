@@ -23,6 +23,23 @@ the story ID, the title, who built it, and what happened to it.
 | #44 | KU coordinator can edit exchange cycle details and delete exchange cycle|Rawan | Done |
 | #45 | Edit or Delete Nominations| Rawan | Done |
 | #62 | KU coordinator can put the website in maintanence mode and back | Fatma | Done |
+| #34 | Inbound Student Exchange Application | Almaha Alajmi | phase-3 |
+| #92 | Incoming student applications are saved automatically | Almaha Alajmi | phase-3 |
+| #93 | Incoming student can export their application as a pdf | Almaha Alajmi | phase-3 |
+| #94 | KU student can View Submitted Student Exchange Application and Status | Almaha Alajmi | phase-3 |
+| #95 | Incoming student can view submitted application and status | Almaha Alajmi | phase-3 |
+| #39 | KU Coordinator Views Historical Application Log | Aysha Jan | phase-3 |
+| #73 | Coordinator exports a student’s application as a PDF | Aysha Jan | phase-3 |
+| #106 | Coordinator is signed out after inactivity | Rawan Abdrabou | phase-3 |
+| #107 | Partner coordinator sees whether each nominee has applied | Rawan Abdrabou | phase-3 |
+| #110 | KU coordinator can review application withdrawals and accept or reject them | Rawan Abdrabou | phase-3 |
+| #87 | Incoming student requests to withdraw their application | Hadi Haidar | phase-3 |
+| #109 | KU student requests to withdraw their application | Hadi Haidar | phase-3 |
+| #116 | Drafts rejected when applications close | Yousef Almohammed | phase-3 |
+| #118 | Coordinator edits their own account details | Yousef Almohammed | phase-3 |
+| #32 | Start Student Exchange Application | Fatma | phase-3 |
+| #74 | KU Student exports their submitted outgoing application as a PDF | Fatma | phase-3 |
+| #77 | KU Student’s application changes are saved automatically | Fatma | phase-3 |
 
 
 
@@ -67,7 +84,6 @@ the story ID, the title, who built it, and what happened to it.
 ## Phase 4 — saved 8 November
 
 | Story | Title | Who | State at the tag |
-| Story | Title | Who | State at the tag |
 |---|---|---|---|
 | #140 | KU coordinator reviews outgoing students applications | Hadi Haidar | Done |
 | #141 | KU Coordinator Reviews Incoming Student Applications | Hadi Haidar | Done |
@@ -96,14 +112,30 @@ the story ID, the title, who built it, and what happened to it.
 | #131 | Incoming student contacts the Student Exchange Office through a support request form | Yousef Almohammed | phase-5 |
 | #132 | Incoming student downloads an official exchange acceptance letter | Aysha Jan | phase-5 |
 | #133 | Incoming student views a pre-arrival guide for studying at Kuwait University | Almaha Alajmi | phase-5 |
-|---|---|---|---|
 
 
-## Phase 5 — saved 18 November
+## Phase 5 — saved 23 November
 
 | Story | Title | Who | State at the tag |
 |---|---|---|---|
-|  |  |  |  |
+| #99 | Submitted Outgoing students lists the courses they plan to take abroad | Fatma Alshimmari | Done |
+| #101 | Incoming student adds an emergency contact | Rawan Abdrabou | Done |
+| #102 | General Users can access information about the student exchange team and CBA | Aysha Jan | Done |
+| #113 | KU coordinator generates graphs summarizing an exchange cycle | Rawan Abdrabou | Done |
+| #115 | KU coordinator compares two exchange cycles | Aysha Jan | Done |
+| #131 | Incoming student contacts the Student Exchange Office through a support request form | Hadi Haidar | Done |
+| #132 | Incoming student downloads an official exchange acceptance letter | Almaha Alajmi | Done |
+| #133 | Incoming student views a pre-arrival guide for studying at Kuwait University | Fatma Alshimmari | Done |
+| #159 | Nominated or Accepted Incoming Student can pick preferred CBA subjects to register | Hadi Haidar | Done |
+| #177 | KU coordinator issues Acceptance letter to incoming student | Almaha Alajmi | Done |
+| #180 | Incoming student can view their actual schedule in the semester | Yousef Almohammed | Done |
+| #181 | Incoming student can understand grades at KU and view their grades | Yousef Almohammed | Done |
+| #28 | Real-Time Outbound Eligibility Verification | Fatma Alshimmari | phase-6 |
+| #72 | Returning student leaves feedback on a host university | Yousef Almohammed | phase-6 |
+| #76 | Returning incoming student leaves feedback about their exchange at KU | Hadi Haidar | phase-6 |
+| #103 | Student reads requirements and a walkthrough before applying | Rawan Abdrabou | phase-6 |
+| #105 | Approved student follows a checklist of next steps | Almaha Alajmi | phase-6 |
+| #117 | Cycle rules and processes for partner coordinators | Aysha Jan | phase-6 |
 
 ## Phase 6 — saved 9 December
 

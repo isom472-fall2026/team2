@@ -29,6 +29,7 @@ const IncomingSubjectPreferences = lazy(() => import('./IncomingSubjectPreferenc
 const PreArrivalGuide = lazy(() => import('./PreArrivalGuide'))
 const EmergencyContact = lazy(() => import('./EmergencyContact'))
 const EmergencyContactLookup = lazy(() => import('./EmergencyContact').then((module) => ({ default: module.EmergencyContactLookup })))
+const MySchedule = lazy(() => import('./InboundSchedule').then((module) => ({ default: module.MySchedule })))
 
 
 // One highlight for the whole sidebar. It slides to the selected tab, so the tabs themselves can
@@ -1479,6 +1480,7 @@ export default function ProtectedPortal({ onSignOut, onDeleted, onRetryMaintenan
 const studentPortalViews = [
   { id: 'home', label: 'Home' },
   { id: 'inbox', label: 'Inbox' },
+  { id: 'schedule', label: 'My schedule', role: 'incoming' },
   { id: 'subject-preferences', label: 'Preferred CBA subjects', role: 'incoming' },
   { id: 'support', label: 'Contact the office', role: 'incoming' },
   { id: 'emergency-contact', label: 'Emergency contact', role: 'incoming' },
@@ -1486,7 +1488,9 @@ const studentPortalViews = [
 ]
 
 function StudentPortal({ user, profile, onSignOut, onDeleted }) {
-  const [activeView, setActiveView] = useState('home')
+  // A course's subject page links back here, to the schedule it was opened from.
+  const returnView = useLocation().state?.view
+  const [activeView, setActiveView] = useState(returnView === 'schedule' ? 'schedule' : 'home')
   // Only a saved KU or incoming student profile has an inbox and details to edit.
   const isStudent = profile?.role === 'incoming' || profile?.role === 'ku'
   const name = profile?.name || user.user_metadata?.name || user.email
@@ -1540,6 +1544,7 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
             <Suspense fallback={null}><StudentInbox role={profile.role} /></Suspense>
           </>
         )}
+        {shownView === 'schedule' && <Suspense fallback={null}><MySchedule key={profile.student_id} studentId={profile.student_id} onContactOffice={() => setActiveView('support')} /></Suspense>}
         {shownView === 'support' && <Suspense fallback={null}><SupportRequests profile={profile} /></Suspense>}
         {shownView === 'emergency-contact' && <Suspense fallback={null}><EmergencyContact key={profile.student_id} studentId={profile.student_id} /></Suspense>}
         {shownView === 'subject-preferences' && <Suspense fallback={null}><IncomingSubjectPreferences key={profile.student_id} profile={profile} /></Suspense>}

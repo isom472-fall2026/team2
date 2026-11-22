@@ -8,6 +8,7 @@ import { COURSE_CREDITS } from '../courseCredits'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
 import AcceptanceLetters from './AcceptanceLetters'
+import InboundScheduleEditor from './InboundSchedule'
 import { loadFilePreviews } from '../filePreviews'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
@@ -302,6 +303,7 @@ const inboundTabs = [
   { id: 'subjects', label: 'Preferred subjects' },
   { id: 'status', label: 'Application status' },
   { id: 'letters', label: 'Acceptance letter' },
+  { id: 'schedule', label: 'Class schedule' },
 ]
 
 // The portal sidebar views each application type opens in.
@@ -391,7 +393,7 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
             <th scope="col">Travel semester</th>
             <th scope="col">GPA</th>
             <th scope="col">Status</th>
-            <th scope="col">Actions</th>
+            <th scope="col" className="coordinator-applications__actions">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -409,7 +411,7 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
                 <td>{getCycleLabel(application, cycles)}</td>
                 <td>{formatGpa(application)}</td>
                 <td>{application.type === 'inbound' ? inboundApprovalLabel(application) : application.application_status}</td>
-                <td>
+                <td className="coordinator-applications__actions">
                   <div className="nomination-table__actions">
                     <button className="btn btn--secondary" type="button" onClick={() => onManage(application)}>
                       Manage
@@ -1624,6 +1626,8 @@ export function ManageApplication({ type }) {
                 </section>}
 
                 {type === 'inbound' && showTab('letters') && <AcceptanceLetters application={application} lookups={lookups} onStudentNotified={() => setUpdatesRefresh((count) => count + 1)} />}
+
+                {type === 'inbound' && showTab('schedule') && <InboundScheduleEditor key={application.application_id} application={application} cycles={lookups.cycles} />}
 
                 {type === 'outbound' && <AlternativeOffers application={application} universities={lookups.universities} />}
 

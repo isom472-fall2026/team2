@@ -12,6 +12,7 @@ import { useAppStore } from '../stores/appStore'
 import { useStatusToast } from '../useStatusToast'
 import { inboundApprovalLabel } from '../inboundApproval'
 
+const CycleComparison = lazy(() => import('./CycleComparison'))
 const CycleReport = lazy(() => import('./CycleReport'))
 const CoordinatorApplications = lazy(() => import('./CoordinatorApplications'))
 const SendApplicationUpdate = lazy(() => import('./CoordinatorApplications').then((module) => ({ default: module.SendApplicationUpdate })))
@@ -148,7 +149,7 @@ const kuCoordinatorNav = (canViewCycleReport) => [
     items: [
       { view: 'start', label: 'Start KU semester' },
       { view: 'manage', label: 'Manage KU semester' },
-      ...(canViewCycleReport ? [{ view: 'cycle-graphs', label: 'Exchange cycle graphs' }] : []),
+      ...(canViewCycleReport ? [{ view: 'cycle-graphs', label: 'Exchange cycle graphs' }, { view: 'compare-cycles', label: 'Compare exchange cycles' }] : []),
       { view: 'subjects', label: 'CBA subjects' },
     ],
   },
@@ -953,6 +954,9 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           </Suspense>
         )}
         {isKuCoordinator && activeView === 'subjects' && <Suspense fallback={null}><SubjectImport /></Suspense>}
+        {canViewCycleReport && activeView === 'compare-cycles' && (
+          <Suspense fallback={null}><CycleComparison cycles={cycles} /></Suspense>
+        )}
         {canViewCycleReport && activeView === 'cycle-graphs' && (
           <Suspense fallback={null}><CycleReport cycles={cycles} /></Suspense>
         )}

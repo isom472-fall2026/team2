@@ -4,11 +4,12 @@ import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { getCycles } from '../referenceData'
 import { compareCourses, coursesByDay, formatClassTime, semesterDates, semesterName, weekDays } from '../classSchedule'
+import { COURSE_CREDITS } from '../courseCredits'
 import ConfirmDialog from './ConfirmDialog'
 import './InboundSchedule.css'
 
 const approvedStatuses = ['Accepted', 'Approved']
-const scheduleColumns = 'id, application_id, subject_code, course_display_code, course_name, meeting_days, start_time, end_time, room, instructor, updated_at'
+const scheduleColumns = 'id, application_id, subject_code, course_display_code, course_name, meeting_days, start_time, end_time, room, instructor, credit_hours, updated_at'
 
 // The student and the coordinator download the same PDF; there is nothing to download until a
 // course is on the schedule.
@@ -56,6 +57,7 @@ function CourseSummary({ item, linkSubject }) {
           <div><dt>Days</dt><dd>{item.meeting_days.join(', ')}</dd></div>
           <div><dt>Room</dt><dd dir="auto">{item.room}</dd></div>
           <div><dt>Instructor</dt><dd dir="auto">{item.instructor}</dd></div>
+          <div><dt>Credit hours</dt><dd>{item.credit_hours}</dd></div>
         </dl>
       </div>
     </>
@@ -150,7 +152,7 @@ export function MySchedule({ studentId, onContactOffice }) {
   )
 }
 
-const emptyCourse = { id: null, source: 'cba', subjectCode: '', code: '', name: '', days: [], start: '', end: '', room: '', instructor: '' }
+const emptyCourse = { id: null, source: 'cba', subjectCode: '', code: '', name: '', days: [], start: '', end: '', room: '', instructor: '', credits: String(COURSE_CREDITS) }
 
 function courseForm(item) {
   return {
@@ -164,6 +166,7 @@ function courseForm(item) {
     end: item.end_time.slice(0, 5),
     room: item.room,
     instructor: item.instructor,
+    credits: String(item.credit_hours),
   }
 }
 
@@ -176,6 +179,7 @@ function validateCourse(form) {
   if (form.start >= form.end) return 'The end time must be after the start time.'
   if (!form.room.trim()) return 'Enter the room.'
   if (!form.instructor.trim()) return 'Enter the instructor.'
+  if (!/^[1-6]$/.test(form.credits)) return 'Enter the credit hours as a whole number from 1 to 6.'
   return ''
 }
 
@@ -253,6 +257,10 @@ function CourseForm({ form, subjects, busy, onChange, onSubmit, onCancel }) {
         Instructor
         <input type="text" maxLength={255} value={form.instructor} onChange={setField('instructor')} disabled={busy} dir="auto" />
       </label>
+      <label className="update-composer__field">
+        Credit hours
+        <input type="number" min={1} max={6} step={1} inputMode="numeric" value={form.credits} onChange={setField('credits')} disabled={busy} />
+      </label>
       <div className="nomination-table__actions schedule-editor__wide">
         <button className="btn btn--primary" type="submit" disabled={busy}>{busy ? 'Saving…' : form.id ? 'Save course' : 'Add course'}</button>
         <button className="btn btn--secondary" type="button" onClick={onCancel} disabled={busy}>Cancel</button>
@@ -323,6 +331,7 @@ export default function InboundScheduleEditor({ application, cycles }) {
       end_time: form.end,
       room: form.room.trim(),
       instructor: form.instructor.trim(),
+      credit_hours: Number(form.credits),
     }
     setAction({ busy: true, error: '', message: '' })
     try {

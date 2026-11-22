@@ -9,6 +9,7 @@ import { getDatabaseErrorMessage } from '../databaseErrors'
 import { inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
 import AcceptanceLetters from './AcceptanceLetters'
 import InboundScheduleEditor from './InboundSchedule'
+import InboundGradesEditor from './InboundGrades'
 import { loadFilePreviews } from '../filePreviews'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
@@ -304,6 +305,7 @@ const inboundTabs = [
   { id: 'status', label: 'Application status' },
   { id: 'letters', label: 'Acceptance letter' },
   { id: 'schedule', label: 'Class schedule' },
+  { id: 'grades', label: 'Grades' },
 ]
 
 // The portal sidebar views each application type opens in.
@@ -1628,6 +1630,8 @@ export function ManageApplication({ type }) {
                 {type === 'inbound' && showTab('letters') && <AcceptanceLetters application={application} lookups={lookups} onStudentNotified={() => setUpdatesRefresh((count) => count + 1)} />}
 
                 {type === 'inbound' && showTab('schedule') && <InboundScheduleEditor key={application.application_id} application={application} cycles={lookups.cycles} />}
+
+                {type === 'inbound' && showTab('grades') && <InboundGradesEditor key={application.application_id} application={application} cycles={lookups.cycles} />}
 
                 {type === 'outbound' && <AlternativeOffers application={application} universities={lookups.universities} />}
 

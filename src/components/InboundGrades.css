@@ -1,0 +1,253 @@
+.grades,
+.grades__explained,
+.grades__semester,
+.grades__gpa {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.grades {
+  gap: 16px;
+}
+
+.grades p,
+.grades-editor .grades__gpa p {
+  margin: 0;
+}
+
+.grades h3,
+.grades-editor h3 {
+  margin: 8px 0 0;
+  color: var(--text-strong);
+  font-size: 1.1rem;
+}
+
+.grades__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-bright);
+}
+
+.grades__tab {
+  flex: none;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--text);
+  background: none;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.grades__tab:hover:not(:disabled) {
+  color: var(--text-strong);
+}
+
+.grades__tab--active {
+  color: var(--neon);
+  border-bottom-color: var(--neon);
+}
+
+.grades__tab:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.grades__locked,
+.grades__note,
+.grades-editor__hint,
+.grades-editor__semester,
+.grades__course-name span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.grades__empty {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.grades__scale {
+  width: 100%;
+  max-width: 32rem;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.grades__scale caption {
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.grades__scale th,
+.grades__scale td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  text-align: left;
+}
+
+.grades__scale thead th {
+  color: var(--text-strong);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.grades__scale tbody th {
+  color: var(--text-strong);
+}
+
+.grades__scale-row--lowest {
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
+}
+
+.grades__steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 1.4rem;
+  color: var(--text);
+}
+
+.grades__example {
+  padding: 10px 14px;
+  border-left: 3px solid var(--neon);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-alt);
+  color: var(--text);
+}
+
+.grades__courses {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grades__course {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-alt);
+  overflow-wrap: anywhere;
+}
+
+.grades__course-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: var(--text-strong);
+}
+
+.grades__result {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.grades__letter {
+  color: var(--text-strong);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.grades__pending {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.grades__gpa {
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.grades__gpa p {
+  color: var(--text);
+}
+
+.grades__gpa strong {
+  margin: 0 6px;
+  color: var(--neon);
+  font-size: 1.4rem;
+}
+
+.grades__gpa span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.grades__download {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.grades__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--neon);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.grades__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.grades-editor form {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.grades-editor__grade select {
+  min-width: 11rem;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--bg-card);
+  font: inherit;
+}
+
+@media (max-width: 480px) {
+  .grades__course {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .grades__result {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .grades-editor__grade select {
+    width: 100%;
+  }
+}

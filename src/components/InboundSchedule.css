@@ -1,0 +1,194 @@
+.schedule,
+.schedule__semester,
+.schedule__days {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.schedule__semester-heading h3 {
+  margin: 0 0 4px;
+  color: var(--text-strong);
+  font-size: 1.15rem;
+}
+
+.schedule__semester-heading p,
+.coordinator-review__panel .schedule__semester-heading p {
+  margin: 0;
+}
+
+.schedule__dates {
+  color: var(--text);
+}
+
+.schedule__note {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.schedule__download {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.coordinator-review__panel .schedule__download {
+  margin-bottom: 14px;
+}
+
+.schedule__day h4 {
+  margin: 0 0 8px;
+  color: var(--text-strong);
+  font-size: 1rem;
+}
+
+.schedule__courses {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.schedule__course {
+  display: grid;
+  grid-template-columns: minmax(0, 11.5rem) minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-alt);
+  overflow-wrap: anywhere;
+}
+
+.schedule__time {
+  color: var(--text-strong);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.schedule__details {
+  min-width: 0;
+}
+
+.schedule__title {
+  color: var(--text-strong);
+}
+
+.schedule__title a,
+.schedule__link {
+  color: var(--neon);
+  text-decoration: underline;
+}
+
+.schedule__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.schedule__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+}
+
+.schedule__facts div {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.schedule__facts dt {
+  color: var(--text-muted);
+}
+
+.schedule__facts dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.schedule-editor .schedule__semester-heading {
+  margin-bottom: 14px;
+}
+
+.schedule-editor__course {
+  grid-template-columns: minmax(0, 11.5rem) minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.schedule-editor__actions {
+  margin: 0;
+}
+
+.schedule-editor__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-bright);
+}
+
+.schedule-editor__form h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 1rem;
+}
+
+.schedule-editor__form .update-composer__field {
+  margin: 0;
+}
+
+.schedule-editor__wide {
+  grid-column: 1 / -1;
+}
+
+.schedule-editor__group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.schedule-editor__group legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.schedule-editor__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.schedule-editor__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.schedule-editor__option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--neon);
+}
+
+@media (max-width: 640px) {
+  .schedule__course,
+  .schedule-editor__course,
+  .schedule-editor__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

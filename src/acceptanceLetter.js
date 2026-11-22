@@ -104,7 +104,8 @@ async function readImage(fileName) {
 }
 
 let imagesPromise
-function loadLetterImages() {
+// The KU crest, the exchange programme logo and the AACSB mark, also used by the schedule PDF.
+export function loadLetterImages() {
   imagesPromise ??= Promise.all([
     readImage('letter-ku-crest.png'),
     readImage('miniexchangelogo.png'),

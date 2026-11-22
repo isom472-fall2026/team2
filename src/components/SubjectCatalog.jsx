@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { COURSE_CREDITS } from '../courseCredits'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
@@ -93,6 +93,7 @@ function SubjectCatalog() {
 export function SubjectDetail() {
   const { courseCode } = useParams()
   const isCoordinator = useAppStore((state) => state.profile?.role === 'coordinator')
+  const fromSchedule = useLocation().state?.from === 'schedule'
   const [subject, setSubject] = useState(null)
   const [canDownload, setCanDownload] = useState(false)
   const [error, setError] = useState('')
@@ -135,7 +136,9 @@ export function SubjectDetail() {
 
   const backLink = isCoordinator
     ? <Link className="subject-catalog__back" to="/portal" state={{ view: 'subjects' }}>← Back to CBA subjects</Link>
-    : <Link className="subject-catalog__back" to="/portal/subjects">← All subjects</Link>
+    : fromSchedule
+      ? <Link className="subject-catalog__back" to="/portal" state={{ view: 'schedule' }}>← Back to my schedule</Link>
+      : <Link className="subject-catalog__back" to="/portal/subjects">← All subjects</Link>
 
   if (isLoading) {
     return <SubjectCatalogPage>{backLink}<p role="status">Loading subject...</p></SubjectCatalogPage>

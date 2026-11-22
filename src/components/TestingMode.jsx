@@ -163,9 +163,9 @@ async function createTestingCycle() {
     id: (latest?.id ?? 0) + 1,
     semester: now.getMonth() >= 6 && now.getMonth() <= 11 ? 'Fall' : 'Spring',
     academic_year: academicYear,
-    nominations_o: databaseTimestamp(shiftedDate(-1)),
+    nominations_o: databaseTimestamp(shiftedDate(-70)),
     nominations_c: databaseTimestamp(closeDate),
-    application_o: databaseTimestamp(shiftedDate(-1)),
+    application_o: databaseTimestamp(shiftedDate(-56)),
     application_c: databaseTimestamp(closeDate),
     cycle_start: databaseTimestamp(shiftedDate(-1)),
     cycle_end: databaseTimestamp(cycleEnd),
@@ -424,6 +424,9 @@ async function provisionTestingScenario() {
     kuCountry,
   )
 
+  const { error: analyticsError } = await supabase.rpc('seed_testing_cycle_applications', { requested_cycle_id: cycle.id })
+  if (analyticsError) throw new Error(getDatabaseErrorMessage(analyticsError))
+
   return accounts
 }
 
@@ -502,7 +505,7 @@ export default function TestingMode({
     try {
       const generatedAccounts = await provisionTestingScenario()
       setAccounts(generatedAccounts)
-      setMessage('Testing accounts, KU semester data, submitted applications, and a nominated incoming student without an application are ready.')
+      setMessage('Testing accounts and KU semester data are ready, including 80 extra incoming and 80 extra outgoing applications for the cycle graphs.')
     } catch (setupError) {
       setError(setupError.message || getDatabaseErrorMessage(setupError))
     }
@@ -553,6 +556,29 @@ export default function TestingMode({
     setMessage('Testing mode is off. Registered test data and accounts were removed, and partner universities were restored.')
     onTestingModeChanged(false)
     await loadTestingState()
+    setBusyAction(null)
+  }
+
+  const fillGraphData = async () => {
+    setBusyAction('graphs')
+    setError('')
+    setMessage('')
+    try {
+      const { data: registered, error: registryError } = await supabase.from('testing')
+        .select('exchange_cycle_id').not('exchange_cycle_id', 'is', null)
+      if (registryError) throw registryError
+      const ids = (registered || []).map(({ exchange_cycle_id: cycleId }) => cycleId)
+      if (!ids.length) throw new Error('Start a testing scenario before adding graph data.')
+      const { data: cycle, error: cycleError } = await supabase.from('exchange_cycle').select('id')
+        .in('id', ids).lte('application_o', new Date().toISOString()).order('id', { ascending: false }).limit(1).maybeSingle()
+      if (cycleError) throw cycleError
+      if (!cycle) throw new Error('The testing scenario needs a cycle whose applications have opened.')
+      const { error: seedError } = await supabase.rpc('seed_testing_cycle_applications', { requested_cycle_id: cycle.id })
+      if (seedError) throw seedError
+      setMessage('Graph demo data is ready: 80 extra incoming and 80 extra outgoing applications. Running this again does not duplicate them.')
+    } catch (graphError) {
+      setError(getDatabaseErrorMessage(graphError))
+    }
     setBusyAction(null)
   }
 
@@ -642,6 +668,9 @@ export default function TestingMode({
                 )}
                 <button className="btn btn--danger" type="button" onClick={endTesting} disabled={busy}>
                   {busyAction === 'ending' ? 'Removing test data...' : 'End testing and remove test data'}
+                </button>
+                <button className="btn btn--secondary" type="button" onClick={fillGraphData} disabled={busy || accounts.length === 0}>
+                  {busyAction === 'graphs' ? 'Preparing graph data...' : 'Fill cycle graphs with demo data'}
                 </button>
               </div>
             )}

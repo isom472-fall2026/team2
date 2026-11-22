@@ -9,6 +9,7 @@ import { removeUploadedFiles, uploadReplacementFiles } from '../applicationFiles
 import { loadFilePreviews } from '../filePreviews'
 import ReplacementFileField from './ReplacementFileField'
 import WizardProgress from './WizardProgress'
+import OutboundCourseChoices from './OutboundCourseChoices'
 import './OutboundApplication.css'
 
 const DATE_TYPES = ['date', 'month', 'datetime-local']
@@ -718,6 +719,7 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
           </dd>
         </div>
       </dl>
+      <OutboundCourseChoices key={application.application_id} application={application} />
       <h2>Application summary</h2>
       <dl className="outbound-receipt__details">
         {details.map(([label, value]) => (

@@ -1,0 +1,36 @@
+.course-choices { display: grid; gap: 20px; min-width: 0; margin-block: 28px; padding: clamp(18px, 3vw, 28px); border: 1px solid var(--border-bright); border-radius: var(--radius-lg); background: linear-gradient(135deg, color-mix(in srgb, var(--neon) 7%, transparent), transparent 65%), var(--bg-card-alt); }
+.course-choices p, .course-choices h2, .course-choices h3 { margin: 0; }
+.course-choices h2 { color: var(--text-strong); font-size: 1.45rem; }
+.course-choices h3 { color: var(--text-strong); font-size: 1.1rem; }
+.course-choices svg { width: 24px; height: 24px; flex: none; }
+.course-choices__header { display: flex; align-items: flex-start; gap: 16px; }
+.course-choices__icon { display: grid; place-items: center; padding: 12px; border-radius: 14px; color: var(--neon); background: color-mix(in srgb, var(--neon) 12%, transparent); }
+.course-choices__eyebrow { color: var(--neon); font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+.course-choices__header p, .course-choices__empty { font-size: .9rem; color: var(--text); }
+.course-choices__summary { display: flex; flex-wrap: wrap; gap: 12px 28px; padding-block: 12px; border-block: 1px solid var(--border); color: var(--text); font-size: .85rem; }
+.course-choices__summary strong { color: var(--text-strong); font-size: 1.15rem; }
+.course-choices__notice { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: .85rem; }
+.course-choices__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.course-choices__list > li { display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border); }
+.course-choices__number { color: var(--neon); font-family: var(--mono); font-size: .8rem; }
+.course-choices__course { display: grid; gap: 2px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.course-choices__course strong { color: var(--text-strong); }
+.course-choices__course span { color: var(--text); font-size: .9rem; }
+.course-choices__course small, .course-choices__hint { color: var(--text-muted); font-size: .78rem; }
+.course-choices__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.course-choices__remove { padding: 8px; color: var(--text); border: 0; background: none; font: inherit; font-size: .8rem; cursor: pointer; text-decoration: underline; }
+.course-choices > .btn { justify-self: start; }
+.course-choices__form, .course-choices fieldset { display: grid; gap: 16px; min-width: 0; }
+.course-choices__form { padding-top: 8px; }
+.course-choices fieldset { border: 0; padding: 0; margin: 0; }
+.course-choices legend { color: var(--text-strong); font-size: .85rem; margin-bottom: 8px; }
+.course-choices label { display: grid; gap: 6px; min-width: 0; color: var(--text-strong); font-size: .85rem; }
+.course-choices input:not([type='radio']), .course-choices select { width: 100%; min-width: 0; padding: 11px 13px; border: 1px solid var(--border-bright); border-radius: var(--radius-sm); background: var(--bg-card-alt); color: var(--text-strong); font: inherit; }
+.course-choices__sources { display: flex; flex-wrap: wrap; gap: 12px; }
+.course-choices__sources label { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--border-bright); border-radius: var(--radius-sm); cursor: pointer; }
+.course-choices__sources label:has(:checked) { background: color-mix(in srgb, var(--neon) 12%, transparent); }
+.course-choices__custom { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr); gap: 12px; }
+.course-choices__message { color: var(--neon); font-size: .9rem; }
+.course-choices :is(input, select, button):focus-visible { outline: 2px solid var(--neon); outline-offset: 3px; }
+.course-choices button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 600px) { .course-choices__list > li { flex-wrap: wrap; } .course-choices__list .course-choices__actions { width: 100%; } .course-choices__custom { grid-template-columns: minmax(0, 1fr); } }

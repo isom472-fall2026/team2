@@ -10,6 +10,7 @@ import { inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval
 import AcceptanceLetters from './AcceptanceLetters'
 import InboundScheduleEditor from './InboundSchedule'
 import InboundGradesEditor from './InboundGrades'
+import OutboundCourseChoices from './OutboundCourseChoices'
 import { loadFilePreviews } from '../filePreviews'
 import './CoordinatorApplications.css'
 import './ApplicationUpdates.css'
@@ -1633,6 +1634,7 @@ export function ManageApplication({ type }) {
 
                 {type === 'inbound' && showTab('grades') && <InboundGradesEditor key={application.application_id} application={application} cycles={lookups.cycles} />}
 
+                {type === 'outbound' && <OutboundCourseChoices key={application.application_id} application={application} readOnly />}
                 {type === 'outbound' && <AlternativeOffers application={application} universities={lookups.universities} />}
 
                 {type === 'inbound' && showTab('subjects') && <IncomingApplicationSubjects key={application.student_id || application.application_id} studentId={application.student_id} />}

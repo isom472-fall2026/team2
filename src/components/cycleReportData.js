@@ -72,6 +72,21 @@ function kuwaitDay(time) {
   return Date.parse(kuwaitDate.format(time))
 }
 
+export function weeklySubmissions(cycle, groups, now = Date.now()) {
+  const start = cycleTime(cycle.application_o)
+  const close = cycleTime(cycle.application_c)
+  if (!Number.isFinite(start) || !Number.isFinite(close) || close < start) return null
+  const end = Math.min(now, close)
+  if (end < start) return []
+  const weekMs = 7 * dayMs
+  const counts = Array(Math.floor((end - start) / weekMs) + 1).fill(0)
+  for (const row of groups.flat()) {
+    const time = cycleTime(row.submitted_at)
+    if (time >= start && time <= end) counts[Math.floor((time - start) / weekMs)]++
+  }
+  return counts
+}
+
 function cycleWindows(cycles) {
   const byCycle = new Map()
   const intervals = []

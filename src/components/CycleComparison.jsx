@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { readCycleApplications } from './cycleReportData'
+import { readCycleApplications, weeklySubmissions } from './cycleReportData'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import './CycleReport.css'
 import './CycleComparison.css'
@@ -23,14 +23,18 @@ function Results({ first, second }) {
   const [error, setError] = useState('')
   useEffect(() => {
     const controller = new AbortController()
-    Promise.all([first.id, second.id].map(id => readCycleApplications(id, controller.signal).then(totals)))
+    Promise.all([first.id, second.id].map(id => readCycleApplications(id, controller.signal)))
       .then(result => { if (!controller.signal.aborted) setData(result) })
       .catch(cause => { if (!controller.signal.aborted) setError(getDatabaseErrorMessage(cause)) })
     return () => controller.abort()
   }, [first.id, second.id])
   if (error) return <p role="alert">{error}</p>
   if (!data) return <p role="status">Loading comparison…</p>
-  const [baseline, comparison] = data
+  const cycles = [first, second]
+  const overall = data.map(totals)
+  const [baseline, comparison] = overall
+  const weeks = cycles.map((cycle, i) => weeklySubmissions(cycle, data[i]))
+  const weekCount = Math.max(...weeks.map(series => series?.length ?? 0))
   return (
     <>
       <div className="cycle-comparison-scroll">
@@ -54,12 +58,37 @@ function Results({ first, second }) {
         <figcaption>Participation by cycle</figcaption>
         <div className="cycle-comparison-key">{[first, second].map((cycle, i) => <span key={cycle.id} data-series={i}>{cycleLabel(cycle)}</span>)}</div>
         <div className="cycle-comparison-groups">{metrics.map((label, index) => (
-          <div key={label}><div className="cycle-comparison-bars">{data.map((values, series) => {
+          <div key={label}><div className="cycle-comparison-bars">{overall.map((values, series) => {
             const max = index === 2 ? 100 : Math.max(1, baseline[0], comparison[0])
             return <div key={series} data-series={series} style={{height: values[index] / max * 100 + '%'}}><span>{format.format(values[index])}{index === 2 && '%'}</span></div>
           })}</div><strong>{label}</strong></div>
         ))}</div>
       </figure>
+      <div className="cycle-comparison-scroll">
+        <table>
+          <caption>Inbound and outbound participation</caption>
+          <thead><tr>{['Direction', 'Cycle', ...metrics].map(label => <th scope="col" key={label}>{label}</th>)}</tr></thead>
+          <tbody>{['Inbound', 'Outbound'].map((direction, group) => cycles.map((cycle, index) => {
+            const [submitted, approved, rate] = totals([data[index][group]])
+            return <tr key={direction + cycle.id}><th scope="row">{direction}</th><td>{cycleLabel(cycle)}</td>
+              <td>{submitted}</td><td>{approved}</td><td>{format.format(rate)}%</td></tr>
+          }))}</tbody>
+        </table>
+      </div>
+      <section aria-label="Weekly submission trend">
+        <h3>Submissions by week</h3>
+        <p>Week 1 starts when each cycle opens. Counts stop at closing or today, whichever comes first.</p>
+        {weeks.map((series, i) => series === null
+          ? <p key={cycles[i].id}>{cycleLabel(cycles[i])} has no valid application window.</p>
+          : series.length === 0 && <p key={cycles[i].id}>{cycleLabel(cycles[i])} has not opened yet.</p>)}
+        {weekCount > 0 && <div className="cycle-comparison-scroll"><table>
+          <caption>Weekly submissions from opening day</caption>
+          <thead><tr><th scope="col">Week</th>{cycles.map(cycle => <th scope="col" key={cycle.id}>{cycleLabel(cycle)}</th>)}</tr></thead>
+          <tbody>{Array.from({ length: weekCount }, (_, week) => <tr key={week}>
+            <th scope="row">{week + 1}</th>{weeks.map((series, i) => <td key={cycles[i].id}>{series?.[week] ?? '—'}</td>)}
+          </tr>)}</tbody>
+        </table><small>— indicates a week outside the observed application window.</small></div>}
+      </section>
     </>
   )
 }

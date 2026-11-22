@@ -2824,9 +2824,11 @@ svg { display: block; flex-shrink: 0; }
 
 /* ─── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* minmax(0, …) lets the work area shrink to the screen; a plain 1fr grew to fit the widest
+     table, which pushed it and its action buttons past the edge of a phone. */
   .portal-dashboard--coordinator,
   .portal-dashboard--student {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Stacked above the work area on a phone, the list scrolls with the page instead of sticking. */

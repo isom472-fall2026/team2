@@ -393,7 +393,7 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
             <th scope="col">Travel semester</th>
             <th scope="col">GPA</th>
             <th scope="col">Status</th>
-            <th scope="col">Actions</th>
+            <th scope="col" className="coordinator-applications__actions">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -411,7 +411,7 @@ function ApplicationList({ applications, profiles, cycles, universities, countri
                 <td>{getCycleLabel(application, cycles)}</td>
                 <td>{formatGpa(application)}</td>
                 <td>{application.type === 'inbound' ? inboundApprovalLabel(application) : application.application_status}</td>
-                <td>
+                <td className="coordinator-applications__actions">
                   <div className="nomination-table__actions">
                     <button className="btn btn--secondary" type="button" onClick={() => onManage(application)}>
                       Manage

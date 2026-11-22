@@ -23,6 +23,7 @@
 .exchange-nav-links { display: flex; align-items: center; gap: clamp(16px, 2.2vw, 30px); color: var(--muted); font-size: 16px; font-weight: 550; }
 .exchange-nav-links a { white-space: nowrap; transition: color .18s ease; }
 .exchange-nav-links a:hover, .exchange-nav-links a:focus-visible { color: var(--accent); }
+.exchange-nav-shell--site .exchange-nav-links { gap: clamp(14px, 1.55vw, 22px); }
 .exchange-nav-actions { display: flex; min-width: 0; align-items: center; gap: 11px; }
 .exchange-nav-actions > * { flex-shrink: 0; }
 /* The welcome is the one item that gives way, truncating so the buttons stay on screen. */
@@ -68,6 +69,7 @@
   .exchange-nav-menu { position: absolute; top: 100%; right: 0; left: 0; display: flex; max-height: calc(100svh - var(--navbar-height)); flex-direction: column; gap: 18px; padding: 6px 20px 24px; overflow-y: auto; border-bottom: 1px solid var(--line); background: var(--bg); box-shadow: 0 28px 44px -30px rgba(0, 0, 0, .55); opacity: 0; visibility: hidden; clip-path: inset(0 0 100% 0); transform: translateY(-8px); transition: opacity .26s ease, transform .36s cubic-bezier(.22, .7, .2, 1), clip-path .36s cubic-bezier(.22, .7, .2, 1), visibility 0s linear .36s; }
   .exchange-nav-menu--open { opacity: 1; visibility: visible; clip-path: inset(0 0 -60px 0); transform: none; transition-delay: 0s; }
   .exchange-nav-links { flex-direction: column; align-items: stretch; gap: 0; font-size: 17px; }
+  .exchange-nav-shell--site .exchange-nav-links { gap: 0; }
   .exchange-nav-links a { padding: 14px 4px; border-bottom: 1px solid var(--line); }
   .exchange-nav-actions { flex-wrap: wrap; gap: 10px; }
   .exchange-nav-welcome { flex-basis: 100%; max-width: none; }
@@ -121,6 +123,7 @@
   .exchange-nav-links > *, .exchange-nav-actions > * { animation: nav-drop .5s cubic-bezier(.22, .7, .2, 1) backwards; animation-delay: calc(.12s + var(--nav-item, 0) * .05s); }
   .exchange-nav-links > :nth-child(2) { --nav-item: 1; }
   .exchange-nav-links > :nth-child(3) { --nav-item: 2; }
+  .exchange-nav-links > :nth-child(4) { --nav-item: 3; }
   .exchange-nav-actions > * { --nav-item: 3; }
   .exchange-nav-actions > :nth-child(2) { --nav-item: 4; }
   .exchange-nav-actions > :nth-child(n + 3) { --nav-item: 5; }

@@ -15,6 +15,7 @@ import './App.css'
 // the map, PDF and application code before it can show anything.
 const ErdPage = lazy(() => import('./ErdPage'))
 const Blog = lazy(() => import('./Blog'))
+const ExchangeProgramInfo = lazy(() => import('./components/ExchangeProgramInfo'))
 const OutboundApplication = lazy(() => import('./components/OutboundApplication'))
 const InboundApplication = lazy(() => import('./components/InboundApplication'))
 const ManageApplication = lazy(() => import('./components/CoordinatorApplications').then((module) => ({ default: module.ManageApplication })))
@@ -310,6 +311,7 @@ function App() {
               <Route path="/portal/applications/inbound/:applicationId" element={<ManageApplicationRoute type="inbound" />} />
             </Route>
             <Route path="/partners" element={<PartnerUniversitiesRoute />} />
+            <Route path="/about" element={<ExchangeProgramInfo />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/erd" element={<ErdPage />} />
             <Route path="/test-status" element={<TestStatusPage />} />

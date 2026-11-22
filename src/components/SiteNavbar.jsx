@@ -34,6 +34,7 @@ export default function SiteNavbar({ onHomeClick }) {
         <>
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/partners">Partner Universities</NavLink>
+          <NavLink to="/about">About</NavLink>
           <a href="https://www.ku.edu.kw" target="_blank" rel="noopener noreferrer">Kuwait University</a>
         </>
       }

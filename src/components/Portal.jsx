@@ -30,6 +30,7 @@ const PreArrivalGuide = lazy(() => import('./PreArrivalGuide'))
 const EmergencyContact = lazy(() => import('./EmergencyContact'))
 const EmergencyContactLookup = lazy(() => import('./EmergencyContact').then((module) => ({ default: module.EmergencyContactLookup })))
 const MySchedule = lazy(() => import('./InboundSchedule').then((module) => ({ default: module.MySchedule })))
+const MyGrades = lazy(() => import('./InboundGrades').then((module) => ({ default: module.MyGrades })))
 
 
 // One highlight for the whole sidebar. It slides to the selected tab, so the tabs themselves can
@@ -1481,6 +1482,7 @@ const studentPortalViews = [
   { id: 'home', label: 'Home' },
   { id: 'inbox', label: 'Inbox' },
   { id: 'schedule', label: 'My schedule', role: 'incoming' },
+  { id: 'grades', label: 'Grades', role: 'incoming' },
   { id: 'subject-preferences', label: 'Preferred CBA subjects', role: 'incoming' },
   { id: 'support', label: 'Contact the office', role: 'incoming' },
   { id: 'emergency-contact', label: 'Emergency contact', role: 'incoming' },
@@ -1545,6 +1547,7 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
           </>
         )}
         {shownView === 'schedule' && <Suspense fallback={null}><MySchedule key={profile.student_id} studentId={profile.student_id} onContactOffice={() => setActiveView('support')} /></Suspense>}
+        {shownView === 'grades' && <Suspense fallback={null}><MyGrades key={profile.student_id} studentId={profile.student_id} onContactOffice={() => setActiveView('support')} /></Suspense>}
         {shownView === 'support' && <Suspense fallback={null}><SupportRequests profile={profile} /></Suspense>}
         {shownView === 'emergency-contact' && <Suspense fallback={null}><EmergencyContact key={profile.student_id} studentId={profile.student_id} /></Suspense>}
         {shownView === 'subject-preferences' && <Suspense fallback={null}><IncomingSubjectPreferences key={profile.student_id} profile={profile} /></Suspense>}

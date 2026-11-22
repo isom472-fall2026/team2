@@ -25,6 +25,7 @@ const ManagePartnerUniversities = lazy(() => import('./ManagePartnerUniversities
 const SubjectImport = lazy(() => import('./SubjectImport'))
 const StudentAccount = lazy(() => import('./StudentAccount'))
 const IncomingSubjectPreferences = lazy(() => import('./IncomingSubjectPreferences'))
+const PreArrivalGuide = lazy(() => import('./PreArrivalGuide'))
 const EmergencyContact = lazy(() => import('./EmergencyContact'))
 const EmergencyContactLookup = lazy(() => import('./EmergencyContact').then((module) => ({ default: module.EmergencyContactLookup })))
 
@@ -1520,6 +1521,11 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
             {application && (
               <div className="portal-actions student-portal__actions">
                 <Link className="btn btn--primary" to={application.to}>{application.label}</Link>
+              </div>
+            )}
+            {profile?.role === 'incoming' && (
+              <div className="student-portal__guide">
+                <Suspense fallback={null}><PreArrivalGuide /></Suspense>
               </div>
             )}
           </>

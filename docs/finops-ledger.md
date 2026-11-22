@@ -106,6 +106,7 @@ Our limit: 6 Million tokens per month + 10000 tokens per week compounded into 50
 | Public Student Exchange team and CBA information page [#102](https://github.com/isom472-fall2026/team2/issues/102) | GPT-6 Astra | 11 project prompts before this ledger request. Weekly limit remaining was 100% at the start and 97% at the first check. 65K Tokens. | AGENTS.md, project code and documents, issue #102 acceptance criteria, coordinator editing requirements, and feedback on team visibility, cards, and contact buttons. | None |
 | KU coordinator compares two exchange cycles [#115](https://github.com/isom472-fall2026/team2/issues/115) | GPT-6 Astra | 3 story prompts across 2 sessions. Weekly limit remaining was 93% after the initial comparison. 76.2K tokens. | Issue #115 acceptance criteria, KU coordinator portal, existing cycle report code, and a follow-up request for inbound/outbound and weekly submission comparisons. | Define the breakdowns and how to display empty weeks in the initial story, then verify them with two cycles of different lengths. |
 | Incoming student can view their actual schedule in the semester [#180](https://github.com/isom472-fall2026/team2/issues/180) | Claude Code (Opus 5.5) | 3 story prompts, including 1 follow-up. Weekly limit remaining went from 90% to 88%. 40.2K tokens | Story and acceptance criteria, `AGENTS.md`, `db/schema.sql` and `docs/schema.md` to reconcile (inboundapplication, subjects, exchange_cycle, testing and maintenance rules), the Supabase SQL error output, permission to test as KU coordinator and as the testing-mode students Jane Smith and Emma Wilson, a follow-up request for a schedule PDF with the KU, exchange and AACSB logos and for the Manage button to stay reachable on narrow screens | Put the PDF download in the story's acceptance criteria from the start, and give the Manage-button fix its own issue. In the SQL editor, run only `db/migrations/180_incoming_schedule.sql`, not the `db/tests` file. |
+| Incoming student can understand grades at KU and view their grades [#181](https://github.com/isom472-fall2026/team2/issues/181) | Opus 5.5 | 1 story prompt, no follow-up fixes. Weekly limit remaining went from 41% to 31%. 112.26K Tokens. | Story and acceptance criteria, `AGENTS.md`, the #180 schedule tables and code, `db/schema.sql` and `docs/schema.md` (inbound_schedule_items, acceptance_letters and their RLS), the request to let KU coordinators set grades from the #180 schedule, permission to test as KU coordinator and as the testing-mode students Jane Smith and Emma Wilson | Confirm KU's grading scale and lowest passing grade with the client before building, and plan the coordinator and student testing steps up front to cut down on repeated sign-ins. |
 |  |  |  |  |  |
 
 ### Phase 2 plan review
@@ -116,8 +117,8 @@ Using assistants that edit repository files remained appropriate for development
 
 Going forward, we should consistently record the tool and model, observed usage, supplied context, follow-up corrections and validation performed. Estimates should be labelled, and unavailable measurements should remain unreported.
 
-Reviewed by: [FinOps Lead's name]
-Review date: [date]
+Reviewed by: Yousef Almohammed the finops lead
+Review date: 23/11/2026 
 
 ## Phase 6
 

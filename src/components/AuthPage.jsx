@@ -7,6 +7,7 @@ import ExchangeRoutesBackground from './ExchangeRoutesBackground'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { isKuCoordinatorProfile } from '../coordinatorProfile'
+import { retryWhileTokenIsTooNew } from '../freshSession'
 import { useAppStore } from '../stores/appStore'
 import { useFlipLayout } from '../useFlipLayout'
 
@@ -204,11 +205,11 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
 
     let verifiedProfile
     if (!isSignUp) {
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile, error: profileError } = await retryWhileTokenIsTooNew(() => supabase
         .from(options.table)
         .select('*')
         .eq('user_id', result.data.user.id)
-        .maybeSingle()
+        .maybeSingle())
       const validProfile = !profileError && profile
         && (!coordinatorOnly || isKuCoordinatorProfile(profile, email))
 
@@ -244,7 +245,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
             name: form.name.trim(),
             user_id: result.data.user.id,
           }
-      const { error: profileError } = await supabase.from(options.table).insert(profile)
+      const { error: profileError } = await retryWhileTokenIsTooNew(() => supabase.from(options.table).insert(profile))
 
       if (profileError) {
         const profileErrorMessage = profileError.code === '23505'

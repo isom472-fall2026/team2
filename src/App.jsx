@@ -7,6 +7,7 @@ import InactivityGuard from './components/InactivityGuard'
 import { supabase } from './supabase'
 import { getDatabaseErrorMessage } from './databaseErrors'
 import { isKuCoordinatorProfile } from './coordinatorProfile'
+import { retryWhileTokenIsTooNew } from './freshSession'
 import { useAppStore } from './stores/appStore'
 import { loadAuthPage, loadPortal, preloadAuthPage, preloadPortal } from './routeLoaders'
 import './App.css'
@@ -216,7 +217,7 @@ function App() {
         profileTables = [['kustudentauth', 'student_id'], ['incomingstudentauth', 'student_id'], ['coordinator', 'coordinator_id']]
       }
       for (const [table] of profileTables) {
-        const { data } = await supabase.from(table).select('*').eq('user_id', nextSession.user.id).maybeSingle()
+        const { data } = await retryWhileTokenIsTooNew(() => supabase.from(table).select('*').eq('user_id', nextSession.user.id).maybeSingle())
         if (useAppStore.getState().authVerificationPending) return
         if (data) {
           const role = table === 'coordinator' ? 'coordinator' : table === 'incomingstudentauth' ? 'incoming' : 'ku'

@@ -50,7 +50,6 @@ say so before making the change.
 2. If there is no issue, or the criteria are unclear, **stop and say so.** Do not guess.
 3. **Exception:** the proposal, the prototype, personas, the team agreement and delivery
    notes do not need an issue.
-
 ## Scope
 
 Do what the story asks and stop. Do not refactor neighbouring code, rename things that

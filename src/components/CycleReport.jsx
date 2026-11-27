@@ -8,7 +8,7 @@ import './CycleReport.css'
 const width = 840
 const plotRight = width - 32
 const plotTop = 57
-const dayLabel = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+const dayLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 const creditAverage = new Intl.NumberFormat('en', { maximumFractionDigits: 1 })
 const palettes = {
   light: { background: '#f4faff', ink: '#10263a', muted: '#425b75', grid: '#c4d6e4', inbound: '#13816b', outbound: '#0e70a3' },
@@ -269,12 +269,12 @@ function CycleGraphs({ cycle, cycles }) {
   }, [cycle, cycles])
 
   if (error) return <p role="alert" className="auth-form__error">{error}</p>
-  if (!report) return <p role="status">Loading cycle graphs…</p>
+  if (!report) return <p role="status">Loading KU semester graphs…</p>
   if (report.inbound.total + report.outbound.total === 0) {
-    return <p role="status">{cycle ? 'No data for this cycle' : 'No data across all cycles'}</p>
+    return <p role="status">{cycle ? 'No data for this KU semester' : 'No data across all KU semesters'}</p>
   }
   const palette = palettes[theme] ?? palettes.dark
-  const cycleLabel = cycle ? `${cycle.semester} ${cycle.academic_year}` : 'All cycles'
+  const cycleLabel = cycle ? `${cycle.semester} ${cycle.academic_year}` : 'All KU semesters'
   return (
     <>
       <DirectionReport direction="Inbound" data={report.inbound} cycleLabel={cycleLabel} palette={palette} />
@@ -290,12 +290,12 @@ export default function CycleReport({ cycles }) {
   return (
     <section className="cycle-report" aria-labelledby="cycle-report-heading">
       <header>
-        <h2 id="cycle-report-heading">Exchange cycle graphs</h2>
+        <h2 id="cycle-report-heading">KU semester graphs</h2>
         {cycles.length > 0 && (
           <div className="cycle-report__cycle">
-            <label htmlFor="cycle-report-selection">Exchange cycle</label>
+            <label htmlFor="cycle-report-selection">KU semester</label>
             <select id="cycle-report-selection" value={selectionKey} onChange={(event) => setSelection(event.target.value)}>
-              <option value="all">All cycles</option>
+              <option value="all">All KU semesters</option>
               {cycles.map(({ id, semester, academic_year }) => (
                 <option key={id} value={id}>{semester} {academic_year}</option>
               ))}
@@ -303,7 +303,7 @@ export default function CycleReport({ cycles }) {
           </div>
         )}
       </header>
-      {cycles.length > 0 ? <CycleGraphs key={selectionKey} cycle={cycle} cycles={cycles} /> : <p>No exchange cycles are available.</p>}
+      {cycles.length > 0 ? <CycleGraphs key={selectionKey} cycle={cycle} cycles={cycles} /> : <p>No KU semesters are available.</p>}
     </section>
   )
 }

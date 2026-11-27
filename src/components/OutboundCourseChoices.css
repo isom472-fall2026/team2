@@ -4,7 +4,7 @@
 .course-choices h3 { color: var(--text-strong); font-size: 1.1rem; }
 .course-choices svg { width: 24px; height: 24px; flex: none; }
 .course-choices__header { display: flex; align-items: flex-start; gap: 16px; }
-.course-choices__icon { display: grid; place-items: center; padding: 12px; border-radius: 14px; color: var(--neon); background: color-mix(in srgb, var(--neon) 12%, transparent); }
+.course-choices__icon { display: grid; place-items: center; padding: 12px; border-radius: var(--radius-md); color: var(--neon); background: color-mix(in srgb, var(--neon) 12%, transparent); }
 .course-choices__eyebrow { color: var(--neon); font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
 .course-choices__header p, .course-choices__empty { font-size: .9rem; color: var(--text); }
 .course-choices__summary { display: flex; flex-wrap: wrap; gap: 12px 28px; padding-block: 12px; border-block: 1px solid var(--border); color: var(--text); font-size: .85rem; }

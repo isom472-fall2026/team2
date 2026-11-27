@@ -28,11 +28,11 @@
 }
 
 .subject-import__extension--ready {
-  border-color: rgba(18, 183, 106, 0.45);
+  border-color: color-mix(in srgb, var(--success-solid) 45%, transparent);
 }
 
 .subject-import__extension--missing {
-  border-color: #ff8f9d;
+  border-color: var(--danger);
 }
 
 .subject-import__extension-dot {
@@ -45,14 +45,14 @@
 }
 
 .subject-import__extension--ready .subject-import__extension-dot {
-  background: #12b76a;
-  box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.2);
+  background: var(--success-solid);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success-solid) 20%, transparent);
   animation: none;
 }
 
 .subject-import__extension--missing .subject-import__extension-dot {
-  background: #f04438;
-  box-shadow: 0 0 0 4px rgba(240, 68, 56, 0.2);
+  background: var(--danger-solid);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger-solid) 20%, transparent);
   animation: none;
 }
 
@@ -128,7 +128,7 @@
 }
 
 .subject-import__status--error {
-  border-color: #ff8f9d;
+  border-color: var(--danger);
 }
 
 .subject-import__subheading {

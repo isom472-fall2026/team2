@@ -10,9 +10,10 @@
   --muted-2: #8795b4;
   --line: rgba(150, 175, 230, .16);
   --line-strong: rgba(150, 175, 230, .3);
-  --accent: #61dfbd;
-  --accent-2: #38c49b;
-  --accent-ink: #032018;
+  /* The main action colour is shared with the rest of the site (--action in App.css). */
+  --accent: var(--action);
+  --accent-2: var(--action-hover);
+  --accent-ink: var(--action-ink);
   --glass: rgba(12, 18, 38, .78);
   --glass-2: #10182b;
   --radius: 18px;
@@ -29,9 +30,9 @@
   --muted-2: #536a84;
   --line: rgba(24, 92, 150, .16);
   --line-strong: rgba(24, 92, 150, .3);
-  --accent: #0a679f;
-  --accent-2: #085683;
-  --accent-ink: #f4fbff;
+  --accent: var(--action);
+  --accent-2: var(--action-hover);
+  --accent-ink: var(--action-ink);
   --glass: rgba(244, 251, 255, .76);
   --glass-2: rgba(240, 249, 255, .92);
   --shadow: 0 22px 48px -30px rgba(20, 80, 140, .38);

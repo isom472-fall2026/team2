@@ -31,6 +31,23 @@
   --radius-lg: 22px;
 
   --transition: 0.22s ease;
+
+  /* The main action on every page: primary buttons here and the navbar's primary button, home
+     page and About page (AscendTheme.css reads these as --accent). One set keeps them matching. */
+  --action: #61dfbd;
+  --action-hover: #38c49b;
+  --action-ink: #032018;
+
+  /* Status colours. The plain one is for text and outlines, -solid for filled marks such as
+     dots and badges' borders, -tint for the faint background behind a message. */
+  --danger: #ff8f9d;
+  --danger-solid: #ff334f;
+  --danger-tint: rgba(255, 51, 79, 0.12);
+  --success: #4ade9a;
+  --success-solid: #12b76a;
+  --success-tint: rgba(18, 183, 106, 0.12);
+  --warning: #f0b429;
+  --warning-tint: rgba(240, 180, 41, 0.12);
 }
 
 :root[data-theme='light'] {
@@ -50,6 +67,17 @@
   --text-muted: #6f8794;
   --border: rgba(14, 172, 227, 0.18);
   --border-bright: rgba(14, 172, 227, 0.42);
+  --action: #0a679f;
+  --action-hover: #085683;
+  --action-ink: #f4fbff;
+  --danger: #b42318;
+  --danger-solid: #d92d20;
+  --danger-tint: #fdecea;
+  --success: #0b6b3f;
+  --success-solid: #16804a;
+  --success-tint: #e8f3ed;
+  --warning: #8a5700;
+  --warning-tint: rgba(183, 121, 31, 0.12);
 }
 
 /* ─── Reset ────────────────────────────────────────────────────────────────── */
@@ -265,13 +293,11 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .btn--primary {
-  background: var(--neon);
-  color: #03080f;
-  box-shadow: var(--glow-cyan);
+  background: var(--action);
+  color: var(--action-ink);
 }
 .btn--primary:hover {
-  background: #33dcff;
-  box-shadow: 0 0 28px rgba(0, 212, 255, 0.7), 0 0 60px rgba(0, 212, 255, 0.3);
+  background: var(--action-hover);
   transform: translateY(-2px);
 }
 
@@ -290,12 +316,12 @@ svg { display: block; flex-shrink: 0; }
 .btn--danger {
   background: #8f1024;
   color: #fff;
-  border: 1px solid #ff334f;
+  border: 1px solid var(--danger-solid);
 }
 
 .btn--danger:hover {
   background: #b71932;
-  box-shadow: 0 0 18px rgba(255, 51, 79, 0.45);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--danger-solid) 45%, transparent);
   transform: translateY(-2px);
 }
 
@@ -349,11 +375,14 @@ svg { display: block; flex-shrink: 0; }
 
 .auth-warning {
   margin-top: 20px;
-  color: #ff334f;
-  font-size: 0.82rem;
-  font-weight: 800;
-  line-height: 1.45;
-  text-transform: uppercase;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--warning-tint);
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 /* ─── Authentication and protected portal ─────────────────────────────────── */
@@ -388,16 +417,6 @@ svg { display: block; flex-shrink: 0; }
 .portal-card h1 {
   font-size: clamp(1.6rem, 4vw, 2.2rem);
   margin: 8px 0 12px;
-}
-
-.auth-card__eyebrow {
-  /* Not inline: inline boxes ignore the transform that slides items to a new position. */
-  display: inline-block;
-  color: var(--neon);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .auth-card__description,
@@ -854,7 +873,7 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .auth-form button:disabled { cursor: wait; opacity: 0.65; }
-.auth-form__error { color: #ff8f9d; font-size: 0.85rem; }
+.auth-form__error { color: var(--danger); font-size: 0.85rem; }
 
 .session-ended-message {
   margin: 16px 0 0;
@@ -915,7 +934,7 @@ svg { display: block; flex-shrink: 0; }
   width: min(380px, calc(100vw - 32px));
   padding: 16px 18px 19px;
   overflow: hidden;
-  border: 1px solid rgba(54, 211, 153, 0.48);
+  border: 1px solid color-mix(in srgb, var(--success-solid) 48%, transparent);
   border-radius: var(--radius-md);
   color: var(--text-strong);
   background: var(--bg-card-alt);
@@ -929,7 +948,7 @@ svg { display: block; flex-shrink: 0; }
   place-items: center;
   border-radius: 50%;
   color: #062c20;
-  background: #36d399;
+  background: var(--success);
   font-weight: 800;
 }
 
@@ -961,7 +980,7 @@ svg { display: block; flex-shrink: 0; }
   left: 0;
   width: 100%;
   height: 3px;
-  background: #36d399;
+  background: var(--success);
   transform-origin: left;
   animation: success-toast-countdown 4s linear forwards;
 }
@@ -1000,20 +1019,20 @@ svg { display: block; flex-shrink: 0; }
 .account-delete {
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 1px solid rgba(255, 51, 79, 0.3);
+  border-top: 1px solid color-mix(in srgb, var(--danger-solid) 30%, transparent);
 }
 
 .account-delete .auth-form__error { margin-top: 8px; }
 
 .account-delete__confirmation {
   padding: 16px;
-  border: 1px solid rgba(255, 51, 79, 0.65);
+  border: 1px solid color-mix(in srgb, var(--danger-solid) 65%, transparent);
   border-radius: var(--radius-sm);
   background: rgba(143, 16, 36, 0.16);
 }
 
 .account-delete__confirmation strong {
-  color: #ff8f9d;
+  color: var(--danger);
 }
 
 .account-delete__confirmation p {
@@ -1369,11 +1388,11 @@ svg { display: block; flex-shrink: 0; }
 .cycle-delete-dialog {
   width: min(100%, 460px);
   padding: clamp(24px, 5vw, 36px);
-  border: 1px solid rgba(255, 51, 79, 0.5);
+  border: 1px solid color-mix(in srgb, var(--danger-solid) 50%, transparent);
   border-radius: var(--radius-lg);
   color: var(--text-strong);
   background:
-    radial-gradient(circle at 100% 0, rgba(255, 51, 79, 0.12), transparent 42%),
+    radial-gradient(circle at 100% 0, var(--danger-tint), transparent 42%),
     var(--bg-card-alt);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4), var(--glow-card);
 }
@@ -1384,10 +1403,10 @@ svg { display: block; flex-shrink: 0; }
   height: 42px;
   place-items: center;
   margin-bottom: 18px;
-  border: 1px solid rgba(255, 51, 79, 0.45);
+  border: 1px solid color-mix(in srgb, var(--danger-solid) 45%, transparent);
   border-radius: 50%;
-  color: #ff8f9d;
-  background: rgba(255, 51, 79, 0.12);
+  color: var(--danger);
+  background: var(--danger-tint);
   font-size: 1.35rem;
   font-weight: 700;
 }
@@ -1549,18 +1568,6 @@ svg { display: block; flex-shrink: 0; }
   background: var(--bg-card);
 }
 
-:root[data-theme='light'] .btn--primary {
-  background: #f5d735;
-  color: #173847;
-  box-shadow: 0 6px 18px rgba(195, 158, 0, 0.22);
-}
-
-:root[data-theme='light'] .btn--primary:hover {
-  background: #f8df67;
-  color: #173847;
-  box-shadow: 0 8px 24px rgba(195, 158, 0, 0.3);
-}
-
 :root[data-theme='light'] .auth-form input,
 :root[data-theme='light'] .auth-form select,
 :root[data-theme='light'] .nomination-form input,
@@ -1699,8 +1706,8 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .database-status__dot--failure {
-  background: #ff334f;
-  box-shadow: 0 0 14px #ff334f;
+  background: var(--danger-solid);
+  box-shadow: 0 0 14px var(--danger-solid);
 }
 
 .status-graph {
@@ -2406,7 +2413,7 @@ svg { display: block; flex-shrink: 0; }
 }
 
 .partner-directory__status--error {
-  color: var(--danger, #ff6b81);
+  color: var(--danger);
 }
 
 @keyframes partner-directory-scroll {
@@ -2729,7 +2736,7 @@ svg { display: block; flex-shrink: 0; }
 .apply-card__icon-wrap {
   width: 52px;
   height: 52px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;

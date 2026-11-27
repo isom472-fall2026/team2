@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { getCountries, getCycles, getPartnerUniversities } from '../referenceData'
 import { phoneCountryCodes } from '../phoneCountryCodes'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
@@ -14,6 +15,7 @@ import { englishEvidenceTypes, englishEvidenceError, incomingDocumentError, inbo
 import { preferredNominationId } from '../incomingNominations'
 import WizardProgress from './WizardProgress'
 import './OutboundApplication.css'
+import { formatDateTime } from '../dates'
 
 const DATE_TYPES = ['date', 'month', 'datetime-local']
 
@@ -79,12 +81,6 @@ function dateValue(value) {
   return value ? String(value).slice(0, 10) : ''
 }
 
-function displayDate(value) {
-  if (!value) return ''
-  const dateText = String(value)
-  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dateText) ? `${dateText}T00:00:00` : dateText)
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString()
-}
 
 function uploadedFileName(path) {
   return String(path ?? '').split('/').pop() || ''
@@ -267,6 +263,14 @@ function FileField({ label, name, value, onUpload, uploading, required = false, 
   )
 }
 
+function activeNominationsFor(email) {
+  return supabase
+    .from('studentnominations')
+    .select('id, semester, nomination_status, created_at')
+    .ilike('student_email', email.trim())
+    .eq('nomination_status', 'Active')
+}
+
 function InboundApplicationReceipt({ application, studentId, countries, cycles, universities, onBack, onEdit, onRequestWithdrawal, withdrawalState, withdrawalReason, isConfirmingWithdrawal, onWithdrawalReasonChange, onCancelWithdrawal, onCertificateSaved }) {
   const [uploadedPages, setUploadedPages] = useState([])
   const [documentsError, setDocumentsError] = useState('')
@@ -286,14 +290,14 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
     ['Middle name', application.middle_name],
     ['Last name', application.last_name],
     ['Gender', application.gender],
-    ['Date of birth', displayDate(application.birthdate)],
+    ['Date of birth', formatDateTime(application.birthdate)],
     ['Email', application.email],
     ['Phone number', application.phone_number],
     ['WhatsApp available', application.is_whatsapp_available ? 'Yes' : 'No'],
     ['Country of residence', application.country_of_residence],
     ['Nationality', countryName(application.nationality)],
     ['Passport number', application.passport_number],
-    ['Passport expiry date', displayDate(application.passport_expiry_date)],
+    ['Passport expiry date', formatDateTime(application.passport_expiry_date)],
     ['Passport issuing country', countryName(application.passport_issuing_country)],
     ['Major or field of study', application.major],
     ['Current year of study', application.current_year_of_study],
@@ -301,7 +305,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
     ['Maximum GPA', application.max_gpa],
     ['Credits passed', application.credits_passed],
     ['Maximum credits', application.max_credits],
-    ['Expected graduation date', displayDate(application.expected_graduation_date)],
+    ['Expected graduation date', formatDateTime(application.expected_graduation_date)],
     ['KU semester', cycle ? `${cycle.semester} ${cycle.academic_year}` : application.semester_applied_for],
     ['Host university', university?.name || application.university_id],
     ['Academic transcript', uploadedFileName(application.transcript)],
@@ -374,7 +378,6 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
         <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="Kuwait University" />
         <img src={`${import.meta.env.BASE_URL}images/exchangelogoeng.png`} alt="Kuwait University Exchange Program" />
       </header>
-      <span className="auth-card__eyebrow">{missedDeadline ? 'Application not submitted' : 'Application submitted'}</span>
       <h1 id="inbound-receipt-heading">
         {missedDeadline ? 'Your application was not submitted'
           : ['Accepted', 'Approved'].includes(application.application_status) ? `Your application has ${inboundApprovalLabel(application).toLowerCase()}`
@@ -384,7 +387,7 @@ function InboundApplicationReceipt({ application, studentId, countries, cycles, 
       <p>{missedDeadline ? 'This application was not submitted before the deadline.' : 'Keep this summary for your records.'}</p>
       <dl className="outbound-receipt__metadata">
         <div><dt>Application ID</dt><dd>{application.application_id}</dd></div>
-        <div><dt>Submission date</dt><dd>{displayDate(application.submitted_at || application.created_at)}</dd></div>
+        <div><dt>Submission date</dt><dd>{formatDateTime(application.submitted_at || application.created_at)}</dd></div>
         <div>
           <dt>Status</dt>
           <dd>
@@ -668,6 +671,9 @@ function InboundApplication() {
   const wizardScrollRef = useRef(null)
   const autosaveTimerRef = useRef(null)
   const lastSavedFormRef = useRef('')
+  // Set when the first load already read the active nominations, so the list's own refresh does
+  // not read them a second time straight away.
+  const nominationsLoadedRef = useRef(false)
   const initializedNominationRouteRef = useRef(null)
   const wizardSegments = location.pathname.split('/portal/inbound-application/')[1]?.split('/').filter(Boolean) || []
   const routeStep = steps.findIndex(({ path }) => path === wizardSegments[wizardSegments.length - 1])
@@ -719,6 +725,9 @@ function InboundApplication() {
         return
       }
 
+      // The shared lists do not depend on who the student is, so they load while the profile
+      // is looked up, and usually come from the cache another page already filled.
+      const listsLoading = Promise.all([getCycles(), getCountries(), getPartnerUniversities()])
       const { data: studentRecord, error: studentError } = await supabase
         .from('incomingstudentauth')
         .select('student_id, student_email, name')
@@ -735,15 +744,14 @@ function InboundApplication() {
         return
       }
 
-      const [cycleResult, countryResult, universityResult, applicationResult] = await Promise.all([
-        supabase.from('exchange_cycle').select('id, semester, academic_year, application_o, application_c, cycle_end').order('id', { ascending: false }),
-        supabase.from('country').select('id, name').order('name'),
-        supabase.from('partneruniversity').select('university_id, name').order('name'),
+      const [[cycleResult, countryResult, universityResult], applicationResult, nominationResult] = await Promise.all([
+        listsLoading,
         supabase.from('inboundapplication')
           .select('application_id, application_status, approval_type, semester_applied_for, nomination_id, created_at')
           .eq('student_id', studentRecord.student_id)
           .neq('application_status', 'Modified')
           .order('created_at', { ascending: false }),
+        activeNominationsFor(studentRecord.student_email),
       ])
       const loadError = cycleResult.error || countryResult.error || universityResult.error || applicationResult.error
       if (loadError) {
@@ -756,10 +764,14 @@ function InboundApplication() {
 
       if (current) {
         setStudent(studentRecord)
-        setCycles(cycleResult.data || [])
+        setCycles([...(cycleResult.data || [])].sort((left, right) => Number(right.id) - Number(left.id)))
         setCountries(countryResult.data || [])
         setUniversities(universityResult.data || [])
         setApplications(applicationResult.data || [])
+        if (!nominationResult.error) {
+          setMatchingNominations(nominationResult.data || [])
+          nominationsLoadedRef.current = true
+        }
         setForm((existing) => ({ ...existing, email: studentRecord.student_email }))
         setLoading(false)
       }
@@ -776,18 +788,15 @@ function InboundApplication() {
 
     const refreshNominations = async () => {
       const request = ++latestRequest
-      const { data, error: nominationError } = await supabase
-        .from('studentnominations')
-        .select('id, semester, nomination_status, created_at')
-        .ilike('student_email', student.student_email.trim())
-        .eq('nomination_status', 'Active')
+      const { data, error: nominationError } = await activeNominationsFor(student.student_email)
       if (current && request === latestRequest && !nominationError) setMatchingNominations(data || [])
     }
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') refreshNominations()
     }
 
-    refreshNominations()
+    if (nominationsLoadedRef.current) nominationsLoadedRef.current = false
+    else refreshNominations()
     window.addEventListener('focus', refreshNominations)
     document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
@@ -1465,7 +1474,7 @@ function InboundApplication() {
                   {nomination?.cycle?.semester} {nomination?.cycle?.academic_year}
                 </option>
               </SelectField>
-              <p>Your cycle is linked to the active nomination.</p>
+              <p>Your KU semester is linked to the active nomination.</p>
               <FileField label="Passport copy" name="passport_copy" value={form.passport_copy} onUpload={uploadFile} uploading={uploading} />
               <FileField label="Personal photo" name="profile_photo" value={form.profile_photo} onUpload={uploadFile} uploading={uploading} accept=".jpg,.jpeg,.png" />
               <FileField label="CV" name="cv" value={form.cv} onUpload={uploadFile} uploading={uploading} required />
@@ -1532,7 +1541,6 @@ function InboundApplication() {
     return (
       <section className="portal-page">
         <div className="portal-card">
-          <span className="auth-card__eyebrow">Incoming student portal</span>
           <h1>Inbound application unavailable</h1>
           <p className="outbound-application__error" role="alert">{error}</p>
           <Link className="btn btn--secondary" to="/portal">Back to portal</Link>
@@ -1605,7 +1613,6 @@ function InboundApplication() {
       aria-labelledby={routeStep < 0 ? 'inbound-heading' : undefined}
     >
       <div className="portal-card portal-card--wide outbound-application__card">
-        {routeStep < 0 && <span className="auth-card__eyebrow">Incoming student portal</span>}
         <Routes>
           <Route index element={renderApplicationsPage} />
           <Route path=":applicationId/submitted" element={renderSubmittedPage} />

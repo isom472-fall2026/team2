@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { getCountries, getCycles, getPartnerUniversities } from '../referenceData'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { useAppStore } from '../stores/appStore'
 import { getAcademicFieldError, majors, otherMajor } from '../studentExchangeEligibility'
@@ -11,6 +12,7 @@ import ReplacementFileField from './ReplacementFileField'
 import WizardProgress from './WizardProgress'
 import OutboundCourseChoices from './OutboundCourseChoices'
 import './OutboundApplication.css'
+import { formatDate, formatDateTime, formatMonth } from '../dates'
 
 const DATE_TYPES = ['date', 'month', 'datetime-local']
 
@@ -91,17 +93,6 @@ function uploadedFileName(path) {
   return fileName.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '')
 }
 
-function displayDate(value) {
-  if (!value) return ''
-  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`)
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString()
-}
-
-function displayMonth(value) {
-  if (!value) return ''
-  const date = new Date(`${String(value).slice(0, 7)}-01T00:00:00`)
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-}
 
 function formFromApplication(application) {
   const storedMajor = application.major ?? ''
@@ -504,7 +495,7 @@ function ExchangeDocumentsPage({ form, onChange, cycles, universities, onUpload,
   return (
     <div className="outbound-form__grid">
       <SelectField label="KU semester" name="semester_applied_for" value={form.semester_applied_for || ''} onChange={onChange} required>
-        <option value="">Select an open cycle</option>
+        <option value="">Select an open KU semester</option>
         {cycles.map((cycle) => (
           <option key={cycle.id} value={cycle.id}>{cycle.semester} {cycle.academic_year}</option>
         ))}
@@ -620,21 +611,21 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
     ['Last name', application.last_name],
     ['Middle name', application.middle_name],
     ['Gender', application.gender],
-    ['Date of birth', displayDate(application.birthdate)],
+    ['Date of birth', formatDate(application.birthdate)],
     ['Phone number', application.phone_number],
     ['WhatsApp available', application.is_whatsapp_available ? 'Yes' : 'No'],
     ['Nationality', countryName(application.nationality)],
     ['Passport number', application.passport_number],
-    ['Passport expiry date', displayDate(application.passport_expiry_date)],
+    ['Passport expiry date', formatDate(application.passport_expiry_date)],
     ['Civil ID number', application.civil_id_number],
-    ['Civil ID expiry date', displayDate(application.civil_id_expiry)],
+    ['Civil ID expiry date', formatDate(application.civil_id_expiry)],
     ['Civil ID copy', uploadedFileName(application.civil_id_copy)],
     ['Passport issuing country', countryName(application.passport_issuing_country)],
     ['Major', application.major],
     ['Current year of study', application.current_year_of_study],
     ['GPA', application.gpa],
     ['Credits passed', application.credits_passed],
-    ['Expected graduation', displayMonth(application.expected_graduation_semester)],
+    ['Expected graduation', formatMonth(application.expected_graduation_semester)],
     ['KU semester', cycleName ? `${cycleName.semester} ${cycleName.academic_year}` : application.semester_applied_for],
     ['Preferred partner university', universityName || application.university_id],
     ['Passport copy', uploadedFileName(application.passport_copy)],
@@ -699,7 +690,6 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
         <img src={`${import.meta.env.BASE_URL}images/kulogolightmode.png`} alt="Kuwait University" />
         <img src={`${import.meta.env.BASE_URL}images/exchangelogoeng.png`} alt="Kuwait University Exchange Program" />
       </header>
-      <span className="auth-card__eyebrow">{missedDeadline ? 'Application not submitted' : 'Application submitted'}</span>
       <h1 id="outbound-receipt-heading">
         {missedDeadline ? 'Your application was not submitted'
           : application.application_status === 'Accepted' ? 'Your application was accepted'
@@ -709,7 +699,7 @@ function ApplicationReceipt({ application, studentId, countries, cycles, univers
       <p>{missedDeadline ? 'This application was not submitted before the deadline.' : 'Keep this summary for your records.'}</p>
       <dl className="outbound-receipt__metadata">
         <div><dt>Application ID</dt><dd>{application.application_id}</dd></div>
-        <div><dt>Submission date</dt><dd>{new Date(application.submitted_at || application.created_at).toLocaleString()}</dd></div>
+        <div><dt>Submission date</dt><dd>{formatDateTime(application.submitted_at || application.created_at)}</dd></div>
         <div>
           <dt>Status</dt>
           <dd>
@@ -1041,6 +1031,9 @@ function OutboundApplication() {
         return
       }
 
+      // The shared lists do not depend on who the student is, so they load while the profile
+      // is looked up, and usually come from the cache another page already filled.
+      const listsLoading = Promise.all([getCycles(), getPartnerUniversities(), getCountries()])
       const { data: studentRecord, error: studentError } = await supabase
         .from('kustudentauth')
         .select('student_id, student_email, name')
@@ -1058,10 +1051,14 @@ function OutboundApplication() {
         return
       }
 
-      const [cycleResult, universityResult, countryResult] = await Promise.all([
-        supabase.from('exchange_cycle').select('id, semester, academic_year, application_o, application_c').order('id', { ascending: false }),
-        supabase.from('partneruniversity').select('university_id, name').eq('available', true).order('name'),
-        supabase.from('country').select('id, name').order('name'),
+      const [[cycleResult, universityResult, countryResult], applicationsResult] = await Promise.all([
+        listsLoading,
+        supabase
+          .from('outboundapplication')
+          .select('application_id, application_status, semester_applied_for, university_id, created_at')
+          .eq('student_id', studentRecord.student_id)
+          .neq('application_status', 'Modified')
+          .order('created_at', { ascending: false }),
       ])
 
       const catalogError = cycleResult.error || universityResult.error || countryResult.error
@@ -1072,17 +1069,12 @@ function OutboundApplication() {
       }
 
       try {
-        const { data: ownApplications, error: applicationsError } = await supabase
-          .from('outboundapplication')
-          .select('application_id, application_status, semester_applied_for, university_id, created_at')
-          .eq('student_id', studentRecord.student_id)
-          .neq('application_status', 'Modified')
-          .order('created_at', { ascending: false })
+        const { data: ownApplications, error: applicationsError } = applicationsResult
         if (applicationsError) throw applicationsError
         if (current) {
           setStudent(studentRecord)
-          setCycles(cycleResult.data || [])
-          setUniversities(universityResult.data || [])
+          setCycles([...(cycleResult.data || [])].sort((left, right) => Number(right.id) - Number(left.id)))
+          setUniversities((universityResult.data || []).filter(({ available }) => available === true))
           setCountries(countryResult.data || [])
           setApplications(ownApplications || [])
         }
@@ -1363,8 +1355,8 @@ function OutboundApplication() {
       }
       if (duplicate) {
         setError(duplicate.application_status === 'Draft'
-          ? 'You already have an application for this cycle. Open it from your applications list to continue.'
-          : 'You have already submitted an application for this cycle.')
+          ? 'You already have an application for this KU semester. Open it from your applications list to continue.'
+          : 'You have already submitted an application for this KU semester.')
         await loadApplications(student.student_id).catch((loadError) => setError(getDatabaseErrorMessage(loadError)))
         setSaving(false)
         if (status === 'Draft') setDraftSaveStatus('error')
@@ -1436,7 +1428,7 @@ function OutboundApplication() {
       && application.application_status !== 'Rejected'
     ))
     if (cycleAlreadyUsed) {
-      setError('An application already exists for this cycle. Open it from your applications list.')
+      setError('An application already exists for this KU semester. Open it from your applications list.')
       return
     }
     setForm({ ...emptyForm, semester_applied_for: form.semester_applied_for })
@@ -1596,7 +1588,6 @@ function OutboundApplication() {
     return (
       <section className="portal-page">
         <div className="portal-card">
-          <span className="auth-card__eyebrow">KU student portal</span>
           <h1>Outbound application unavailable</h1>
           <p className="outbound-application__error" role="alert">{error}</p>
           <Link className="btn btn--secondary" to="/portal">Back to portal</Link>
@@ -1619,7 +1610,7 @@ function OutboundApplication() {
               setError('')
             }}
           >
-            <option value="">Select a cycle</option>
+            <option value="">Select a KU semester</option>
             {openCycles.map((cycle) => (
               <option key={cycle.id} value={cycle.id}>{cycle.semester} {cycle.academic_year}</option>
             ))}
@@ -1834,7 +1825,6 @@ function OutboundApplication() {
       aria-labelledby={routeStep < 0 ? 'outbound-heading' : undefined}
     >
       <div className="portal-card portal-card--wide outbound-application__card">
-        {routeStep < 0 && <span className="auth-card__eyebrow">KU student portal</span>}
         <Routes>
           <Route index element={renderApplicationsPage} />
           <Route path=":applicationId/submitted" element={renderSubmittedPage} />

@@ -74,7 +74,7 @@
   margin: 24px auto 0;
   padding: 2px;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: linear-gradient(135deg, #12c6d8, #73d89a 52%, #3d8df5);
   box-shadow: 0 8px 24px rgba(18, 120, 150, 0.18);
 }
@@ -87,7 +87,7 @@
   width: 100%;
   min-height: 100px;
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--bg-card);
 }
 

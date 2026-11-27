@@ -1,9 +1,9 @@
 // Shared by the schedule pages and the schedule PDF, so both show a course the same way.
+import { formatDate } from './dates'
 
 // KU's teaching week starts on Sunday.
 export const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-const kuwaitDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuwait' })
 // Class times are stored as Kuwait wall-clock times. Formatting them as UTC prints those digits
 // unchanged, whatever time zone the reader's device is in.
 const clockTime = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
@@ -23,7 +23,7 @@ export function semesterName(cycle) {
 
 export function semesterDates(cycle) {
   if (!cycle?.cycle_start || !cycle?.cycle_end) return 'Semester dates to be announced'
-  return `${kuwaitDate.format(new Date(cycle.cycle_start))} to ${kuwaitDate.format(new Date(cycle.cycle_end))}`
+  return `${formatDate(cycle.cycle_start)} to ${formatDate(cycle.cycle_end)}`
 }
 
 function compareTimes(left, right) {

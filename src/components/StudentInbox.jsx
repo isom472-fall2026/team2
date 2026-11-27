@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import { formatUpdateTime } from '../formatUpdateTime'
+import { formatDateTime } from '../dates'
 import { supportReference } from '../supportRequests'
 import './ApplicationUpdates.css'
 
@@ -64,7 +64,7 @@ export default function StudentInbox({ role }) {
       {state.updates.map((update) => (
         <li key={update.id}>
           <strong className="update-history__application">{describeUpdate(update)}</strong>
-          <time dateTime={update.created_at}>{formatUpdateTime(update.created_at)}</time>
+          <time dateTime={update.created_at}>{formatDateTime(update.created_at)}</time>
           <p>{update.details}</p>
         </li>
       ))}

@@ -28,13 +28,13 @@
 .arrival-guide button, .arrival-guide input, .arrival-guide select { font: inherit; }
 .arrival-guide button { cursor: pointer; }
 .arrival-guide button:focus-visible, .arrival-guide a:focus-visible, .arrival-guide input:focus-visible, .arrival-guide select:focus-visible, .arrival-guide__table-wrap:focus-visible { outline: 2px solid var(--guide-mint); outline-offset: 5px; }
-.arrival-guide__hero { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 28px; align-items: center; padding: clamp(22px, 4vw, 42px); border: 1px solid color-mix(in srgb, var(--guide-mint) 25%, transparent); border-radius: 24px; background: radial-gradient(ellipse at 0 0, color-mix(in srgb, var(--guide-mint) 12%, transparent), transparent 70%), var(--bg-card-alt); overflow: hidden; }
+.arrival-guide__hero { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 28px; align-items: center; padding: clamp(22px, 4vw, 42px); border: 1px solid color-mix(in srgb, var(--guide-mint) 25%, transparent); border-radius: var(--radius-lg); background: radial-gradient(ellipse at 0 0, color-mix(in srgb, var(--guide-mint) 12%, transparent), transparent 70%), var(--bg-card-alt); overflow: hidden; }
 .arrival-guide__eyebrow { display: flex; align-items: center; gap: 8px; color: var(--guide-mint); font-size: .64rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
 .arrival-guide__hero h2 { max-width: 520px; margin: 16px 0 14px; font-size: clamp(1.9rem, 3.2vw, 3rem); line-height: 1.1; letter-spacing: -.055em; text-wrap: balance; }
 .arrival-guide__hero p { max-width: 500px; color: var(--guide-muted); font-size: .87rem; }
 .arrival-guide__language { display: inline-flex; align-items: center; gap: 7px; margin-top: 24px; font-size: .55rem; letter-spacing: .12em; color: var(--guide-muted); }
 .arrival-guide__language svg { width: 14px; height: 14px; }
-.arrival-guide__ticket { display: flex; flex-direction: column; padding: 22px; background: var(--guide-mint); color: #08342c; border-radius: 14px; transform: rotate(5deg); box-shadow: 0 16px 38px #0002; }
+.arrival-guide__ticket { display: flex; flex-direction: column; padding: 22px; background: var(--guide-mint); color: #08342c; border-radius: var(--radius-md); transform: rotate(5deg); box-shadow: 0 16px 38px #0002; }
 :root[data-theme='light'] .arrival-guide__ticket { background: #c5efdf; }
 .arrival-guide__ticket-route { display: flex; align-items: center; gap: 10px; font-size: 1.4rem; }
 .arrival-guide__flight-line { height: 1px; flex: 1; border-top: 1px dashed currentColor; opacity: .5; }
@@ -43,16 +43,16 @@
 .arrival-guide__barcode { height: 24px; margin-top: 20px; background: repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 5px, currentColor 5px 6px, transparent 6px 8px, currentColor 8px 12px, transparent 12px 15px); opacity: .55; }
 .arrival-guide__essentials { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 0 4px; }
 .arrival-guide__essentials > div { display: flex; align-items: center; gap: 12px; }
-.arrival-guide__essential-icon { color: var(--guide-gold); padding: 10px; background: color-mix(in srgb, var(--guide-gold) 9%, transparent); border-radius: 12px; }
+.arrival-guide__essential-icon { color: var(--guide-gold); padding: 10px; background: color-mix(in srgb, var(--guide-gold) 9%, transparent); border-radius: var(--radius-md); }
 .arrival-guide__essentials strong, .arrival-guide__essentials div > span:not(.arrival-guide__essential-icon) { display: block; }
 .arrival-guide__essentials strong { color: var(--text-strong); font-size: .78rem; font-weight: 650; }
 .arrival-guide__essentials div > span:not(.arrival-guide__essential-icon) { color: var(--guide-muted); font-size: .64rem; }
-.arrival-guide__semester { padding: 24px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-card-alt); }
+.arrival-guide__semester { padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card-alt); }
 .arrival-guide__semester-heading { display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; }
 .arrival-guide__semester .arrival-guide__eyebrow { font-size: .59rem; color: var(--guide-muted); letter-spacing: .07em; }
 .arrival-guide__semester .arrival-guide__eyebrow svg { width: 17px; height: 17px; }
 .arrival-guide__semester h3 { margin-top: 8px; font-size: 1.2rem; letter-spacing: -.03em; }
-.arrival-guide__semester select { max-width: 100%; padding: 8px 32px 8px 12px; color: var(--text-strong); background: var(--bg-card); border: 1px solid var(--border-bright); border-radius: 9px; font-size: .72rem; }
+.arrival-guide__semester select { max-width: 100%; padding: 8px 32px 8px 12px; color: var(--text-strong); background: var(--bg-card); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); font-size: .72rem; }
 .arrival-guide__semester option { color: var(--text-strong); background: var(--bg); }
 .arrival-guide__dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 24px; }
 .arrival-guide__dates > div { padding-left: 16px; border-left: 2px solid var(--border); }
@@ -62,18 +62,18 @@
 .arrival-guide__dates .arrival-guide__arrive dd { color: var(--guide-gold); }
 .arrival-guide .arrival-guide__date-note { margin-top: 18px; color: var(--guide-muted); font-size: .64rem; }
 .arrival-guide__browse { display: grid; gap: 12px; margin-top: 6px; }
-.arrival-guide__search { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border: 1px solid var(--border-bright); border-radius: 12px; color: var(--guide-mint); background: var(--bg-card-alt); }
+.arrival-guide__search { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border: 1px solid var(--border-bright); border-radius: var(--radius-md); color: var(--guide-mint); background: var(--bg-card-alt); }
 .arrival-guide__search:focus-within { border-color: var(--guide-mint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--guide-mint) 10%, transparent); }
 .arrival-guide__search input { width: 100%; min-width: 0; padding: 0; border: 0; color: var(--text-strong); background: transparent; font-size: .8rem; outline: none; }
 .arrival-guide__search input::placeholder { color: var(--guide-muted); opacity: 1; }
 .arrival-guide__search input::-webkit-search-cancel-button { display: none; }
-.arrival-guide__search button { display: grid; place-items: center; padding: 4px; border: 0; border-radius: 6px; background: transparent; color: var(--guide-muted); }
+.arrival-guide__search button { display: grid; place-items: center; padding: 4px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--guide-muted); }
 .arrival-guide__browse-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .65rem; color: var(--guide-muted); }
 .arrival-guide__text-button { padding: 2px 0; border: 0; color: var(--guide-mint); background: transparent; font-size: .7rem; font-weight: 650; }
 .arrival-guide__text-button:hover { text-decoration: underline; text-underline-offset: 4px; }
 .arrival-guide__text-button:disabled { opacity: .45; cursor: default; }
 .arrival-guide__sections { display: grid; gap: 12px; }
-.arrival-guide__section { --section-accent: var(--guide-mint); border: 1px solid var(--border); border-radius: 16px; background: var(--bg-card-alt); overflow: hidden; }
+.arrival-guide__section { --section-accent: var(--guide-mint); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card-alt); overflow: hidden; }
 .arrival-guide__section--gold { --section-accent: var(--guide-gold); }
 .arrival-guide__section--sky { --section-accent: var(--guide-sky); }
 .arrival-guide__section--lavender { --section-accent: var(--guide-lavender); }
@@ -82,7 +82,7 @@
 .arrival-guide__section-toggle { display: flex; align-items: center; gap: 16px; width: 100%; padding: 20px 22px; border: 0; background: transparent; text-align: left; color: var(--text-strong); }
 .arrival-guide__section-toggle:hover { background: color-mix(in srgb, var(--section-accent) 4%, transparent); }
 .arrival-guide__section-toggle:focus-visible { outline-offset: -5px; }
-.arrival-guide__section-icon { padding: 12px; border-radius: 13px; color: var(--section-accent); background: color-mix(in srgb, var(--section-accent) 10%, transparent); }
+.arrival-guide__section-icon { padding: 12px; border-radius: var(--radius-md); color: var(--section-accent); background: color-mix(in srgb, var(--section-accent) 10%, transparent); }
 .arrival-guide__section-label { flex: 1; min-width: 0; }
 .arrival-guide__section-label strong { display: block; font-size: .93rem; font-weight: 650; letter-spacing: -.02em; }
 .arrival-guide__section-label > span { display: block; margin-top: 3px; color: var(--guide-muted); font-size: .69rem; font-weight: 400; line-height: 1.5; }
@@ -93,12 +93,12 @@
 .arrival-guide__block { min-width: 0; }
 .arrival-guide__block h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 7px; color: var(--text-strong); font-size: .78rem; font-weight: 650; }
 .arrival-guide__block p { color: var(--guide-muted); font-size: .77rem; line-height: 1.8; }
-.arrival-guide__block--important { padding: 16px 18px; border-left: 2px solid var(--guide-gold); border-radius: 0 10px 10px 0; background: color-mix(in srgb, var(--guide-gold) 7%, transparent); }
+.arrival-guide__block--important { padding: 16px 18px; border-left: 2px solid var(--guide-gold); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: color-mix(in srgb, var(--guide-gold) 7%, transparent); }
 .arrival-guide__block--important h4 { color: var(--guide-gold); }
 .arrival-guide__block--important svg { width: 16px; height: 16px; }
 .arrival-guide__chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
-.arrival-guide__chips li { padding: 6px 12px; color: var(--section-accent); border: 1px solid color-mix(in srgb, var(--section-accent) 20%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--section-accent) 5%, transparent); font-size: .66rem; }
-.arrival-guide__table-wrap { max-width: 100%; margin-top: 12px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.arrival-guide__chips li { padding: 6px 12px; color: var(--section-accent); border: 1px solid color-mix(in srgb, var(--section-accent) 20%, transparent); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--section-accent) 5%, transparent); font-size: .66rem; }
+.arrival-guide__table-wrap { max-width: 100%; margin-top: 12px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .arrival-guide table { width: 100%; border-collapse: collapse; text-align: left; font-size: .68rem; }
 .arrival-guide th, .arrival-guide td { min-width: 95px; padding: 12px; vertical-align: top; border-bottom: 1px solid var(--border); }
 .arrival-guide thead th { color: var(--guide-lavender); background: color-mix(in srgb, var(--guide-lavender) 7%, transparent); font-size: .59rem; }
@@ -110,14 +110,14 @@
 .arrival-guide__contacts svg, .arrival-guide__records svg { width: 16px; height: 16px; }
 .arrival-guide__contacts--compact { padding-top: 18px; margin: 0; border-top: 1px solid var(--border); }
 .arrival-guide__records { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 14px; }
-.arrival-guide__records > div { display: flex; flex-direction: column; align-items: start; gap: 9px; padding: 15px; border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+.arrival-guide__records > div { display: flex; flex-direction: column; align-items: start; gap: 9px; padding: 15px; border: 1px solid var(--border); border-radius: var(--radius-sm); min-width: 0; }
 .arrival-guide__records strong { color: var(--text-strong); font-size: .68rem; }
 .arrival-guide__records a { font-size: .64rem; max-width: 100%; }
-.arrival-guide__empty { display: grid; justify-items: center; gap: 12px; padding: 40px 20px; text-align: center; border: 1px dashed var(--border-bright); border-radius: 16px; }
+.arrival-guide__empty { display: grid; justify-items: center; gap: 12px; padding: 40px 20px; text-align: center; border: 1px dashed var(--border-bright); border-radius: var(--radius-md); }
 .arrival-guide__empty > svg { width: 30px; height: 30px; color: var(--guide-mint); }
 .arrival-guide__empty h3 { font-size: 1.2rem; }
 .arrival-guide__empty p { max-width: 380px; font-size: .8rem; color: var(--guide-muted); }
-.arrival-guide__help { display: flex; align-items: start; gap: 18px; padding: 24px; border: 1px solid color-mix(in srgb, var(--guide-mint) 25%, transparent); border-radius: 18px; background: color-mix(in srgb, var(--guide-mint) 5%, var(--bg-card-alt)); }
+.arrival-guide__help { display: flex; align-items: start; gap: 18px; padding: 24px; border: 1px solid color-mix(in srgb, var(--guide-mint) 25%, transparent); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--guide-mint) 5%, var(--bg-card-alt)); }
 .arrival-guide__help-icon { padding: 12px; border-radius: 50%; background: color-mix(in srgb, var(--guide-mint) 12%, transparent); color: var(--guide-mint); }
 .arrival-guide__help h3 { margin: 0 0 6px; font-size: 1rem; letter-spacing: -.03em; }
 .arrival-guide__help p { font-size: .74rem; color: var(--guide-muted); }

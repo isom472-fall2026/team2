@@ -10,6 +10,7 @@ import { isKuCoordinatorProfile } from './coordinatorProfile'
 import { retryWhileTokenIsTooNew } from './freshSession'
 import { useAppStore } from './stores/appStore'
 import { loadAuthPage, loadPortal, preloadAuthPage, preloadPortal } from './routeLoaders'
+import { signOut } from './signOut'
 import './App.css'
 
 // Everything except the home page loads on demand, so the landing page does not download
@@ -243,10 +244,7 @@ function App() {
     session && profile && isKuCoordinatorProfile(profile, session.user.email),
   )
 
-  const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) window.alert(error.message)
-  }
+  const handleSignOut = signOut
 
   const handleDisableMaintenance = async () => {
     if (isUpdatingMaintenance) return

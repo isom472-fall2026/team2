@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { getDatabaseErrorMessage } from '../databaseErrors'
-import { formatUpdateTime } from '../formatUpdateTime'
+import { formatDateTime } from '../dates'
 import { acceptanceLetterFileName, buildAcceptanceLetterPdf, coordinatorSignatoryTitle, getAcceptanceLetterFields, letterTypes } from '../acceptanceLetter'
 import './AcceptanceLetters.css'
 
@@ -221,11 +221,11 @@ function LetterCard({ application, letterType, letter, lookups, coordinator, kuC
       {letter && (
         <>
           <dl className="acceptance-letter__record">
-            <div><dt>Issued</dt><dd>{formatUpdateTime(letter.issued_at)} by {letter.issued_by_name} ({letter.issued_by_email})</dd></div>
+            <div><dt>Issued</dt><dd>{formatDateTime(letter.issued_at)} by {letter.issued_by_name} ({letter.issued_by_email})</dd></div>
             <div>
               <dt>Stamped copy</dt>
               <dd>{letter.stamped_at
-                ? `Sent to the student ${formatUpdateTime(letter.stamped_at)} by ${letter.stamped_by_name} (${letter.stamped_by_email})`
+                ? `Sent to the student ${formatDateTime(letter.stamped_at)} by ${letter.stamped_by_name} (${letter.stamped_by_email})`
                 : 'Not uploaded yet — the student has not received this letter'}</dd>
             </div>
           </dl>

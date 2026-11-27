@@ -43,7 +43,6 @@ function SubjectCatalog() {
   return (
     <SubjectCatalogPage labelledBy="subject-catalog-heading">
       <Link className="subject-catalog__back" to="/portal">← Back to portal</Link>
-      <span className="auth-card__eyebrow">College of Business Administration</span>
       <h1 id="subject-catalog-heading">CBA subjects</h1>
       <p>The courses Kuwait University's College of Business Administration offers. Open a course to read its description and learning outcomes.</p>
 
@@ -160,9 +159,8 @@ export function SubjectDetail() {
     <SubjectCatalogPage labelledBy="subject-detail-heading">
       {backLink}
       <div lang="en" dir="ltr" className="subject-catalog__detail">
-        <span className="auth-card__eyebrow">{subject.course_department}</span>
         <h1 id="subject-detail-heading">{subject.course_display_code} · {subject.course_name}</h1>
-        <p className="subject-catalog__credits">{COURSE_CREDITS} credits</p>
+        <p className="subject-catalog__credits">{subject.course_department}, {COURSE_CREDITS} credits</p>
 
         <h2>Course description</h2>
         {subject.course_description

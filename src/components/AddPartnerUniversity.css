@@ -13,9 +13,9 @@
 :root[data-theme='light'] .add-university textarea { background: #ffffff; }
 .add-university textarea { resize: vertical; }
 .add-university textarea:focus { outline: 2px solid var(--neon); outline-offset: 1px; }
-.add-university [aria-invalid='true'] { border-color: #ff8f9d; }
+.add-university [aria-invalid='true'] { border-color: var(--danger); }
 .add-university__wide { grid-column: 1 / -1; }
-.add-university__field-error { color: #ff8f9d; font-size: 0.8rem; font-weight: 500; }
+.add-university__field-error { color: var(--danger); font-size: 0.8rem; font-weight: 500; }
 
 .add-university__locations { display: grid; min-width: 0; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .add-university__locations legend { padding: 0 6px; color: var(--text-strong); font-weight: 700; }

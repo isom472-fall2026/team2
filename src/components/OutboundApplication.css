@@ -1,9 +1,5 @@
 .outbound-application {
-  --outbound-required-color: #ff7185;
-}
-
-:root[data-theme='light'] .outbound-application {
-  --outbound-required-color: #b42318;
+  --outbound-required-color: var(--danger);
 }
 
 .outbound-application__card {
@@ -37,10 +33,6 @@
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-}
-
-.outbound-application__card > .auth-card__eyebrow {
-  flex: 0 0 auto;
 }
 
 .outbound-application__card > h1 {
@@ -169,8 +161,8 @@
 }
 
 .outbound-application-list__status--submitted {
-  color: #36d399;
-  border-color: rgba(54, 211, 153, 0.48);
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success-solid) 48%, transparent);
 }
 
 .outbound-progress {
@@ -485,15 +477,15 @@
 }
 
 .outbound-application__error {
-  color: #ff8f9d;
-  border: 1px solid rgba(255, 143, 157, 0.4);
-  background: rgba(255, 51, 79, 0.08);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  background: var(--danger-tint);
 }
 
 .outbound-application__message {
-  color: #36d399;
-  border: 1px solid rgba(54, 211, 153, 0.4);
-  background: rgba(54, 211, 153, 0.08);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success-solid) 40%, transparent);
+  background: var(--success-tint);
 }
 
 @media (max-width: 760px) {
@@ -744,21 +736,21 @@
 
 .outbound-receipt__status--submitted,
 .outbound-receipt__status--accepted {
-  border-color: #16804a;
-  color: #087443;
-  background: rgba(22, 128, 74, 0.1);
+  border-color: var(--success-solid);
+  color: var(--success);
+  background: var(--success-tint);
 }
 
 .outbound-receipt__status--rejected {
-  border-color: #c62828;
-  color: #b42318;
-  background: rgba(198, 40, 40, 0.1);
+  border-color: var(--danger-solid);
+  color: var(--danger);
+  background: var(--danger-tint);
 }
 
 .outbound-receipt__status--in-review {
-  border-color: #b7791f;
-  color: #8a5700;
-  background: rgba(183, 121, 31, 0.12);
+  border-color: var(--warning);
+  color: var(--warning);
+  background: var(--warning-tint);
 }
 
 .outbound-receipt__status--draft {
@@ -935,6 +927,19 @@
 }
 
 @media print {
+  /* Paper is white whichever theme is on screen, so the status badges print in the light
+     theme's darker shades. */
+  .outbound-receipt {
+    --danger: #b42318;
+    --danger-solid: #d92d20;
+    --danger-tint: #fdecea;
+    --success: #0b6b3f;
+    --success-solid: #16804a;
+    --success-tint: #e8f3ed;
+    --warning: #8a5700;
+    --warning-tint: rgba(183, 121, 31, 0.12);
+  }
+
   @page {
     size: A4;
     margin: 0;

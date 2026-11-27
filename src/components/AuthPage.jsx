@@ -295,7 +295,6 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
     return (
       <section className="auth-page" aria-labelledby="access-requested-heading">
         <AnimatedHeight className="auth-card">
-          <span className="auth-card__eyebrow">Access requested</span>
           <h1 id="access-requested-heading">Your request is under review</h1>
           <p className="auth-card__description">
             Your coordinator account was created. A Kuwait University coordinator will review your request, and you will be notified as soon as access is granted.
@@ -316,7 +315,6 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
       <AnimatedHeight className="auth-card">
         <div ref={columnsRef} className="auth-card__columns">
           <div className="auth-card__intro">
-            <span className="auth-card__eyebrow"><FadeText text={coordinatorOnly ? 'KU Coordinator' : options.label} /></span>
             <h1 id="auth-heading">
               <TypedText text={coordinatorOnly ? 'Sign in as a KU coordinator' : isSignUp ? `Create your ${options.label} account` : `Sign in to the ${options.label} portal`} />
             </h1>
@@ -353,7 +351,7 @@ function AuthPage({ type, mode, onTypeChange, onModeChange, onAuthenticated, coo
               <p className="auth-warning auth-reveal" role="alert">
                 {coordinatorOnly
                   ? 'Only authorized KU coordinators may sign in while maintenance mode is enabled.'
-                  : 'only for partner university coordinators, attempts at misuse by students will be caught and legally prosecuted'}
+                  : 'Only for partner university coordinators. Attempts at misuse by students will be caught and legally prosecuted.'}
               </p>
             )}
           </div>

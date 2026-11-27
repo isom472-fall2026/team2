@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { COURSE_CREDITS } from '../courseCredits'
 import { getDatabaseErrorMessage } from '../databaseErrors'
-import { formatUpdateTime } from '../formatUpdateTime'
+import { formatDateTime } from '../dates'
 import SubjectFilters from './SubjectFilters'
 import './SubjectCatalog.css'
 import './IncomingSubjectPreferences.css'
@@ -126,8 +126,8 @@ export default function IncomingSubjectPreferences({ profile }) {
           )}
           {saved.subject_preferences_created_at && (
             <dl className="subject-preferences__dates">
-              <div><dt>First saved</dt><dd><time dateTime={saved.subject_preferences_created_at}>{formatUpdateTime(saved.subject_preferences_created_at)}</time></dd></div>
-              <div><dt>Last modified</dt><dd><time dateTime={saved.subject_preferences_updated_at}>{formatUpdateTime(saved.subject_preferences_updated_at)}</time></dd></div>
+              <div><dt>First saved</dt><dd><time dateTime={saved.subject_preferences_created_at}>{formatDateTime(saved.subject_preferences_created_at)}</time></dd></div>
+              <div><dt>Last modified</dt><dd><time dateTime={saved.subject_preferences_updated_at}>{formatDateTime(saved.subject_preferences_updated_at)}</time></dd></div>
             </dl>
           )}
           {changed && <p className="subject-preferences__unsaved" role="status">You have unsaved changes.</p>}

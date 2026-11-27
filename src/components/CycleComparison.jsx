@@ -55,7 +55,7 @@ function Results({ first, second }) {
         </table>
       </div>
       <figure className="cycle-comparison-chart">
-        <figcaption>Participation by cycle</figcaption>
+        <figcaption>Participation by KU semester</figcaption>
         <div className="cycle-comparison-key">{[first, second].map((cycle, i) => <span key={cycle.id} data-series={i}>{cycleLabel(cycle)}</span>)}</div>
         <div className="cycle-comparison-groups">{metrics.map((label, index) => (
           <div key={label}><div className="cycle-comparison-bars">{overall.map((values, series) => {
@@ -67,7 +67,7 @@ function Results({ first, second }) {
       <div className="cycle-comparison-scroll">
         <table>
           <caption>Inbound and outbound participation</caption>
-          <thead><tr>{['Direction', 'Cycle', ...metrics].map(label => <th scope="col" key={label}>{label}</th>)}</tr></thead>
+          <thead><tr>{['Direction', 'KU semester', ...metrics].map(label => <th scope="col" key={label}>{label}</th>)}</tr></thead>
           <tbody>{['Inbound', 'Outbound'].map((direction, group) => cycles.map((cycle, index) => {
             const [submitted, approved, rate] = totals([data[index][group]])
             return <tr key={direction + cycle.id}><th scope="row">{direction}</th><td>{cycleLabel(cycle)}</td>
@@ -77,7 +77,7 @@ function Results({ first, second }) {
       </div>
       <section aria-label="Weekly submission trend">
         <h3>Submissions by week</h3>
-        <p>Week 1 starts when each cycle opens. Counts stop at closing or today, whichever comes first.</p>
+        <p>Week 1 starts when applications for each KU semester open. Counts stop when applications close or today, whichever comes first.</p>
         {weeks.map((series, i) => series === null
           ? <p key={cycles[i].id}>{cycleLabel(cycles[i])} has no valid application window.</p>
           : series.length === 0 && <p key={cycles[i].id}>{cycleLabel(cycles[i])} has not opened yet.</p>)}
@@ -98,17 +98,17 @@ export default function CycleComparison({ cycles }) {
   const [first, second] = ids.map(value => cycles.find(cycle => String(cycle.id) === value))
   return (
     <section className="cycle-report cycle-comparison">
-      <h2>Compare exchange cycles</h2>
-      <div className="cycle-comparison-selectors">{['Baseline cycle', 'Comparison cycle'].map((label, index) => (
+      <h2>Compare KU semesters</h2>
+      <div className="cycle-comparison-selectors">{['Baseline KU semester', 'Comparison KU semester'].map((label, index) => (
         <label className="cycle-report__cycle" key={label}>{label}
           <select value={ids[index]} onChange={event => setIds(ids.map((value, i) => i === index ? event.target.value : value))}>
-            <option value="">Select a cycle</option>
+            <option value="">Select a KU semester</option>
             {cycles.map(cycle => <option key={cycle.id} value={cycle.id}>{cycleLabel(cycle)}</option>)}
           </select>
         </label>
       ))}</div>
-      {!first || !second ? <p role="status">Select both cycles to compare them.</p>
-        : first.id === second.id ? <p role="status">Choose two different exchange cycles.</p>
+      {!first || !second ? <p role="status">Select both KU semesters to compare them.</p>
+        : first.id === second.id ? <p role="status">Choose two different KU semesters.</p>
         : <Results key={first.id + '/' + second.id} first={first} second={second} />}
     </section>
   )

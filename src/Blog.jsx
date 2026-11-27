@@ -44,11 +44,10 @@ const workflowSteps = [
   },
 ]
 
-function GuideSection({ eyebrow, title, intro, steps }) {
+function GuideSection({ title, intro, steps }) {
   return (
     <section className="blog-guide" aria-labelledby={`${title.toLowerCase().replaceAll(' ', '-')}-heading`}>
       <div className="blog-guide__header">
-        <span className="auth-card__eyebrow">{eyebrow}</span>
         <h2 id={`${title.toLowerCase().replaceAll(' ', '-')}-heading`}>{title}</h2>
         <p>{intro}</p>
       </div>
@@ -71,7 +70,6 @@ export default function Blog() {
   return (
     <article className="blog-page">
       <header className="blog-page__header">
-        <span className="auth-card__eyebrow">Student resources</span>
         <h1>Blog</h1>
         <p>Guides and practical notes for students using the KU Exchange platform.</p>
       </header>
@@ -85,16 +83,14 @@ export default function Blog() {
               VS Code agents for focused, traceable project work.
             </p>
             <GuideSection
-              eyebrow="Guide 01 / GitHub Education"
-              title="Apply for the Education Pack"
+              title="Apply for the GitHub Education Pack"
               intro="Have these details ready before you begin. GitHub may ask for additional proof of current enrollment during its review."
               steps={educationSteps}
             />
 
             <div id="agent-workflow">
               <GuideSection
-                eyebrow="Guide 02 / VS Code agents"
-                title="Work on your project with focus"
+                title="Work on your project with VS Code agents"
                 intro="A clean session history makes it easier to understand what changed, how much work it used, and which issue it belongs to."
                 steps={workflowSteps}
               />

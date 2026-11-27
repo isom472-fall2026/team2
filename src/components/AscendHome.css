@@ -79,7 +79,7 @@ html.lenis.lenis-stopped { overflow: hidden; }
 .exchange-feature-grid { display: grid; width: min(100%, var(--maxw)); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 0 auto; }
 .exchange-feature-card { display: flex; min-height: 260px; flex-direction: column; align-items: flex-start; padding: 27px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--glass); box-shadow: var(--shadow); transition: transform .2s ease, border-color .2s ease; }
 .exchange-feature-card:hover { transform: translateY(-3px); border-color: var(--line-strong); }
-.exchange-feature-icon { display: grid; width: 44px; height: 44px; place-items: center; margin-bottom: 22px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--glass); color: var(--accent); }
+.exchange-feature-icon { display: grid; width: 44px; height: 44px; place-items: center; margin-bottom: 22px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--glass); color: var(--accent); }
 .exchange-feature-icon svg { width: 22px; height: 22px; }
 .exchange-feature-card h3 { margin-bottom: 10px; color: var(--ink); font-size: 18px; font-weight: 700; }
 .exchange-feature-card p { color: var(--muted); font-size: 14px; line-height: 1.65; }
@@ -91,16 +91,14 @@ html.lenis.lenis-stopped { overflow: hidden; }
 .exchange-checker { padding: clamp(20px, 4vw, 38px); }
 .exchange-checker__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .exchange-checker__grid label { display: grid; align-content: start; gap: 8px; color: var(--ink); font-size: 13px; font-weight: 650; }
-.exchange-checker__grid input, .exchange-checker__grid select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--bg); color: var(--ink); font: inherit; }
+.exchange-checker__grid input, .exchange-checker__grid select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); font: inherit; }
 .exchange-checker__grid input:focus, .exchange-checker__grid select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .exchange-checker__grid label > span { color: var(--muted); font-size: 12px; font-weight: 450; line-height: 1.5; }
 .exchange-checker__submit { min-height: 44px; margin-top: 24px; padding: 10px 20px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; }
 .exchange-checker__submit:hover { background: var(--accent-2); }
-.exchange-checker__message { margin-top: 18px; padding: 13px 15px; border: 1px solid var(--line-strong); border-radius: 10px; font-size: 14px; line-height: 1.55; }
-.exchange-checker__message--error { border-color: #bd6666; color: #e7a5a5; }
-.exchange-checker__message--success { border-color: #3a9c74; color: #7bd5a8; }
-.ascend-home[data-theme='light'] .exchange-checker__message--error { color: #a3332b; }
-.ascend-home[data-theme='light'] .exchange-checker__message--success { color: #1f6f4b; }
+.exchange-checker__message { margin-top: 18px; padding: 13px 15px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); font-size: 14px; line-height: 1.55; }
+.exchange-checker__message--error { border-color: color-mix(in srgb, var(--danger-solid) 60%, transparent); color: var(--danger); }
+.exchange-checker__message--success { border-color: var(--success-solid); color: var(--success); }
 .exchange-disclaimer { margin: 15px 4px 0; color: var(--muted-2); font-size: 12px; line-height: 1.6; }
 .exchange-visa-card { padding: 0; }
 .exchange-visa-card .visa-advisory { border: 0; }

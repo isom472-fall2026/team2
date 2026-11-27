@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { useAppStore } from '../stores/appStore'
 import './ExchangeProgramInfo.css'
+import { formatDateTime } from '../dates'
 
 const programUrl = 'https://cbaweb.ku.edu.kw/students-alumni/student-exchange-program/'
 const defaults = {
@@ -229,7 +230,7 @@ export default function ExchangeProgramInfo() {
             <address>{content.mailing_address}</address>
           </section>
         </div>
-        {content.updated_at && <p className="exchange-info-updated"><InfoIcon name="edit" /><span>Last modified</span> <time dateTime={content.updated_at}>{new Date(content.updated_at).toLocaleString('en-KW', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kuwait' })} (Kuwait time)</time></p>}
+        {content.updated_at && <p className="exchange-info-updated"><InfoIcon name="edit" /><span>Last modified</span> <time dateTime={content.updated_at}>{formatDateTime(content.updated_at)} (Kuwait time)</time></p>}
         {canEdit && loadError && <p role="status">Saved program information is unavailable.</p>}
       </div>
     </main>

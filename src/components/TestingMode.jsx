@@ -115,7 +115,6 @@ async function createTestingAccount(definition, universityId, accounts) {
         name,
         email,
         university: universityId,
-        email_accepted: true,
         user_id: data.user.id,
       }
     : {
@@ -132,6 +131,19 @@ async function createTestingAccount(definition, universityId, accounts) {
       ? ` The incomplete Auth account could not be removed: ${getDatabaseErrorMessage(deleteError)}`
       : ''
     throw new Error(`${getDatabaseErrorMessage(profileError)}${cleanupMessage}`)
+  }
+
+  // A coordinator cannot approve themselves (issue #190), so the KU coordinator running testing
+  // mode approves the generated partner coordinator, the way they would approve a real one.
+  if (definition.userType === 'coordinator') {
+    const { data: approved, error: approvalError } = await supabase
+      .from('coordinator')
+      .update({ email_accepted: true })
+      .eq('coordinator_id', profileId)
+      .select('coordinator_id')
+      .maybeSingle()
+    if (approvalError) throw new Error(getDatabaseErrorMessage(approvalError))
+    if (!approved) throw new Error('The generated partner coordinator could not be approved.')
   }
 
   const account = {
@@ -505,7 +517,7 @@ export default function TestingMode({
     try {
       const generatedAccounts = await provisionTestingScenario()
       setAccounts(generatedAccounts)
-      setMessage('Testing accounts and KU semester data are ready, including 80 extra incoming and 80 extra outgoing applications for the cycle graphs.')
+      setMessage('Testing accounts and KU semester data are ready, including 80 extra incoming and 80 extra outgoing applications for the KU semester graphs.')
     } catch (setupError) {
       setError(setupError.message || getDatabaseErrorMessage(setupError))
     }
@@ -572,7 +584,7 @@ export default function TestingMode({
       const { data: cycle, error: cycleError } = await supabase.from('exchange_cycle').select('id')
         .in('id', ids).lte('application_o', new Date().toISOString()).order('id', { ascending: false }).limit(1).maybeSingle()
       if (cycleError) throw cycleError
-      if (!cycle) throw new Error('The testing scenario needs a cycle whose applications have opened.')
+      if (!cycle) throw new Error('The testing scenario needs a KU semester whose applications have opened.')
       const { error: seedError } = await supabase.rpc('seed_testing_cycle_applications', { requested_cycle_id: cycle.id })
       if (seedError) throw seedError
       setMessage('Graph demo data is ready: 80 extra incoming and 80 extra outgoing applications. Running this again does not duplicate them.')
@@ -616,7 +628,6 @@ export default function TestingMode({
   return (
     <section className="testing-page" aria-labelledby="testing-heading">
       <div className="testing-card">
-        <span className="auth-card__eyebrow">Safe demonstration environment</span>
         <h1 id="testing-heading">Testing mode</h1>
         <p className="testing-card__intro">
           Generated accounts can change only records created while testing mode is on.
@@ -670,7 +681,7 @@ export default function TestingMode({
                   {busyAction === 'ending' ? 'Removing test data...' : 'End testing and remove test data'}
                 </button>
                 <button className="btn btn--secondary" type="button" onClick={fillGraphData} disabled={busy || accounts.length === 0}>
-                  {busyAction === 'graphs' ? 'Preparing graph data...' : 'Fill cycle graphs with demo data'}
+                  {busyAction === 'graphs' ? 'Preparing graph data...' : 'Fill KU semester graphs with demo data'}
                 </button>
               </div>
             )}

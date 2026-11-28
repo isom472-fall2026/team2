@@ -2460,6 +2460,9 @@ FOR SELECT
 TO authenticated
 USING ((SELECT public.is_ku_coordinator()) OR user_id = (SELECT auth.uid()));
 
+-- A partner coordinator starts unapproved and a KU coordinator approves them, so a new profile
+-- cannot mark itself approved (issue #190). Kuwait University accounts are still approved at
+-- sign-up; who may become a KU coordinator is a separate decision for the office.
 CREATE POLICY "Users can register their coordinator profile"
 ON public.coordinator
 FOR INSERT
@@ -2467,6 +2470,7 @@ TO authenticated
 WITH CHECK (
     user_id = (SELECT auth.uid())
     AND lower(email) = lower((SELECT auth.jwt()) ->> 'email')
+    AND (email_accepted IS NOT TRUE OR (university = 4 AND email ILIKE '%@ku.edu.kw'))
 );
 
 -- Asked by the coordinator update policy below. Reading partneruniversity there directly would
@@ -2598,6 +2602,8 @@ USING (
     )
 );
 
+-- Only an approved coordinator nominates or edits a nomination (issue #190); one waiting for
+-- approval, or whose university was retired, cannot.
 CREATE POLICY "Coordinators can create student nominations"
 ON public.studentnominations
 FOR INSERT
@@ -2608,6 +2614,7 @@ WITH CHECK (
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
           AND user_id = (SELECT auth.uid())
+          AND email_accepted IS TRUE
           AND EXISTS (
               SELECT 1
               FROM public.partneruniversity AS university
@@ -2627,6 +2634,7 @@ USING (
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
           AND user_id = (SELECT auth.uid())
+          AND email_accepted IS TRUE
           AND EXISTS (
               SELECT 1
               FROM public.partneruniversity AS university
@@ -2641,6 +2649,7 @@ WITH CHECK (
         FROM public.coordinator
         WHERE coordinator_id = studentnominations.coordinator_id
           AND user_id = (SELECT auth.uid())
+          AND email_accepted IS TRUE
           AND EXISTS (
               SELECT 1
               FROM public.partneruniversity AS university
@@ -3914,6 +3923,15 @@ CREATE UNIQUE INDEX outboundapplication_student_cycle_unique
 ON public.outboundapplication (student_id, semester_applied_for)
 WHERE application_status NOT IN ('Rejected', 'Modified');
 
+-- The portal reads a student's own applications and a partner coordinator's own nominations
+-- by these columns, and deleting a KU semester removes its nominations through semester. The
+-- partial unique indexes above leave out rejected and modified rows, so they cannot serve
+-- those reads, and Postgres does not index foreign keys by itself (issue #190).
+CREATE INDEX IF NOT EXISTS inboundapplication_student_idx ON public.inboundapplication (student_id);
+CREATE INDEX IF NOT EXISTS outboundapplication_student_idx ON public.outboundapplication (student_id);
+CREATE INDEX IF NOT EXISTS studentnominations_coordinator_idx ON public.studentnominations (coordinator_id);
+CREATE INDEX IF NOT EXISTS studentnominations_semester_idx ON public.studentnominations (semester);
+
 CREATE OR REPLACE FUNCTION public.delete_my_account()
 RETURNS VOID
 LANGUAGE plpgsql
@@ -3960,6 +3978,50 @@ $$;
 REVOKE ALL ON FUNCTION public.delete_my_account() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.delete_my_account() TO authenticated;
 
+-- When a nomination stops being usable (issue #190): the end of the second KU semester to end
+-- after it was made. Made during a semester, that is the end of the next one; made between
+-- semesters, the end of the one after next. NULL until that semester has been set up.
+-- created_at holds UTC without a time zone, hence the conversion.
+CREATE OR REPLACE FUNCTION public.nomination_expires_at(made_at TIMESTAMP)
+RETURNS TIMESTAMPTZ
+LANGUAGE SQL
+STABLE
+SET search_path = ''
+AS $$
+    SELECT cycle.cycle_end
+    FROM public.exchange_cycle AS cycle
+    WHERE cycle.cycle_end > made_at AT TIME ZONE 'UTC'
+    ORDER BY cycle.cycle_end
+    OFFSET 1
+    LIMIT 1;
+$$;
+
+-- Run every hour by pg_cron (see below). Like reject_unsubmitted_applications, it leaves data
+-- alone during maintenance, and during testing mode changes only testing records.
+CREATE OR REPLACE FUNCTION public.expire_due_nominations()
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF public.get_maintenance_mode() IS DISTINCT FROM FALSE THEN
+        RETURN;
+    END IF;
+
+    UPDATE public.studentnominations AS nomination
+    SET nomination_status = 'Expired'
+    WHERE nomination.nomination_status = 'Active'
+      AND public.nomination_expires_at(nomination.created_at) <= now()
+      AND (
+          public.is_testing_mode_enabled() IS FALSE
+          OR public.is_testing_record('studentnominations', nomination.id::TEXT)
+      );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.expire_due_nominations() FROM PUBLIC;
+
 CREATE OR REPLACE FUNCTION public.expire_exchange_cycle_nominations()
 RETURNS VOID
 LANGUAGE plpgsql
@@ -3978,21 +4040,80 @@ BEGIN
             MESSAGE = 'Nominations cannot be changed during maintenance';
     END IF;
 
-    UPDATE public.studentnominations AS nomination
-    SET nomination_status = 'Expired'
-    FROM public.exchange_cycle AS cycle
-    WHERE nomination.semester = cycle.id
-      AND cycle.cycle_end <= now()
-      AND nomination.nomination_status <> 'Expired'
-      AND (
-          public.is_testing_mode_enabled() IS FALSE
-          OR public.is_testing_record('studentnominations', nomination.id::TEXT)
-      );
+    PERFORM public.expire_due_nominations();
 END;
 $$;
 
 REVOKE ALL ON FUNCTION public.expire_exchange_cycle_nominations() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.expire_exchange_cycle_nominations() TO authenticated;
+
+-- A nomination is used up when its application is submitted, and given back when that
+-- application is rejected while the nomination's two semesters are still running (issue #190).
+CREATE OR REPLACE FUNCTION public.sync_nomination_with_application()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF NEW.nomination_id IS NULL
+       OR (TG_OP = 'UPDATE' AND NEW.application_status IS NOT DISTINCT FROM OLD.application_status) THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.application_status = 'Submitted' THEN
+        UPDATE public.studentnominations
+        SET nomination_status = 'Expired'
+        WHERE id = NEW.nomination_id
+          AND nomination_status = 'Active';
+    ELSIF NEW.application_status = 'Rejected' THEN
+        UPDATE public.studentnominations AS nomination
+        SET nomination_status = 'Active'
+        WHERE nomination.id = NEW.nomination_id
+          AND nomination.nomination_status = 'Expired'
+          AND (
+              public.nomination_expires_at(nomination.created_at) IS NULL
+              OR public.nomination_expires_at(nomination.created_at) > now()
+          );
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS inboundapplication_sync_nomination ON public.inboundapplication;
+CREATE TRIGGER inboundapplication_sync_nomination
+AFTER INSERT OR UPDATE OF application_status ON public.inboundapplication
+FOR EACH ROW
+EXECUTE FUNCTION public.sync_nomination_with_application();
+
+-- Only the database sets a nomination's status and the time it was made, since expiry counts
+-- from that time: a coordinator writing either directly could keep a nomination alive. Not a
+-- SECURITY DEFINER function, so current_user is the caller: the signed-in user's role for the
+-- portal's own writes, and the owner inside the functions above, which pass through.
+CREATE OR REPLACE FUNCTION public.protect_nomination_lifecycle()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    IF current_user = 'authenticated' THEN
+        IF TG_OP = 'INSERT' THEN
+            NEW.created_at := now() AT TIME ZONE 'UTC';
+            NEW.nomination_status := 'Active';
+        ELSE
+            NEW.created_at := OLD.created_at;
+            NEW.nomination_status := OLD.nomination_status;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS studentnominations_protect_lifecycle ON public.studentnominations;
+CREATE TRIGGER studentnominations_protect_lifecycle
+BEFORE INSERT OR UPDATE ON public.studentnominations
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_nomination_lifecycle();
 
 CREATE OR REPLACE FUNCTION public.reject_unsubmitted_applications()
 RETURNS VOID
@@ -4077,6 +4198,12 @@ SELECT cron.schedule(
     'reject-unsubmitted-applications',
     '* * * * *',
     'SELECT public.reject_unsubmitted_applications();'
+);
+
+SELECT cron.schedule(
+    'expire-nominations',
+    '0 * * * *',
+    'SELECT public.expire_due_nominations();'
 );
 
 CREATE OR REPLACE FUNCTION public.is_testing_mode_enabled()

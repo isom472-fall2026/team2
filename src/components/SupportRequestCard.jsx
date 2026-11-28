@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatUpdateTime } from '../formatUpdateTime'
+import { formatDateTime } from '../dates'
 import { attachmentName, openSupportAttachment, supportReference } from '../supportRequests'
 import './SupportRequests.css'
 
@@ -30,7 +30,7 @@ export default function SupportRequestCard({ request, student, children }) {
       </div>
       <p className="support-request__meta">
         {student && <>{student.name} · {student.student_email} · </>}
-        {request.category} · Sent <time dateTime={request.created_at}>{formatUpdateTime(request.created_at)}</time>
+        {request.category} · Sent <time dateTime={request.created_at}>{formatDateTime(request.created_at)}</time>
       </p>
       <p className="support-request__text">{request.message}</p>
       {request.attachments.length > 0 && (
@@ -46,7 +46,7 @@ export default function SupportRequestCard({ request, student, children }) {
       {request.reply && (
         <div className="support-request__reply">
           <strong>Reply from the Student Exchange Office</strong>
-          <time dateTime={request.replied_at}>{formatUpdateTime(request.replied_at)}</time>
+          <time dateTime={request.replied_at}>{formatDateTime(request.replied_at)}</time>
           <p className="support-request__text">{request.reply}</p>
         </div>
       )}

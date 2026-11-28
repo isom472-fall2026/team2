@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { getCountries, getCycles, getPartnerUniversities } from '../referenceData'
 import { useAppStore } from '../stores/appStore'
-import { formatUpdateTime } from '../formatUpdateTime'
+import { formatDate, formatDateTime } from '../dates'
 import { COURSE_CREDITS } from '../courseCredits'
 import { getDatabaseErrorMessage } from '../databaseErrors'
 import { inboundApprovalLabel, hasConditionalApproval } from '../inboundApproval'
@@ -65,7 +65,7 @@ async function readProfiles(table, applications) {
 
 function getCycleLabel(application, cycles) {
   const cycle = cycles.find(({ id }) => Number(id) === Number(application.semester_applied_for))
-  return cycle ? `${cycle.semester} ${cycle.academic_year}` : 'Cycle unavailable'
+  return cycle ? `${cycle.semester} ${cycle.academic_year}` : 'KU semester unavailable'
 }
 
 function compareCycles(leftRecord, rightRecord) {
@@ -115,7 +115,7 @@ function getApplicationFields(application, data) {
         return ['Destination university', universityById.get(String(value)) || `University #${value}`]
       }
       if (key === 'semester_applied_for' && value !== null) {
-        return ['KU semester', cycleById.get(String(value)) || `Cycle #${value}`]
+        return ['KU semester', cycleById.get(String(value)) || `KU semester #${value}`]
       }
       if (key === 'emergency_contact' && value !== null) {
         const contact = data.contacts.find(({ contact_id }) => Number(contact_id) === Number(value))
@@ -271,7 +271,7 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.setTextColor(...mutedColor)
-  doc.text(`Exported by ${coordinatorName || 'KU coordinator'} on ${new Date().toLocaleDateString()}`, margin, cursorY, { baseline: 'top' })
+  doc.text(`Exported by ${coordinatorName || 'KU coordinator'} on ${formatDate(new Date())}`, margin, cursorY, { baseline: 'top' })
   cursorY += 9
   rule()
 
@@ -295,7 +295,7 @@ async function downloadApplicationPdf(application, applicationType, data, coordi
   }
 
   const safeCycle = cycle.replace(/[^a-z0-9-]+/gi, '-').replace(/^-|-$/g, '')
-  doc.save(`${studentId}-${safeCycle || 'cycle'}.pdf`)
+  doc.save(`${studentId}-${safeCycle || 'ku-semester'}.pdf`)
 }
 
 const decidableStatuses = ['Submitted', 'In Review', 'Pending Interview']
@@ -474,7 +474,7 @@ export default function CoordinatorApplications({ type: applicationType }) {
           getCycles(),
           getPartnerUniversities(),
           getCountries(),
-          supabase.from('emergency_contact').select('*'),
+          supabase.from('emergency_contact').select('contact_id, name, phone_number, email'),
         ])
         for (const result of [cyclesResult, universitiesResult, countriesResult, contactsResult]) {
           if (result.error) throw result.error
@@ -738,7 +738,7 @@ export default function CoordinatorApplications({ type: applicationType }) {
         onManage={manageApplication}
         loading={isLoading}
         emptyMessage={isHistory
-          ? 'No approved applications from previous cycles match these filters.'
+          ? 'No approved applications from previous KU semesters match these filters.'
           : hasCurrentFilters && currentRecords.length > 0
             ? 'No applications for this KU semester match these filters.'
             : 'There are no applications for this KU semester yet.'}
@@ -825,7 +825,7 @@ function UpdateHistory({ type, applicationId, refreshKey, headingId }) {
         <ol className="update-history">
           {updates.map((update) => (
             <li key={update.id}>
-              <time dateTime={update.created_at}>{formatUpdateTime(update.created_at)}</time>
+              <time dateTime={update.created_at}>{formatDateTime(update.created_at)}</time>
               <p>{update.details}</p>
             </li>
           ))}
@@ -985,7 +985,7 @@ function AlternativeOffers({ application, universities }) {
                   {offer.offer_status}
                 </span>
               </div>
-              <time dateTime={offer.created_at}>Offered {formatUpdateTime(offer.created_at)}</time>
+              <time dateTime={offer.created_at}>Offered {formatDateTime(offer.created_at)}</time>
               {offer.note && <p>{offer.note}</p>}
               {offer.offer_status === 'Pending' && (
                 <button className="btn btn--secondary" type="button" onClick={() => withdrawOffer(offer.id)} disabled={action.loading}>
@@ -1083,7 +1083,7 @@ function ModificationHistory({ type, application, refreshKey }) {
           {oldVersions.map(({ version, changed }) => (
             <li key={version.application_id}>
               <strong className="update-history__application">Version #{version.application_id}</strong>
-              <time dateTime={version.status_updated_at}>Replaced {formatUpdateTime(version.status_updated_at)}</time>
+              <time dateTime={version.status_updated_at}>Replaced {formatDateTime(version.status_updated_at)}</time>
               <p>{changed.length > 0 ? `Changed: ${changed.map(getLabel).join(', ')}` : 'Saved without changes to the details.'}</p>
               {String(version.application_id) !== String(application.application_id) && (
                 <button className="btn btn--secondary" type="button" onClick={() => openVersion(version.application_id)}>
@@ -1164,7 +1164,7 @@ function ApplicationMetrics({ application, type }) {
         {passport ? (
           <>
             <strong>{passport.expired ? 'Expired' : passport.text}</strong>
-            <span>{passport.expired ? `${passport.text} ago` : 'left'} · {passport.date.toLocaleDateString()}</span>
+            <span>{passport.expired ? `${passport.text} ago` : 'left'} · {formatDate(application.passport_expiry_date)}</span>
           </>
         ) : <strong>Not provided</strong>}
       </div>
@@ -1175,7 +1175,7 @@ function ApplicationMetrics({ application, type }) {
           {civilId ? (
             <>
               <strong>{civilId.expired ? 'Expired' : `${civilId.days} day${civilId.days === 1 ? '' : 's'}`}</strong>
-              <span>{civilId.expired ? `${Math.abs(civilId.days)} days ago` : 'left'} · {civilId.date.toLocaleDateString()}</span>
+              <span>{civilId.expired ? `${Math.abs(civilId.days)} days ago` : 'left'} · {formatDate(application.civil_id_expiry)}</span>
             </>
           ) : <strong>Not provided</strong>}
         </div>
@@ -1272,8 +1272,8 @@ function IncomingApplicationSubjects({ studentId }) {
                 </ul>
                 <p>Saved preferences</p>
                 <dl className="coordinator-applications__fields coordinator-review__fields">
-                  <div><dt>First saved</dt><dd><time dateTime={state.preferences.subject_preferences_created_at}>{formatUpdateTime(state.preferences.subject_preferences_created_at)}</time></dd></div>
-                  <div><dt>Last modified</dt><dd><time dateTime={state.preferences.subject_preferences_updated_at}>{formatUpdateTime(state.preferences.subject_preferences_updated_at)}</time></dd></div>
+                  <div><dt>First saved</dt><dd><time dateTime={state.preferences.subject_preferences_created_at}>{formatDateTime(state.preferences.subject_preferences_created_at)}</time></dd></div>
+                  <div><dt>Last modified</dt><dd><time dateTime={state.preferences.subject_preferences_updated_at}>{formatDateTime(state.preferences.subject_preferences_updated_at)}</time></dd></div>
                 </dl>
               </>
             )}
@@ -1319,7 +1319,7 @@ export function ManageApplication({ type }) {
           getPartnerUniversities(),
           getCountries(),
           row.emergency_contact
-            ? supabase.from('emergency_contact').select('*').eq('contact_id', row.emergency_contact)
+            ? supabase.from('emergency_contact').select('contact_id, name, phone_number, email').eq('contact_id', row.emergency_contact)
             : Promise.resolve({ data: [] }),
           readProfiles(config.profileTable, [row]),
         ])
@@ -1492,10 +1492,9 @@ export function ManageApplication({ type }) {
                 <div className="coordinator-review__photo coordinator-review__photo--empty" aria-hidden="true">{initials}</div>
               )}
               <div className="coordinator-review__identity">
-                <span className="auth-card__eyebrow">Manage {config.label} application</span>
                 <h1 id="review-heading">{studentName}</h1>
                 <p className="coordinator-review__meta">
-                  Student ID: {application.student_id || 'Unavailable'} · {getCycleLabel(application, lookups.cycles)}
+                  {config.label === 'inbound' ? 'Inbound' : 'Outbound'} application · Student ID: {application.student_id || 'Unavailable'} · {getCycleLabel(application, lookups.cycles)}
                   {studentEmail ? ` · ${studentEmail}` : ''}
                 </p>
                 <div className="coordinator-review__status">

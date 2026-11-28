@@ -89,7 +89,6 @@ export default function PartnerUniversitiesRoute() {
   return (
     <section className="partner-directory" aria-labelledby="partner-directory-heading">
       <div className="partner-directory__intro">
-        <span className="auth-card__eyebrow">Global connections</span>
         <h1 id="partner-directory-heading">Our partner universities</h1>
         <p>Explore the institutions that make exchange opportunities around the world possible.</p>
       </div>
@@ -145,7 +144,6 @@ export default function PartnerUniversitiesRoute() {
               {detailsUniversity && (
                 <>
                   <div className="partner-directory__details-copy">
-                    <span className="auth-card__eyebrow">{selectedUniversity ? 'Selected partner' : 'Home'}</span>
                     <div className="partner-directory__selected-logo">
                       {detailsUniversity.logo_url ? (
                         <img src={detailsUniversity.logo_url} alt="" />

@@ -219,15 +219,15 @@
 
 .coordinator-review__badge--submitted,
 .coordinator-review__badge--accepted {
-  border-color: rgba(54, 211, 153, 0.48);
-  background: rgba(54, 211, 153, 0.12);
-  color: #36d399;
+  border-color: color-mix(in srgb, var(--success-solid) 48%, transparent);
+  background: var(--success-tint);
+  color: var(--success);
 }
 
 .coordinator-review__badge--rejected {
-  border-color: rgba(255, 51, 79, 0.6);
-  background: rgba(255, 51, 79, 0.12);
-  color: #ff8f9d;
+  border-color: color-mix(in srgb, var(--danger-solid) 60%, transparent);
+  background: var(--danger-tint);
+  color: var(--danger);
 }
 
 .coordinator-review__live {
@@ -257,7 +257,7 @@
 }
 
 .coordinator-review__message {
-  color: #36d399;
+  color: var(--success);
 }
 
 .coordinator-review__warning {
@@ -420,27 +420,19 @@
 }
 
 .coordinator-review__metric--good {
-  border-left-color: #36d399;
+  border-left-color: var(--success);
 }
 
 .coordinator-review__metric--good strong {
-  color: #36d399;
+  color: var(--success);
 }
 
 .coordinator-review__metric--alert {
-  border-left-color: #ff334f;
+  border-left-color: var(--danger-solid);
 }
 
 .coordinator-review__metric--alert strong {
-  color: #ff8f9d;
-}
-
-:root[data-theme='light'] .coordinator-review__metric--good strong {
-  color: #087443;
-}
-
-:root[data-theme='light'] .coordinator-review__metric--alert strong {
-  color: #b42318;
+  color: var(--danger);
 }
 
 @media (max-width: 960px) {
@@ -469,22 +461,8 @@
   color: var(--text);
 }
 
-:root[data-theme='light'] .coordinator-review__badge--submitted,
-:root[data-theme='light'] .coordinator-review__badge--accepted,
 :root[data-theme='light'] .coordinator-review__message {
-  border-color: rgba(22, 128, 74, 0.5);
-  background: #e8f3ed;
-  color: #087443;
-}
-
-:root[data-theme='light'] .coordinator-review__message {
-  background: none;
-}
-
-:root[data-theme='light'] .coordinator-review__badge--rejected {
-  border-color: rgba(198, 40, 40, 0.5);
-  background: #f9eaea;
-  color: #b42318;
+  border-color: color-mix(in srgb, var(--success-solid) 50%, transparent);
 }
 
 .update-composer {

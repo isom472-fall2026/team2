@@ -21,9 +21,9 @@
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid #ff8f9d;
+  border: 1px solid var(--danger);
   border-radius: var(--radius-sm);
-  background: rgba(255, 143, 157, 0.08);
+  background: var(--danger-tint);
   color: var(--text-strong);
 }
 

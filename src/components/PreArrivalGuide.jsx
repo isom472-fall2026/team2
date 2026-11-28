@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { getCycles } from '../referenceData'
 import { guideCopy as copy, guideSections } from '../preArrivalGuideContent'
 import './PreArrivalGuide.css'
+import { formatDate } from '../dates'
 
 const iconPaths = {
   plane: 'm22 2-7 20-4-9-9-4 20-7ZM22 2 11 13',
@@ -25,10 +26,8 @@ function GuideIcon({ name, className = '' }) {
   return <svg className={`arrival-guide__icon ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[name]} /></svg>
 }
 
-const dateFormatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kuwait' })
-
-function formatDate(value) {
-  return value && Number.isFinite(Date.parse(value)) ? dateFormatter.format(new Date(value)) : copy.cycle.unset
+function formatSemesterDate(value) {
+  return formatDate(value, copy.cycle.unset)
 }
 
 function arrivalDate(value) {
@@ -146,7 +145,7 @@ export default function PreArrivalGuide() {
         <div className="arrival-guide__semester-heading"><div><span className="arrival-guide__eyebrow"><GuideIcon name="calendar" />{copy.cycle.title}</span><h3 id={`${id}-semester`}>{cycle ? `${cycle.semester} ${cycle.academic_year}` : copy.cycle.label}</h3></div>
           {!load.loading && !load.error && cycles.length > 0 && <select aria-label={copy.cycle.label} value={String(cycle.id)} onChange={(event) => setSelection(event.target.value)}>{cycles.map((item) => <option key={item.id} value={item.id}>{item.semester} {item.academic_year}</option>)}</select>}
         </div>
-        {load.loading ? <p role="status">{copy.cycle.loading}</p> : load.error ? <div role="alert"><p>{copy.cycle.error}</p><button type="button" className="arrival-guide__text-button" onClick={() => { setLoad({ loading: true, error: false }); setRetry((count) => count + 1) }}>{copy.cycle.retry}</button></div> : !cycle ? <p>{copy.cycle.empty}</p> : <><dl className="arrival-guide__dates"><div className="arrival-guide__arrive"><dt>{copy.cycle.arrival}</dt><dd>{formatDate(arrivalDate(cycle.cycle_start))}</dd></div><div><dt>{copy.cycle.starts}</dt><dd>{formatDate(cycle.cycle_start)}</dd></div><div><dt>{copy.cycle.ends}</dt><dd>{formatDate(cycle.cycle_end)}</dd></div></dl><p className="arrival-guide__date-note">{copy.cycle.note}</p></>}
+        {load.loading ? <p role="status">{copy.cycle.loading}</p> : load.error ? <div role="alert"><p>{copy.cycle.error}</p><button type="button" className="arrival-guide__text-button" onClick={() => { setLoad({ loading: true, error: false }); setRetry((count) => count + 1) }}>{copy.cycle.retry}</button></div> : !cycle ? <p>{copy.cycle.empty}</p> : <><dl className="arrival-guide__dates"><div className="arrival-guide__arrive"><dt>{copy.cycle.arrival}</dt><dd>{formatSemesterDate(arrivalDate(cycle.cycle_start))}</dd></div><div><dt>{copy.cycle.starts}</dt><dd>{formatSemesterDate(cycle.cycle_start)}</dd></div><div><dt>{copy.cycle.ends}</dt><dd>{formatSemesterDate(cycle.cycle_end)}</dd></div></dl><p className="arrival-guide__date-note">{copy.cycle.note}</p></>}
       </section>
 
       <div className="arrival-guide__browse">

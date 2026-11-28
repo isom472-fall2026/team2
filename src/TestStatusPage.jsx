@@ -30,7 +30,6 @@ export default function TestStatusPage() {
   return (
     <section className="status-page" aria-labelledby="status-heading">
       <div className="status-card">
-        <span className="auth-card__eyebrow">System diagnostics</span>
         <h1 id="status-heading">Test and Status</h1>
         <div className="database-status">
           <span className={`database-status__dot database-status__dot--${status}`} aria-hidden="true" />

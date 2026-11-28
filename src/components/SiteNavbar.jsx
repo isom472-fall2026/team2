@@ -1,6 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 import ExchangeNav from './ExchangeNav'
-import { supabase } from '../supabase'
+import { signOut } from '../signOut'
 import { useAppStore } from '../stores/appStore'
 import { toggleTheme } from '../themeTransition'
 import { isKuCoordinatorProfile } from '../coordinatorProfile'
@@ -19,11 +19,6 @@ export default function SiteNavbar({ onHomeClick }) {
   const theme = useAppStore((state) => state.theme)
   const userName = profile?.name || session?.user?.user_metadata?.name || session?.user?.email
   const userType = session ? portalLabel(profile, session.user.email) : null
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) window.alert(error.message)
-  }
 
   return (
     <ExchangeNav

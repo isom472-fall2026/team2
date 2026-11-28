@@ -86,7 +86,6 @@ export default function InactivityGuard({ onSessionEnded }) {
         aria-labelledby="inactivity-warning-heading"
         aria-describedby="inactivity-warning-description"
       >
-        <span className="auth-card__eyebrow">Session security</span>
         <h2 id="inactivity-warning-heading">Are you still there?</h2>
         <p id="inactivity-warning-description">
           You will be signed out in {Math.floor(warningSeconds / 60)}:

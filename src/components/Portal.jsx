@@ -11,6 +11,7 @@ import { forgetCycles, getCycles, getPartnerUniversities } from '../referenceDat
 import { useAppStore } from '../stores/appStore'
 import { useStatusToast } from '../useStatusToast'
 import { inboundApprovalLabel } from '../inboundApproval'
+import { formatDate, formatDateTime } from '../dates'
 
 const CycleComparison = lazy(() => import('./CycleComparison'))
 const CycleReport = lazy(() => import('./CycleReport'))
@@ -151,7 +152,7 @@ const kuCoordinatorNav = (canViewCycleReport) => [
     items: [
       { view: 'start', label: 'Start KU semester' },
       { view: 'manage', label: 'Manage KU semester' },
-      ...(canViewCycleReport ? [{ view: 'cycle-graphs', label: 'Exchange cycle graphs' }, { view: 'compare-cycles', label: 'Compare exchange cycles' }] : []),
+      ...(canViewCycleReport ? [{ view: 'cycle-graphs', label: 'KU semester graphs' }, { view: 'compare-cycles', label: 'Compare KU semesters' }] : []),
       { view: 'subjects', label: 'CBA subjects' },
     ],
   },
@@ -270,9 +271,7 @@ function newestCycleFirst(cycles) {
 }
 
 function formatCycleDate(value) {
-  if (!value) return 'Not set'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleString()
+  return formatDateTime(value, 'Not set')
 }
 
 function toDateTimeLocal(value) {
@@ -289,7 +288,7 @@ function validateCycleForm(form) {
     ['KU semester', form.cycleStart, form.cycleEnd],
   ]
   if (dates.some(([, open, close]) => !open || !close || Number.isNaN(new Date(open).getTime()) || Number.isNaN(new Date(close).getTime()))) {
-    return 'Enter valid opening and closing dates for every cycle stage.'
+    return 'Enter valid opening and closing dates for every stage of the KU semester.'
   }
   return dates.some(([, open, close]) => new Date(open) >= new Date(close))
     ? 'Each opening or start date must be before its closing or end date.'
@@ -359,7 +358,7 @@ function CycleForm({ form, setForm, onSubmit, isSubmitting, status, submitLabel,
       {status.error && <p className="auth-form__error" role="alert">{status.error}</p>}
       <div className="cycle-form__actions">
         <button className="btn btn--primary" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving cycle...' : submitLabel}
+          {isSubmitting ? 'Saving KU semester...' : submitLabel}
         </button>
         {onCancel && <button className="btn btn--secondary" type="button" onClick={onCancel} disabled={isSubmitting}>Cancel</button>}
       </div>
@@ -735,7 +734,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       return
     }
     if (!updatedCycle) {
-      showError('The cycle was not updated. It may have been removed or you may not have permission.')
+      showError('The KU semester was not updated. It may have been removed or you may not have permission.')
       return
     }
     if (await loadCycles()) {
@@ -761,7 +760,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
       return
     }
     if (!deletedCycle) {
-      showError('The cycle was not deleted. It may have already been removed or you may not have permission.')
+      showError('The KU semester was not deleted. It may have already been removed or you may not have permission.')
       return
     }
     forgetCycles()
@@ -901,8 +900,8 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           title="Delete KU semester?"
           error={status.error}
           busy={isDeletingCycle}
-          confirmLabel="Delete cycle"
-          busyLabel="Deleting cycle..."
+          confirmLabel="Delete KU semester"
+          busyLabel="Deleting KU semester..."
           onConfirm={deleteExchangeCycle}
           onCancel={() => {
             setPendingDeleteCycle(null)
@@ -910,7 +909,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           }}
         >
           You’re about to permanently delete <strong>{pendingDeleteCycle.semester} {pendingDeleteCycle.academic_year}</strong>.
-          Any student nominations linked to this cycle will also be deleted. This action cannot be undone.
+          Any student nominations linked to this KU semester will also be deleted. This action cannot be undone.
         </ConfirmDialog>
       )}
       {pendingDeleteNomination && (
@@ -993,7 +992,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                       />
                     ) : (
                       <>
-                        <div className="cycle-list__heading"><strong>{cycle.semester} {cycle.academic_year}</strong><span>Cycle #{cycle.id}</span></div>
+                        <div className="cycle-list__heading"><strong>{cycle.semester} {cycle.academic_year}</strong><span>KU semester #{cycle.id}</span></div>
                         <dl>
                           <div><dt>Nominations</dt><dd>{formatCycleDate(cycle.nominations_o)} – {formatCycleDate(cycle.nominations_c)}</dd></div>
                           <div><dt>Applications</dt><dd>{formatCycleDate(cycle.application_o)} – {formatCycleDate(cycle.application_c)}</dd></div>
@@ -1011,13 +1010,13 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                                   clearStatus()
                                 }}
                               >
-                                Edit cycle
+                                Edit KU semester
                               </button>
                               <button className="btn btn--danger" type="button" onClick={() => {
                                 setPendingDeleteCycle(cycle)
                                 clearStatus()
                               }}>
-                                Delete cycle
+                                Delete KU semester
                               </button>
                             </>
                           ) : (
@@ -1068,7 +1067,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                             <div><dt>Student ID</dt><dd>{application.student_id || 'Unavailable'}</dd></div>
                             <div><dt>Application status</dt><dd>{application.application_status}</dd></div>
                             <div><dt>Previous status</dt><dd>{application.withdrawal_previous_status || 'Unavailable'}</dd></div>
-                            <div><dt>KU semester</dt><dd>{cycle ? `${cycle.semester} ${cycle.academic_year}` : `Cycle #${application.semester_applied_for || 'Unavailable'}`}</dd></div>
+                            <div><dt>KU semester</dt><dd>{cycle ? `${cycle.semester} ${cycle.academic_year}` : `KU semester #${application.semester_applied_for || 'Unavailable'}`}</dd></div>
                             <div><dt>Destination university</dt><dd>{university?.name || 'Unavailable'}</dd></div>
                             <div><dt>Submitted</dt><dd>{formatCycleDate(application.submitted_at)}</dd></div>
                             <div><dt>Withdrawal reason</dt><dd>{application.withdrawal_reason || 'No reason provided'}</dd></div>
@@ -1116,7 +1115,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                 value={progressCycle}
                 onChange={(event) => setProgressCycle(event.target.value)}
               >
-                <option value="all">All cycles</option>
+                <option value="all">All KU semesters</option>
                 {cycles.map((cycle) => (
                   <option key={cycle.id} value={cycle.id}>
                     {cycle.semester} {cycle.academic_year}
@@ -1135,7 +1134,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                       <tr>
                         <th scope="col">Student</th>
                         <th scope="col">Email</th>
-                        <th scope="col">Cycle</th>
+                        <th scope="col">KU semester</th>
                         <th scope="col">Nomination status</th>
                         <th scope="col">Application progress</th>
                       </tr>
@@ -1150,7 +1149,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                           <tr key={nomination.id}>
                             <th scope="row">{nomination.student_name}</th>
                             <td>{nomination.student_email}</td>
-                            <td>{cycle ? `${cycle.semester} ${cycle.academic_year}` : `Cycle #${nomination.semester}`}</td>
+                            <td>{cycle ? `${cycle.semester} ${cycle.academic_year}` : `KU semester #${nomination.semester}`}</td>
                             <td>{nomination.nomination_status}</td>
                             <td>{applicationStatus}</td>
                           </tr>
@@ -1272,9 +1271,9 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
                         <td>{nomination.id}</td>
                         <th scope="row">{nomination.student_name}</th>
                         <td>{nomination.student_email}</td>
-                        <td>{semester ? `${semester.semester} ${semester.academic_year}` : `Cycle #${nomination.semester}`}</td>
+                        <td>{semester ? `${semester.semester} ${semester.academic_year}` : `KU semester #${nomination.semester}`}</td>
                         <td>{nomination.nomination_status}</td>
-                        <td>{formatCycleDate(nomination.created_at)}</td>
+                        <td>{formatDate(nomination.created_at)}</td>
                         <td>
                           <div className="nomination-table__actions">
                             <button
@@ -1410,7 +1409,6 @@ function CoordinatorAccessPending({ user, universityId, onSignOut, onDeleted }) 
     return (
       <section className="portal-page" aria-labelledby="access-pending-heading">
         <div className="portal-card">
-          <span className="auth-card__eyebrow">Access removed</span>
           <h1 id="access-pending-heading">Your university is no longer a partner</h1>
           <p>
             <strong dir="auto">{deletedUniversity}</strong> has been removed from the Kuwait University exchange
@@ -1426,7 +1424,6 @@ function CoordinatorAccessPending({ user, universityId, onSignOut, onDeleted }) 
   return (
     <section className="portal-page" aria-labelledby="access-pending-heading">
       <div className="portal-card">
-        <span className="auth-card__eyebrow">Access pending</span>
         <h1 id="access-pending-heading">Your coordinator access is being reviewed</h1>
         <p>
           Your request for <strong>{user.email}</strong> has been sent to a Kuwait University coordinator.

@@ -531,8 +531,7 @@ SELECT setval(
 
 INSERT INTO public.feedback (id, details, edited, iapplicationid, oapplicationid)
 VALUES
-    (990001, 'Seed fixture feedback for the incoming exchange application.', FALSE, 990001, NULL),
-    (990002, 'Seed fixture feedback for the outgoing exchange application.', TRUE, NULL, 990001)
+    (990001, 'Seed fixture feedback for the incoming exchange application.', FALSE, 990001, NULL)
 ON CONFLICT (id) DO UPDATE SET
     details = EXCLUDED.details,
     edited = EXCLUDED.edited,

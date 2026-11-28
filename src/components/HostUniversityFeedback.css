@@ -1,0 +1,91 @@
+.host-feedback {
+  max-width: 48rem;
+}
+
+.host-feedback__card {
+  margin-top: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}
+
+.host-feedback__card h3 {
+  margin: 0;
+  color: var(--text-strong);
+}
+
+.host-feedback__semester,
+.host-feedback__hint,
+.host-feedback__date {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.host-feedback__locked {
+  color: var(--text-muted);
+}
+
+/* The portal's `.portal-card p` colour outranks `.auth-form__error`, which would leave
+   errors here looking like ordinary text. */
+.host-feedback .auth-form__error {
+  color: var(--danger);
+}
+
+.host-feedback__form {
+  margin-top: 12px;
+}
+
+.host-feedback__form input {
+  max-width: 8rem;
+}
+
+.host-feedback__confirmation {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--success-tint);
+  color: var(--success);
+}
+
+.host-feedback__submitted {
+  margin-top: 12px;
+}
+
+.host-feedback__rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 0.9rem;
+}
+
+.host-feedback__stars {
+  color: var(--neon-gold);
+  font-size: 1.15rem;
+  letter-spacing: 2px;
+}
+
+.host-feedback__stars-empty {
+  color: var(--text-muted);
+  opacity: 0.45;
+}
+
+.host-feedback__comment {
+  margin: 6px 0 0;
+  white-space: pre-line;
+}
+
+.host-feedback__list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.host-feedback__list li {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}

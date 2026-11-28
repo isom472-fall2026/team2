@@ -32,6 +32,8 @@ const EmergencyContact = lazy(() => import('./EmergencyContact'))
 const EmergencyContactLookup = lazy(() => import('./EmergencyContact').then((module) => ({ default: module.EmergencyContactLookup })))
 const MySchedule = lazy(() => import('./InboundSchedule').then((module) => ({ default: module.MySchedule })))
 const MyGrades = lazy(() => import('./InboundGrades').then((module) => ({ default: module.MyGrades })))
+const HostUniversityFeedback = lazy(() => import('./HostUniversityFeedback'))
+const HostUniversityRatings = lazy(() => import('./HostUniversityFeedback').then((module) => ({ default: module.HostUniversityRatings })))
 
 
 // One highlight for the whole sidebar. It slides to the selected tab, so the tabs themselves can
@@ -173,6 +175,7 @@ const kuCoordinatorNav = (canViewCycleReport) => [
     items: [
       { view: 'add-university', label: 'Add university' },
       { view: 'manage-universities', label: 'Manage universities' },
+      { view: 'ratings', label: 'Ratings' },
       { view: 'coordinators', label: 'Coordinator access' },
     ],
   },
@@ -192,6 +195,7 @@ const partnerCoordinatorNav = [
       { view: 'manage', label: 'Manage KU semester' },
       { view: 'nominations', label: 'Student nominations' },
       { view: 'progress', label: 'Nominee progress' },
+      { view: 'ratings', label: 'Ratings' },
       { view: 'account', label: 'My account' },
     ],
   },
@@ -955,6 +959,7 @@ function CoordinatorPortal({ onDeleted, onSignOut, onRetryMaintenanceStatus }) {
           </Suspense>
         )}
         {isKuCoordinator && activeView === 'subjects' && <Suspense fallback={null}><SubjectImport /></Suspense>}
+        {activeView === 'ratings' && <Suspense fallback={null}><HostUniversityRatings /></Suspense>}
         {canViewCycleReport && activeView === 'compare-cycles' && (
           <Suspense fallback={null}><CycleComparison cycles={cycles} /></Suspense>
         )}
@@ -1483,6 +1488,8 @@ const studentPortalViews = [
   { id: 'subject-preferences', label: 'Preferred CBA subjects', role: 'incoming' },
   { id: 'support', label: 'Contact the office', role: 'incoming' },
   { id: 'emergency-contact', label: 'Emergency contact', role: 'incoming' },
+  { id: 'host-feedback', label: 'Rate your host university', role: 'ku' },
+  { id: 'ratings', label: 'Ratings', role: 'ku' },
   { id: 'account', label: 'My account' },
 ]
 
@@ -1548,6 +1555,8 @@ function StudentPortal({ user, profile, onSignOut, onDeleted }) {
         {shownView === 'support' && <Suspense fallback={null}><SupportRequests profile={profile} /></Suspense>}
         {shownView === 'emergency-contact' && <Suspense fallback={null}><EmergencyContact key={profile.student_id} studentId={profile.student_id} /></Suspense>}
         {shownView === 'subject-preferences' && <Suspense fallback={null}><IncomingSubjectPreferences key={profile.student_id} profile={profile} /></Suspense>}
+        {shownView === 'host-feedback' && <Suspense fallback={null}><HostUniversityFeedback key={profile.student_id} studentId={profile.student_id} /></Suspense>}
+        {shownView === 'ratings' && <Suspense fallback={null}><HostUniversityRatings /></Suspense>}
         {shownView === 'account' && (
           <>
             <Suspense fallback={null}><StudentAccount profile={profile} /></Suspense>
